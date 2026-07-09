@@ -16,7 +16,8 @@ P3="M82.5,25.5 C76.5,32.5 72,40.5 69.5,48"
 # ── 앱 아이콘 (잉크 블록 타일 + 확정 글리프, 1024px) ─────────────────
 magick -size 1024x1024 "gradient:#FFDF33-#F5C800" "$TMP/tile.png"
 magick -size 1024x1024 xc:none -draw "fill black roundrectangle 0,0 1023,1023 232,232" "$TMP/mask.png"
-magick "$TMP/tile.png" "$TMP/mask.png" -compose DstIn -composite "$TMP/block.png"
+# -alpha set 필수: 타일에 알파 채널이 없으면 DstIn 결과가 불투명(검정 모서리)으로 평탄화된다
+magick "$TMP/tile.png" -alpha set "$TMP/mask.png" -compose DstIn -composite "$TMP/block.png"
 # 글리프를 타일 중심(512,512)에 축소 배치해 사방 여백을 균등하게 준다.
 # scale 7.5 + 글리프 bbox 중심(51.75,49.75) 기준 정렬 → 약 20% 여백.
 GC="translate 512,512 scale 7.5,7.5 translate -51.75,-49.75"
