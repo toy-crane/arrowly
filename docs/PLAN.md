@@ -64,10 +64,9 @@
 
 | 이름 | 방향 | 페이로드 | 시점 |
 |---|---|---|---|
-| `mode-changed` (event) | Rust→웹뷰 | `{ drawing: boolean }` | 토글·Esc 직후 |
-| `clear-all` (event) | Rust→웹뷰 | 없음 | ⌥⌫ 전역 단축키 수신 시 |
+| `mode-changed` (event) | Rust→웹뷰 | `{ drawing: boolean }` | 토글·Esc 직후. `drawing:false` 수신 시 웹뷰는 그림 전체 삭제 |
+| `clear-all` (event) | Rust→웹뷰 | 없음 | 트레이 "전체 지우기" 클릭 시 (⌥⌫는 웹뷰 keydown이 직접 처리 — 전역 아님) |
 | `marker-hidden-changed` (event) | Rust→웹뷰 | `{ hidden: boolean }` | 트레이 토글 시 |
-| `set_strokes_present` (command) | 웹뷰→Rust | `present: boolean` | 획 0↔1개 경계를 넘을 때마다 |
 | `toggle_drawing` (command) | 웹뷰→Rust | 없음 | 온보딩·마커에서 모드 전환 요청 |
 | `try_register_shortcut` (command) | 웹뷰→Rust | `{ id: "toggle"\|"clear", accelerator: string }` | 레코더 검증: 임시 register→unregister, `Result<(), String>` 반환 |
 | `apply_settings` (command) | 웹뷰→Rust | 설정 객체 전체 | 온보딩 완료·설정 변경 시 |
@@ -194,14 +193,14 @@
 3. 입력 (Pointer Events):
    - `pointerdown`(마커 영역 제외): `live` 시작, `setPointerCapture`
    - `pointermove`: `e.getCoalescedEvents?.() ?? [e]`의 점들을 `live.points`에 push, 렌더는 rAF로 배칭(프레임당 1회, live 캔버스만 clear&redraw)
-   - `pointerup`: live를 strokes에 push, base에 그 획만 추가 렌더(전체 재렌더 금지), live 클리어, `redoStack = []`, 획 0→1이면 `invoke("set_strokes_present", { present: true })`
+   - `pointerup`: live를 strokes에 push, base에 그 획만 추가 렌더(전체 재렌더 금지), live 클리어, `redoStack = []`
 4. 렌더(`smoothing.ts`): 점 4개 미만이면 polyline. 이상이면 Catmull-Rom→cubic Bézier:
    ```
    각 구간 [p1,p2]에 대해 cp1 = p1 + (p2 − p0)/6, cp2 = p2 − (p3 − p1)/6
    ctx.bezierCurveTo(cp1, cp2, p2)
    ```
    공통 스타일: `lineCap="round"`, `lineJoin="round"`, `globalAlpha=1`(외곽선·그림자 금지).
-5. 교정: `undo()`=strokes.pop→redoStack, `redo()`, `clearAll()`. base 재렌더는 undo/redo/clear에서만 전체 수행. ⌘Z/⇧⌘Z는 window keydown에서 처리(`e.metaKey && e.key==="z"`, shift로 분기). `clear-all` 이벤트 리스너 연결. 획이 1→0이 되면 `set_strokes_present(false)`.
+5. 교정: `undo()`=strokes.pop→redoStack, `redo()`, `clearAll()`. base 재렌더는 undo/redo/clear에서만 전체 수행. ⌘Z/⇧⌘Z는 window keydown에서 처리(`e.metaKey && e.key==="z"`, shift로 분기), ⌥⌫도 window keydown에서 처리(전역 단축키 아님). `clear-all` 이벤트 리스너 연결. `mode-changed` `drawing:false` 수신 시 strokes·redoStack·live 전체 삭제(방식 A: 그림 수명 = 그리기 모드).
 6. 검증: tsc·build 통과 후 커밋 `feat: 캔버스 그리기 엔진` → **사용자 Mac 체감 판정**(빠른 지그재그가 각지지 않는가, Retina에서 선명한가, 지연이 거슬리지 않는가).
 
 ## M4. 모드 토글과 전역 단축키
@@ -212,11 +211,11 @@
    | 현재 | 입력 | 동작 |
    |---|---|---|
    | 통과 | ⌥Tab | 그리기 ON 시퀀스 |
-   | 그리기 | ⌥Tab 또는 Esc | 통과 모드 시퀀스 |
-   | 임의 | ⌥⌫ (획 있을 때만 등록됨) | `clear-all` emit |
+   | 그리기 | ⌥Tab 또는 Esc | 통과 모드 시퀀스 (그림 전체 삭제 포함) |
+   | 그리기 | ⌥⌫ (웹뷰 keydown, 전역 아님) | 웹뷰가 그림 전체 삭제, 모드 유지 |
 2. 그리기 ON 시퀀스: ① `cursor_position()`으로 전역 커서 좌표 ② `available_monitors()`에서 좌표를 포함하는 모니터 선택 ③ 패널 프레임을 그 모니터 전체로 ④ Esc 전역 등록 ⑤ `set_ignore_cursor_events(false)` ⑥ `show()` ⑦ `emit("mode-changed", { drawing: true })` ⑧ 트레이 아이콘 상태 갱신. **④가 실패하면 ⑤~⑦을 하지 않고 에러 알림**(탈출구 없는 진입 금지).
-3. 통과 모드 시퀀스: Esc 해제 → `set_ignore_cursor_events(true)` → emit. 패널은 hide하지 않는다(그림 유지).
-4. 등록 수명: ⌥Tab=기동 시 상시(실패 시 트레이 메뉴로만 진입 가능하게 하고 배지·알림), Esc=그리기 ON 동안만, ⌥⌫=`set_strokes_present(true/false)`에 따라 등록/해제.
+3. 통과 모드 시퀀스: Esc 해제 → `set_ignore_cursor_events(true)` → 패널 hide → `emit("mode-changed", { drawing: false })` (웹뷰는 수신 즉시 그림 전체 삭제 — 방식 A).
+4. 등록 수명: ⌥Tab=기동 시 상시(실패 시 트레이 메뉴로만 진입 가능하게 하고 배지·알림), Esc=그리기 ON 동안만. ⌥⌫은 전역 등록 없음(웹뷰 keydown 처리).
 5. 커서(`src/overlay/cursor.ts`): 현재 색·굵기로 SVG를 data-URI로 만들어 `document.body.style.cursor = url(...) 16 16, crosshair`. 점(현재 색, 지름=굵기px×2, 최소 8) + 흐린 흰 링(rgba(255,255,255,.35), 1.5px). 통과 모드에선 `cursor: default` (어차피 이벤트 무시 상태).
 6. 검증 커밋 `feat: 모드 토글·전역 단축키` → 사용자 Mac: REQUIREMENTS 구현 순서 4·5 기준 + "웹뷰 강제 정지(무한루프 주입) 상태에서도 Esc로 탈출됨".
 
@@ -260,7 +259,7 @@
 
 - 창: 일반 WebviewWindow(`onboarding`), 640×480, 불투명, resizable(false), center. `onboardingDone=false`일 때 기동 시 생성. Accessory 정책에서 포커스가 안 오면 표시 직전 `app.show()`/activate 처리 확인.
 - STEP 1 그려보기: 창 내 미니 캔버스(M3 엔진 재사용, 규모만 축소). 획 하나 그리면 "다음" 활성화.
-- STEP 2 단축키 레코더: 필드 포커스 상태에서 `keydown` 캡처 → `e.metaKey/altKey/ctrlKey/shiftKey + e.code`를 accelerator 문자열("Alt+Tab" 형식)로 조립, 심볼 표시(⌥⇥). "적용" 시 `try_register_shortcut` invoke — 실패하면 필드 아래 빨간 인라인 메시지("이 조합은 사용 중"). 기본값 ⌥Tab/⌥⌫ 미리 채움. Esc는 예약 키므로 입력 거부.
+- STEP 2 단축키 레코더: 필드 포커스 상태에서 `keydown` 캡처 → `e.metaKey/altKey/ctrlKey/shiftKey + e.code`를 accelerator 문자열("Alt+Tab" 형식)로 조립, 심볼 표시(⌥⇥). "적용" 시 toggle만 `try_register_shortcut` invoke — 실패하면 필드 아래 빨간 인라인 메시지("이 조합은 사용 중"). clear(⌥⌫)는 앱 내부 키라 전역 충돌 검사 불필요. 기본값 ⌥Tab/⌥⌫ 미리 채움. Esc는 예약 키므로 입력 거부.
 - STEP 3 Esc·⌘Z 체험: 안내 + 미니 캔버스에서 ⌘Z 실습. 마지막 줄 "Arrowly는 메뉴바에서 기다립니다." → 완료 버튼 → `apply_settings` + `onboardingDone=true` 저장 → 창 close.
 - 조건부 권한 단계: 현 아키텍처에선 표시하지 않음. `steps` 배열에 자리만 남긴다.
 - 커밋 `feat: 온보딩` → 사용자 Mac: 20초 완주, 재실행 시 안 뜸, 트레이 "튜토리얼 다시 보기"로 재진입.
