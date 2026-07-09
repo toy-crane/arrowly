@@ -1,17 +1,18 @@
 import { CSSProperties } from "react";
 import { acceleratorSymbols } from "../shared/accelerator";
+import { t } from "../shared/i18n";
 import { ShortcutEditor, styles as ed } from "../shared/ShortcutEditor";
 
 // 재설정 불가 — OS 표준·예약 키라 참고용으로 보여준다
 const FIXED_ROWS: { label: string; accel: string }[] = [
-  { label: "실행 취소", accel: "Cmd+KeyZ" },
-  { label: "빠져나가기", accel: "Escape" },
+  { label: t("settings.undo"), accel: "Cmd+KeyZ" },
+  { label: t("settings.exit"), accel: "Escape" },
 ];
 
 export function SettingsApp() {
   return (
     <main style={root}>
-      <h1 style={title}>단축키</h1>
+      <h1 style={title}>{t("settings.title")}</h1>
       <div style={card}>
         <ShortcutEditor />
         {FIXED_ROWS.map(({ label, accel }) => (
@@ -25,7 +26,7 @@ export function SettingsApp() {
                   </span>
                 ))}
               </div>
-              <span style={fixedTag}>고정</span>
+              <span style={fixedTag}>{t("settings.fixed")}</span>
             </div>
           </div>
         ))}

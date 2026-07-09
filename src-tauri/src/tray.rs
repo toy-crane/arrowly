@@ -63,20 +63,21 @@ fn build_menu(
         let s = state.lock().unwrap();
         (s.toggle_accel.clone(), s.clear_accel.clone())
     };
+    let tr = crate::i18n::tray();
     let toggle = MenuItem::with_id(
         app,
         "toggle",
-        if drawing { "그리기 중지" } else { "그리기 시작" },
+        if drawing { tr.stop_drawing } else { tr.start_drawing },
         true,
         Some(toggle_accel.as_str()),
     )?;
-    let clear = MenuItem::with_id(app, "clear", "전체 지우기", true, Some(clear_accel.as_str()))?;
-    let marker = CheckMenuItem::with_id(app, "marker", "마커 숨기기", true, marker_hidden, None::<&str>)?;
+    let clear = MenuItem::with_id(app, "clear", tr.clear_all, true, Some(clear_accel.as_str()))?;
+    let marker = CheckMenuItem::with_id(app, "marker", tr.hide_marker, true, marker_hidden, None::<&str>)?;
     let autostart =
-        CheckMenuItem::with_id(app, "autostart", "로그인 시 실행", true, autostart_on, None::<&str>)?;
-    let shortcuts = MenuItem::with_id(app, "shortcuts", "단축키 설정…", true, None::<&str>)?;
-    let tutorial = MenuItem::with_id(app, "tutorial", "튜토리얼 다시 보기", true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, "quit", "Arrowly 종료", true, None::<&str>)?;
+        CheckMenuItem::with_id(app, "autostart", tr.launch_at_login, true, autostart_on, None::<&str>)?;
+    let shortcuts = MenuItem::with_id(app, "shortcuts", tr.shortcut_settings, true, None::<&str>)?;
+    let tutorial = MenuItem::with_id(app, "tutorial", tr.replay_tutorial, true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", tr.quit, true, None::<&str>)?;
     let sep1 = PredefinedMenuItem::separator(app)?;
     let sep2 = PredefinedMenuItem::separator(app)?;
 

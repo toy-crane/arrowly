@@ -1,5 +1,6 @@
 import { CSSProperties, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Color, COLORS, WidthKey, WIDTHS } from "../shared/constants";
+import { t } from "../shared/i18n";
 import { loadMarkerPos, MarkerPos, saveMarkerPos } from "../shared/settings";
 
 type Panel = "collapsed" | "colors" | "widths";
@@ -136,7 +137,7 @@ export function Marker({ color, widthKey, onColorChange, onWidthChange }: Props)
     >
       <button
         style={{ ...btn, ...(panel === "colors" ? activeCell : undefined) }}
-        aria-label="색 바꾸기"
+        aria-label={t("marker.changeColor")}
         onClick={() => togglePanel("colors")}
       >
         <span style={{ ...dot, background: color }} />
@@ -144,7 +145,7 @@ export function Marker({ color, widthKey, onColorChange, onWidthChange }: Props)
       <span style={divider} />
       <button
         style={{ ...btn, ...(panel === "widths" ? activeCell : undefined) }}
-        aria-label="굵기 바꾸기"
+        aria-label={t("marker.changeWidth")}
         onClick={() => togglePanel("widths")}
       >
         <span style={{ ...bar(widthKey), background: NEUTRAL }} />
@@ -160,12 +161,12 @@ export function Marker({ color, widthKey, onColorChange, onWidthChange }: Props)
         >
           {panel === "colors"
             ? COLORS.map((c) => (
-                <button key={c} style={btn} aria-label={`색 ${c}`} onClick={() => pickColor(c)}>
+                <button key={c} style={btn} aria-label={t("marker.colorValue", { value: c })} onClick={() => pickColor(c)}>
                   <span style={{ ...dot, background: c, ...(c === color ? currentRing : undefined) }} />
                 </button>
               ))
             : (Object.keys(WIDTHS) as WidthKey[]).map((w) => (
-                <button key={w} style={btn} aria-label={`굵기 ${w}`} onClick={() => pickWidth(w)}>
+                <button key={w} style={btn} aria-label={t("marker.widthValue", { value: w })} onClick={() => pickWidth(w)}>
                   <span
                     style={
                       w === widthKey

@@ -49,7 +49,7 @@ pub fn init() -> TauriPlugin<Wry> {
 
 /// 현재 state의 토글 accelerator를 전역 등록.
 pub fn register_toggle(app: &AppHandle) -> Result<(), String> {
-    let shortcut = current_toggle(app).ok_or("잘못된 단축키 형식")?;
+    let shortcut = current_toggle(app).ok_or("invalid shortcut format")?;
     app.global_shortcut().register(shortcut).map_err(|e| e.to_string())
 }
 
@@ -66,20 +66,21 @@ fn is_reserved(shortcut: &Shortcut) -> bool {
     shortcut.mods.is_empty() && shortcut.key == Code::Escape
 }
 
-/// 레코더 검증: accelerator를 임시 등록해보고 즉시 해제. 충돌 시 에러 메시지.
+/// 레코더 검증: accelerator를 임시 등록해보고 즉시 해제. 충돌 시 에러 코드.
+/// 에러는 안정 코드 문자열("error:*")로 반환하고 웹뷰 사전이 번역한다(src/shared/i18n.tsx).
 #[tauri::command]
 pub fn try_register_shortcut(app: AppHandle, accelerator: String) -> Result<(), String> {
-    let shortcut = Shortcut::from_str(&accelerator).map_err(|_| "인식할 수 없는 조합".to_string())?;
+    let shortcut = Shortcut::from_str(&accelerator).map_err(|_| "error:invalid_shortcut".to_string())?;
     if is_reserved(&shortcut) {
-        return Err("Esc는 예약된 키예요".into());
+        return Err("error:reserved_escape".into());
     }
     let gs = app.global_shortcut();
     if gs.is_registered(shortcut) {
         // 이미 우리가(현재 토글로) 쓰고 있으면 통과, 아니면 다른 앱과 충돌
         let ours = current_toggle(&app).is_some_and(|s| s == shortcut);
-        return if ours { Ok(()) } else { Err("이 조합은 다른 곳에서 사용 중이에요".into()) };
+        return if ours { Ok(()) } else { Err("error:shortcut_in_use".into()) };
     }
-    gs.register(shortcut).map_err(|_| "이 조합은 다른 곳에서 사용 중이에요".to_string())?;
+    gs.register(shortcut).map_err(|_| "error:shortcut_in_use".to_string())?;
     let _ = gs.unregister(shortcut);
     Ok(())
 }
@@ -88,9 +89,9 @@ pub fn try_register_shortcut(app: AppHandle, accelerator: String) -> Result<(), 
 /// 레코딩 중 suspend된 상태에서도 호출되므로, 결과적으로 항상 토글이 등록되게 한다.
 #[tauri::command]
 pub fn apply_shortcuts(app: AppHandle, toggle: String, clear: String) -> Result<(), String> {
-    let new_toggle = Shortcut::from_str(&toggle).map_err(|_| "인식할 수 없는 조합".to_string())?;
+    let new_toggle = Shortcut::from_str(&toggle).map_err(|_| "error:invalid_shortcut".to_string())?;
     if is_reserved(&new_toggle) {
-        return Err("Esc는 예약된 키예요".into());
+        return Err("error:reserved_escape".into());
     }
 
     let gs = app.global_shortcut();
@@ -106,7 +107,7 @@ pub fn apply_shortcuts(app: AppHandle, toggle: String, clear: String) -> Result<
         if let Some(old) = old {
             let _ = gs.register(old);
         }
-        return Err("이 조합은 다른 곳에서 사용 중이에요".into());
+        return Err("error:shortcut_in_use".into());
     }
 
     {

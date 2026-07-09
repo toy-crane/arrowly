@@ -1,3 +1,4 @@
+mod i18n;
 mod overlay;
 mod shortcuts;
 mod state;

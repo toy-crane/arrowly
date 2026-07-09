@@ -1,13 +1,14 @@
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { acceleratorSymbols, buildAccelerator } from "./accelerator";
+import { shortcutErrorMessage, t } from "./i18n";
 import { DEFAULT_SHORTCUTS, loadShortcuts, saveShortcuts, Shortcuts } from "./settings";
 
 type FieldId = keyof Shortcuts;
 
 const ROWS: { id: FieldId; label: string }[] = [
-  { id: "toggle", label: "그리기 토글" },
-  { id: "clear", label: "전체 지우기" },
+  { id: "toggle", label: t("shortcut.toggle") },
+  { id: "clear", label: t("shortcut.clear") },
 ];
 
 // 전체 지우기가 실행 취소(⌘Z/⇧⌘Z)를 덮으면 안 된다
@@ -57,7 +58,7 @@ export function ShortcutEditor() {
       if (!accel) return; // 수식어만 눌린 상태 — 계속 대기
 
       if (id === "clear" && UNDO_ACCELS.has(accel)) {
-        setError({ id, msg: "실행 취소에 쓰이는 키예요" });
+        setError({ id, msg: t("shortcut.error.undo") });
         await stopRecording();
         return;
       }
@@ -70,7 +71,7 @@ export function ShortcutEditor() {
         }
         await invoke("apply_shortcuts", { toggle: next.toggle, clear: next.clear });
       } catch (err) {
-        setError({ id, msg: String(err) });
+        setError({ id, msg: shortcutErrorMessage(err) });
         await stopRecording();
         return;
       }
@@ -90,7 +91,7 @@ export function ShortcutEditor() {
     try {
       await invoke("apply_shortcuts", { toggle: next.toggle, clear: next.clear });
     } catch (err) {
-      setError({ id, msg: String(err) });
+      setError({ id, msg: shortcutErrorMessage(err) });
       return;
     }
     await saveShortcuts(next);
@@ -109,7 +110,7 @@ export function ShortcutEditor() {
               onClick={() => startRecording(id)}
             >
               {recording === id ? (
-                <span style={styles.hint}>새 단축키를 누르세요…</span>
+                <span style={styles.hint}>{t("shortcut.recording")}</span>
               ) : (
                 acceleratorSymbols(shortcuts[id]).map((s, j) => (
                   <span key={j} style={styles.kbd}>
@@ -119,7 +120,7 @@ export function ShortcutEditor() {
               )}
             </button>
             <button style={styles.reset} onClick={() => resetOne(id)}>
-              기본값
+              {t("shortcut.reset")}
             </button>
           </div>
           {error?.id === id && <p style={styles.errText}>{error.msg}</p>}
@@ -132,7 +133,7 @@ export function ShortcutEditor() {
 export const styles: Record<string, CSSProperties> = {
   row: { padding: "12px 14px" },
   rowMain: { display: "flex", alignItems: "center", gap: 10 },
-  lbl: { width: 84, flexShrink: 0 },
+  lbl: { width: 110, flexShrink: 0 },
   field: {
     flex: 1,
     display: "flex",
@@ -174,5 +175,5 @@ export const styles: Record<string, CSSProperties> = {
     color: "inherit",
     cursor: "pointer",
   },
-  errText: { margin: "6px 0 0 94px", fontSize: 12, color: "#e2504a" },
+  errText: { margin: "6px 0 0 120px", fontSize: 12, color: "#e2504a" },
 };

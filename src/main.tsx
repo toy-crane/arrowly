@@ -4,6 +4,7 @@ import "./styles.css";
 import { OverlayApp } from "./overlay/OverlayApp";
 import { OnboardingApp } from "./onboarding/OnboardingApp";
 import { SettingsApp } from "./settings/SettingsApp";
+import { lang } from "./shared/i18n";
 
 function pickRoot() {
   switch (window.location.hash) {
@@ -16,6 +17,8 @@ function pickRoot() {
   }
 }
 const Root = pickRoot();
+
+document.documentElement.lang = lang;
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
