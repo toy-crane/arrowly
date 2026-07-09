@@ -22,18 +22,32 @@ export function MiniCanvas({ onFirstStroke }: Props) {
     const ctx = canvas.getContext("2d")!;
     const store = storeRef.current;
 
-    const dpr = window.devicePixelRatio || 1;
-    const w = wrap.clientWidth;
-    const h = wrap.clientHeight;
-    canvas.width = Math.round(w * dpr);
-    canvas.height = Math.round(h * dpr);
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const dims = { w: 0, h: 0 };
 
     const render = () => {
-      ctx.clearRect(0, 0, w, h);
+      ctx.clearRect(0, 0, dims.w, dims.h);
       for (const s of store.strokes) drawStroke(ctx, s);
       if (store.live) drawStroke(ctx, store.live);
     };
+
+    // 창이 자리 잡기 전(마운트 직후)의 크기로 한 번만 재면 백킹과 CSS 크기가
+    // 어긋나 획이 커서에서 밀려 보인다 — 크기가 바뀔 때마다 백킹을 다시 만든다.
+    const setupBacking = () => {
+      const w = wrap.clientWidth;
+      const h = wrap.clientHeight;
+      if (!w || !h || (w === dims.w && h === dims.h)) return;
+      dims.w = w;
+      dims.h = h;
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = Math.round(w * dpr);
+      canvas.height = Math.round(h * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      render();
+    };
+
+    setupBacking();
+    const ro = new ResizeObserver(setupBacking);
+    ro.observe(wrap);
 
     const toPoint = (e: PointerEvent): Point => {
       const r = canvas.getBoundingClientRect();
@@ -84,6 +98,7 @@ export function MiniCanvas({ onFirstStroke }: Props) {
     canvas.addEventListener("pointercancel", onPointerCancel);
     window.addEventListener("keydown", onKeyDown);
     return () => {
+      ro.disconnect();
       canvas.removeEventListener("pointerdown", onPointerDown);
       canvas.removeEventListener("pointermove", onPointerMove);
       canvas.removeEventListener("pointerup", onPointerUp);
@@ -106,7 +121,16 @@ export function MiniCanvas({ onFirstStroke }: Props) {
     >
       <canvas
         ref={canvasRef}
-        style={{ position: "absolute", inset: 0, cursor: "crosshair", touchAction: "none" }}
+        style={{
+          // canvas는 대체 요소라 inset만으론 안 늘어남 — CSS 크기를 명시해야
+          // 백킹(width/height 속성)이 표시 크기를 밀어내지 않는다
+          position: "absolute",
+          inset: 0,
+          width: "100%",
+          height: "100%",
+          cursor: "crosshair",
+          touchAction: "none",
+        }}
       />
     </div>
   );
