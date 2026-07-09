@@ -1,11 +1,34 @@
 import { load, Store } from "@tauri-apps/plugin-store";
+import { Color, COLORS, DEFAULT_COLOR, DEFAULT_WIDTH, WIDTHS, WidthKey } from "./constants";
 
-// 설정 파일 단일 진입점. 전체 스키마 헬퍼는 M7에서 확장한다.
+// 설정 파일 단일 진입점.
 let storePromise: Promise<Store> | null = null;
 
 export function settingsStore(): Promise<Store> {
   storePromise ??= load("settings.json");
   return storePromise;
+}
+
+export async function loadTool(): Promise<{ color: Color; width: WidthKey }> {
+  const store = await settingsStore();
+  const color = await store.get<Color>("color");
+  const width = await store.get<WidthKey>("width");
+  return {
+    color: color && COLORS.includes(color) ? color : DEFAULT_COLOR,
+    width: width && width in WIDTHS ? width : DEFAULT_WIDTH,
+  };
+}
+
+export async function saveColor(color: Color): Promise<void> {
+  const store = await settingsStore();
+  await store.set("color", color);
+  await store.save();
+}
+
+export async function saveWidth(width: WidthKey): Promise<void> {
+  const store = await settingsStore();
+  await store.set("width", width);
+  await store.save();
 }
 
 export type MarkerPos = { xRatio: number; yRatio: number };

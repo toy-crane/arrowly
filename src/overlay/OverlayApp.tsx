@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { Color, DEFAULT_COLOR, DEFAULT_WIDTH, strokeWidthPx, WidthKey } from "../shared/constants";
-import { DEFAULT_SHORTCUTS, loadShortcuts } from "../shared/settings";
+import { DEFAULT_SHORTCUTS, loadShortcuts, loadTool, saveColor, saveWidth } from "../shared/settings";
 import { applyPenCursor, resetCursor } from "./cursor";
 import { DrawingCanvas } from "./DrawingCanvas";
 import { Marker } from "./Marker";
@@ -15,6 +15,10 @@ export function OverlayApp() {
 
   useEffect(() => {
     loadShortcuts().then((s) => setClearAccel(s.clear));
+    loadTool().then(({ color, width }) => {
+      setColor(color);
+      setWidthKey(width);
+    });
     const unMode = listen<{ drawing: boolean }>("mode-changed", (e) => setDrawing(e.payload.drawing));
     const unMarker = listen<{ hidden: boolean }>("marker-hidden-changed", (e) =>
       setMarkerHidden(e.payload.hidden),
@@ -42,7 +46,18 @@ export function OverlayApp() {
     <>
       <DrawingCanvas color={color} widthKey={widthKey} clearAccel={clearAccel} />
       {drawing && !markerHidden && (
-        <Marker color={color} widthKey={widthKey} onColorChange={setColor} onWidthChange={setWidthKey} />
+        <Marker
+          color={color}
+          widthKey={widthKey}
+          onColorChange={(c) => {
+            setColor(c);
+            void saveColor(c);
+          }}
+          onWidthChange={(w) => {
+            setWidthKey(w);
+            void saveWidth(w);
+          }}
+        />
       )}
     </>
   );
