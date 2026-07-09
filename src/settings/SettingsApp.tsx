@@ -10,6 +10,12 @@ const ROWS: { id: FieldId; label: string }[] = [
   { id: "clear", label: "전체 지우기" },
 ];
 
+// 재설정 불가 — OS 표준·예약 키라 참고용으로 보여준다
+const FIXED_ROWS: { label: string; accel: string }[] = [
+  { label: "실행 취소", accel: "Cmd+KeyZ" },
+  { label: "빠져나가기", accel: "Escape" },
+];
+
 // 전체 지우기가 실행 취소(⌘Z/⇧⌘Z)를 덮으면 안 된다
 const UNDO_ACCELS = new Set(["Cmd+KeyZ", "Shift+Cmd+KeyZ", "Cmd+Shift+KeyZ"]);
 
@@ -126,6 +132,21 @@ export function SettingsApp() {
             {error?.id === id && <p style={errText}>{error.msg}</p>}
           </div>
         ))}
+        {FIXED_ROWS.map(({ label, accel }) => (
+          <div key={label} style={{ ...row, borderTop: "0.5px solid var(--line)" }}>
+            <div style={rowMain}>
+              <span style={lbl}>{label}</span>
+              <div style={{ ...field, ...fieldFixed }}>
+                {acceleratorSymbols(accel).map((s, j) => (
+                  <span key={j} style={{ ...kbd, ...kbdFixed }}>
+                    {s}
+                  </span>
+                ))}
+              </div>
+              <span style={fixedTag}>고정</span>
+            </div>
+          </div>
+        ))}
       </div>
     </main>
   );
@@ -187,6 +208,15 @@ const kbd: CSSProperties = {
 };
 
 const hint: CSSProperties = { color: "var(--muted)", fontSize: 13 };
+
+const fieldFixed: CSSProperties = { cursor: "default", opacity: 0.6, background: "transparent" };
+const kbdFixed: CSSProperties = { background: "transparent", color: "var(--muted)" };
+const fixedTag: CSSProperties = {
+  flexShrink: 0,
+  fontSize: 12,
+  padding: "5px 10px",
+  color: "var(--muted)",
+};
 
 const reset: CSSProperties = {
   flexShrink: 0,

@@ -173,7 +173,7 @@ pub fn open_onboarding(app: &AppHandle) {
 
 /// 단축키 설정 창
 pub fn open_settings(app: &AppHandle) {
-    open_util_window(app, "settings", "#/settings", 380.0, 300.0);
+    open_util_window(app, "settings", "#/settings", 380.0, 340.0);
 }
 
 pub fn toggle(app: &AppHandle) {

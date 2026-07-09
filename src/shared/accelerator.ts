@@ -58,7 +58,7 @@ const CODE_SYMBOL: Record<string, string> = {
   Delete: "⌦",
   Enter: "↩",
   Space: "␣",
-  Escape: "⎋",
+  Escape: "Esc", // ⎋ 기호는 인지도가 낮아 글자로 표기 (⇥·⌫ 등은 기호 유지)
   ArrowUp: "↑",
   ArrowDown: "↓",
   ArrowLeft: "←",
