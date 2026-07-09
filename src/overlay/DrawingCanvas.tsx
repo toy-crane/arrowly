@@ -1,7 +1,6 @@
 import { CSSProperties, useEffect, useRef } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { strokeWidthPx, WidthKey } from "../shared/constants";
-import { applyPenCursor, resetCursor } from "./cursor";
 import { drawStroke, Point, StrokeStore } from "./strokes";
 
 type Props = {
@@ -121,13 +120,10 @@ export function DrawingCanvas({ color, widthKey }: Props) {
     const unlistenMode = listen<{ drawing: boolean }>("mode-changed", (ev) => {
       if (ev.payload.drawing) {
         setupBacking(); // 모니터·해상도가 바뀌었을 수 있음 (기존 획은 재렌더로 복원)
-        const { color, widthKey } = toolRef.current;
-        applyPenCursor(color, strokeWidthPx(widthKey, Math.min(window.innerWidth, window.innerHeight)));
       } else {
-        // 숨김≠삭제: 진행 중이던 live 획만 취소하고 그림 버퍼는 유지한다
+        // 숨김≠삭제: 진행 중이던 live 획만 취소하고 그림 버퍼는 유지한다 (커서는 OverlayApp 담당)
         store.cancelLive();
         renderLive();
-        resetCursor();
       }
     });
     const unlistenClear = listen("clear-all", clearAll);
