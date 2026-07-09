@@ -225,8 +225,8 @@
 
 파일: `src/overlay/Marker.tsx`
 
-- 시각 스펙(시안 §02, 크기만 실사용 피드백으로 확대): 높이 44px 캡슐, `rgba(24,26,32,.88)` + 1px `rgba(255,255,255,.14)` 테두리, radius 999, 그림자 `0 4px 18px rgba(0,0,0,.35)`. 접힘=색 점(20px)+구분선+굵기 획(34×7px). 색 펼침=‹ + 5색 점, 현재 색만 중립 링(`outline 2px #E8EAF0, offset 2.5px`). 굵기 펼침=‹ + 3단계 가로 바(높이 4/7/11, 현재만 채움, 나머지 1.5px 테두리만).
-- 상태머신: `collapsed | colors | widths`. 색 점 탭→colors, 굵기 획 탭→widths, 항목 선택→적용+collapsed, ‹·바깥 pointerdown·그리기 시작→collapsed.
+- 시각 스펙(시안 §02, 크기 확대 + 팝오버 구조로 변경): 높이 44px 캡슐, `rgba(24,26,32,.88)` + 1px `rgba(255,255,255,.14)` 테두리, radius 999, 그림자 `0 4px 18px rgba(0,0,0,.35)`. 캡슐=색 점(20px)+구분선+굵기 획(34×7px), **위치·크기 불변**. 선택지는 캡슐 위 8px 팝오버(같은 재질, 중앙 정렬+화면 클램프, 최상단 근처면 아래로). 색 팝오버=5색 점, 현재 색만 중립 링(`outline 2px #E8EAF0, offset 2.5px`). 굵기 팝오버=3단계 가로 바(높이 4/7/11, 현재만 채움, 나머지 1.5px 테두리만).
+- 상태머신: `collapsed | colors | widths`. 색 점 탭→colors 팝오버, 굵기 획 탭→widths 팝오버(열린 셀은 옅은 하이라이트), 항목 선택·같은 셀 재탭·바깥 pointerdown·그리기 시작→collapsed.
 - 드래그: 마커 루트 `pointerdown`에서 시작(120ms/4px 이동 임계값으로 탭과 구분), 이동 후 `markerPos`(화면 비율)를 store에 저장.
 - **hit-test 규칙**: 마커 내부에서 시작한 포인터 이벤트는 `stopPropagation()`으로 캔버스에 전달 금지 — 마커 위에서 획이 시작되면 안 된다.
 - 표시 조건: `drawing && !markerHidden`. `marker-hidden-changed` 이벤트 구독.

@@ -1,4 +1,4 @@
-import { CSSProperties, useEffect, useRef, useState } from "react";
+import { CSSProperties, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Color, COLORS, WidthKey, WIDTHS } from "../shared/constants";
 import { loadMarkerPos, MarkerPos, saveMarkerPos } from "../shared/settings";
 
@@ -23,6 +23,7 @@ export function Marker({ color, widthKey, onColorChange, onWidthChange }: Props)
   const [panel, setPanel] = useState<Panel>("collapsed");
   const [pos, setPosState] = useState<MarkerPos>(sessionPos ?? DEFAULT_POS);
   const rootRef = useRef<HTMLDivElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{
     startX: number;
     startY: number;
@@ -56,6 +57,18 @@ export function Marker({ color, widthKey, onColorChange, onWidthChange }: Props)
     window.addEventListener("pointerdown", onDown);
     return () => window.removeEventListener("pointerdown", onDown);
   }, []);
+
+  // 팝오버가 화면 밖으로 나가지 않게 좌우 클램프 (기본은 캡슐 중앙 정렬)
+  useLayoutEffect(() => {
+    const pop = popRef.current;
+    if (!pop || panel === "collapsed") return;
+    pop.style.transform = "translateX(-50%)";
+    const r = pop.getBoundingClientRect();
+    let dx = 0;
+    if (r.left < 6) dx = 6 - r.left;
+    else if (r.right > window.innerWidth - 6) dx = window.innerWidth - 6 - r.right;
+    if (dx !== 0) pop.style.transform = `translateX(calc(-50% + ${dx}px))`;
+  }, [panel, pos]);
 
   const onPointerDown = (e: React.PointerEvent) => {
     e.stopPropagation(); // 마커 위에서 획이 시작되면 안 된다
@@ -97,6 +110,9 @@ export function Marker({ color, widthKey, onColorChange, onWidthChange }: Props)
     }
   };
 
+  const togglePanel = (p: Exclude<Panel, "collapsed">) => {
+    setPanel((cur) => (cur === p ? "collapsed" : p));
+  };
   const pickColor = (c: Color) => {
     onColorChange(c);
     setPanel("collapsed");
@@ -105,6 +121,9 @@ export function Marker({ color, widthKey, onColorChange, onWidthChange }: Props)
     onWidthChange(w);
     setPanel("collapsed");
   };
+
+  // 최상단 근처에서는 팝오버를 아래로 뒤집는다
+  const openBelow = pos.yRatio * window.innerHeight < 64;
 
   return (
     <div
@@ -115,57 +134,54 @@ export function Marker({ color, widthKey, onColorChange, onWidthChange }: Props)
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
     >
-      {panel === "collapsed" && (
-        <>
-          <button style={btn} aria-label="색 바꾸기" onClick={() => setPanel("colors")}>
-            <span style={{ ...dot, background: color }} />
-          </button>
-          <span style={divider} />
-          <button style={btn} aria-label="굵기 바꾸기" onClick={() => setPanel("widths")}>
-            <span style={{ ...bar(widthKey), background: NEUTRAL }} />
-          </button>
-        </>
-      )}
-      {panel === "colors" && (
-        <>
-          <BackButton onClick={() => setPanel("collapsed")} />
-          {COLORS.map((c) => (
-            <button key={c} style={btn} aria-label={`색 ${c}`} onClick={() => pickColor(c)}>
-              <span style={{ ...dot, background: c, ...(c === color ? currentRing : undefined) }} />
-            </button>
-          ))}
-        </>
-      )}
-      {panel === "widths" && (
-        <>
-          <BackButton onClick={() => setPanel("collapsed")} />
-          {(Object.keys(WIDTHS) as WidthKey[]).map((w) => (
-            <button key={w} style={btn} aria-label={`굵기 ${w}`} onClick={() => pickWidth(w)}>
-              <span
-                style={
-                  w === widthKey
-                    ? { ...bar(w), background: NEUTRAL }
-                    : { ...bar(w), border: "1.5px solid rgba(232,234,240,0.85)" }
-                }
-              />
-            </button>
-          ))}
-        </>
+      <button
+        style={{ ...btn, ...(panel === "colors" ? activeCell : undefined) }}
+        aria-label="색 바꾸기"
+        onClick={() => togglePanel("colors")}
+      >
+        <span style={{ ...dot, background: color }} />
+      </button>
+      <span style={divider} />
+      <button
+        style={{ ...btn, ...(panel === "widths" ? activeCell : undefined) }}
+        aria-label="굵기 바꾸기"
+        onClick={() => togglePanel("widths")}
+      >
+        <span style={{ ...bar(widthKey), background: NEUTRAL }} />
+      </button>
+
+      {panel !== "collapsed" && (
+        <div
+          ref={popRef}
+          style={{
+            ...popover,
+            ...(openBelow ? { top: "calc(100% + 8px)" } : { bottom: "calc(100% + 8px)" }),
+          }}
+        >
+          {panel === "colors"
+            ? COLORS.map((c) => (
+                <button key={c} style={btn} aria-label={`색 ${c}`} onClick={() => pickColor(c)}>
+                  <span style={{ ...dot, background: c, ...(c === color ? currentRing : undefined) }} />
+                </button>
+              ))
+            : (Object.keys(WIDTHS) as WidthKey[]).map((w) => (
+                <button key={w} style={btn} aria-label={`굵기 ${w}`} onClick={() => pickWidth(w)}>
+                  <span
+                    style={
+                      w === widthKey
+                        ? { ...bar(w), background: NEUTRAL }
+                        : { ...bar(w), border: "1.5px solid rgba(232,234,240,0.85)" }
+                    }
+                  />
+                </button>
+              ))}
+        </div>
       )}
     </div>
   );
 }
 
-function BackButton({ onClick }: { onClick: () => void }) {
-  return (
-    <button style={{ ...btn, color: NEUTRAL, fontSize: 20 }} aria-label="닫기" onClick={onClick}>
-      ‹
-    </button>
-  );
-}
-
-const capsule: CSSProperties = {
-  position: "fixed",
+const surface: CSSProperties = {
   height: 44,
   display: "flex",
   alignItems: "center",
@@ -174,8 +190,22 @@ const capsule: CSSProperties = {
   background: "rgba(24,26,32,0.88)",
   border: "1px solid rgba(255,255,255,0.14)",
   boxShadow: "0 4px 18px rgba(0,0,0,0.35)",
+};
+
+const capsule: CSSProperties = {
+  ...surface,
+  position: "fixed",
   cursor: "default",
   touchAction: "none",
+};
+
+// 캡슐 위(또는 아래)에 뜨는 선택지 — 캡슐 자체는 위치·크기 불변
+const popover: CSSProperties = {
+  ...surface,
+  position: "absolute",
+  left: "50%",
+  transform: "translateX(-50%)",
+  width: "max-content",
 };
 
 // 셀은 내용물 크기 + 4px 여백 — 캡슐 패딩 8 + 셀 여백 4 = 잉크 기준 12px 균일 리듬
@@ -189,6 +219,11 @@ const btn: CSSProperties = {
   border: "none",
   cursor: "pointer",
   lineHeight: 1,
+};
+
+const activeCell: CSSProperties = {
+  background: "rgba(255,255,255,0.08)",
+  borderRadius: 8,
 };
 
 const dot: CSSProperties = { width: 20, height: 20, borderRadius: "50%", display: "block" };
