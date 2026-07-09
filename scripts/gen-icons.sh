@@ -17,11 +17,14 @@ P3="M82.5,25.5 C76.5,32.5 72,40.5 69.5,48"
 magick -size 1024x1024 "gradient:#FFDF33-#F5C800" "$TMP/tile.png"
 magick -size 1024x1024 xc:none -draw "fill black roundrectangle 0,0 1023,1023 232,232" "$TMP/mask.png"
 magick "$TMP/tile.png" "$TMP/mask.png" -compose DstIn -composite "$TMP/block.png"
+# 글리프를 타일 중심(512,512)에 축소 배치해 사방 여백을 균등하게 준다.
+# scale 7.5 + 글리프 bbox 중심(51.75,49.75) 기준 정렬 → 약 20% 여백.
+GC="translate 512,512 scale 7.5,7.5 translate -51.75,-49.75"
 magick "$TMP/block.png" \
-  -draw "scale 10.24,10.24 translate 2,-1.4 fill none stroke #1C1E24 stroke-width 9 stroke-opacity 0.3 stroke-linecap round path '$P1'" \
-  -draw "scale 10.24,10.24 fill none stroke #1C1E24 stroke-width 10 stroke-linecap round path '$P1'" \
-  -draw "scale 10.24,10.24 fill none stroke #1C1E24 stroke-width 10 stroke-linecap round path '$P2'" \
-  -draw "scale 10.24,10.24 fill none stroke #1C1E24 stroke-width 10 stroke-linecap round path '$P3'" \
+  -draw "$GC translate 2,-1.4 fill none stroke #1C1E24 stroke-width 9 stroke-opacity 0.3 stroke-linecap round path '$P1'" \
+  -draw "$GC fill none stroke #1C1E24 stroke-width 10 stroke-linecap round path '$P1'" \
+  -draw "$GC fill none stroke #1C1E24 stroke-width 10 stroke-linecap round path '$P2'" \
+  -draw "$GC fill none stroke #1C1E24 stroke-width 10 stroke-linecap round path '$P3'" \
   "$TMP/icon-1024.png"
 bun tauri icon "$TMP/icon-1024.png"
 rm -rf src-tauri/icons/android src-tauri/icons/ios # macOS 전용
