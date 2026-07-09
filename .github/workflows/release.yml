@@ -1,0 +1,45 @@
+name: release
+
+# 버전 태그(v*)를 push하면 macOS 러너에서 앱을 빌드하고
+# draft Release에 DMG를 첨부한다. 서명 없는 빌드(Apple 시크릿 불필요).
+# 릴리즈 노트는 GitHub 내장 자동 생성(지난 태그 이후 머지된 PR 목록).
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  release:
+    runs-on: macos-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - name: Install frontend dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build and release (unsigned universal DMG)
+        uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "Arrowly ${{ github.ref_name }}"
+          releaseDraft: true
+          prerelease: false
+          generateReleaseNotes: true
+          args: --target universal-apple-darwin
