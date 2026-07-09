@@ -141,6 +141,32 @@ pub fn set_drawing(app: &AppHandle, drawing: bool) {
 
     app.state::<SharedState>().lock().unwrap().drawing = drawing;
     let _ = app.emit("mode-changed", serde_json::json!({ "drawing": drawing }));
+    crate::tray::sync(app);
+}
+
+/// 온보딩 창. 이미 있으면 앞으로 가져온다. (M8에서 3단계 튜토리얼 구현)
+pub fn open_onboarding(app: &AppHandle) {
+    if let Some(win) = app.get_webview_window("onboarding") {
+        let _ = win.show();
+        let _ = win.set_focus();
+        return;
+    }
+    let built = WebviewWindowBuilder::new(
+        app,
+        "onboarding",
+        WebviewUrl::App("index.html#/onboarding".into()),
+    )
+    .title("Arrowly")
+    .inner_size(640.0, 480.0)
+    .resizable(false)
+    .center()
+    .build();
+    match built {
+        Ok(win) => {
+            let _ = win.set_focus();
+        }
+        Err(e) => eprintln!("[arrowly] 온보딩 창 생성 실패: {e}"),
+    }
 }
 
 pub fn toggle(app: &AppHandle) {
