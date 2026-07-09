@@ -61,7 +61,7 @@ pub fn create(app: &App) -> tauri::Result<()> {
 }
 
 /// 그리기/통과 모드 토글.
-/// M2 스파이크: 패널을 숨기지 않고 마우스 이벤트 무시만 전환한다(그림 유지 요구사항과 동일 구조).
+/// 방식 A: 그림 수명 = 그리기 모드. 통과 전환 시 패널을 숨기고 웹뷰는 mode-changed로 그림을 지운다.
 pub fn toggle(app: &AppHandle) {
     let drawing = {
         let state = app.state::<SharedState>();
@@ -78,6 +78,7 @@ pub fn toggle(app: &AppHandle) {
         } else {
             panel.set_ignores_mouse_events(true);
             panel.resign_key_window();
+            panel.hide();
         }
     }
 
