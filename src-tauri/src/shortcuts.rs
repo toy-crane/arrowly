@@ -23,14 +23,19 @@ pub fn init() -> TauriPlugin<Wry> {
             if !toggled && !escaped {
                 return;
             }
-            // 핸들러 안에서 register/unregister가 재진입되지 않도록 다음 틱으로 미룬다
+            // 핸들러는 플러그인 내부 뮤텍스를 쥔 채 호출되므로 여기서 register/unregister에
+            // 재진입하면 데드락이다. run_on_main_thread는 메인 스레드에서 "인라인" 실행이라
+            // 지연 효과가 없어, 별도 스레드를 거쳐 이벤트 루프 큐로 되돌아오게 한다.
             let handle = app.clone();
-            let _ = app.run_on_main_thread(move || {
-                if toggled {
-                    crate::overlay::toggle(&handle);
-                } else {
-                    crate::overlay::set_drawing(&handle, false);
-                }
+            std::thread::spawn(move || {
+                let app = handle.clone();
+                let _ = handle.run_on_main_thread(move || {
+                    if toggled {
+                        crate::overlay::toggle(&app);
+                    } else {
+                        crate::overlay::set_drawing(&app, false);
+                    }
+                });
             });
         })
         .build()
