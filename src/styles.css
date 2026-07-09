@@ -11,3 +11,28 @@ body {
   user-select: none;
   -webkit-user-select: none;
 }
+
+/* 유틸리티 창(설정·온보딩)용 테마 변수 — 오버레이는 transparent라 미사용 */
+:root {
+  --win: #ececec;
+  --card: #ffffff;
+  --field: #ffffff;
+  --kbd: #f4f4f5;
+  --fg: #1c1e24;
+  --muted: #8a8a8e;
+  --line: rgba(0, 0, 0, 0.1);
+  --line-strong: rgba(0, 0, 0, 0.18);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --win: #2a2a2c;
+    --card: #333335;
+    --field: #3a3a3d;
+    --kbd: #46464a;
+    --fg: #e8eaf0;
+    --muted: #9a9a9e;
+    --line: rgba(255, 255, 255, 0.12);
+    --line-strong: rgba(255, 255, 255, 0.2);
+  }
+}

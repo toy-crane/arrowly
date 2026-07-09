@@ -144,29 +144,36 @@ pub fn set_drawing(app: &AppHandle, drawing: bool) {
     crate::tray::sync(app);
 }
 
-/// 온보딩 창. 이미 있으면 앞으로 가져온다. (M8에서 3단계 튜토리얼 구현)
-pub fn open_onboarding(app: &AppHandle) {
-    if let Some(win) = app.get_webview_window("onboarding") {
+/// 일반 유틸리티 창(온보딩·설정)을 연다. 이미 있으면 앞으로 가져온다.
+/// Accessory 정책이라 표시 직전 앱을 잠깐 활성화해 포커스를 받게 한다.
+fn open_util_window(app: &AppHandle, label: &str, route: &str, w: f64, h: f64) {
+    if let Some(win) = app.get_webview_window(label) {
         let _ = win.show();
         let _ = win.set_focus();
         return;
     }
-    let built = WebviewWindowBuilder::new(
-        app,
-        "onboarding",
-        WebviewUrl::App("index.html#/onboarding".into()),
-    )
-    .title("Arrowly")
-    .inner_size(640.0, 480.0)
-    .resizable(false)
-    .center()
-    .build();
+    let built = WebviewWindowBuilder::new(app, label, WebviewUrl::App(format!("index.html{route}").into()))
+        .title("Arrowly")
+        .inner_size(w, h)
+        .resizable(false)
+        .center()
+        .build();
     match built {
         Ok(win) => {
             let _ = win.set_focus();
         }
-        Err(e) => eprintln!("[arrowly] 온보딩 창 생성 실패: {e}"),
+        Err(e) => eprintln!("[arrowly] {label} 창 생성 실패: {e}"),
     }
+}
+
+/// 온보딩 창 (M8에서 3단계 튜토리얼 구현)
+pub fn open_onboarding(app: &AppHandle) {
+    open_util_window(app, "onboarding", "#/onboarding", 640.0, 480.0);
+}
+
+/// 단축키 설정 창
+pub fn open_settings(app: &AppHandle) {
+    open_util_window(app, "settings", "#/settings", 380.0, 300.0);
 }
 
 pub fn toggle(app: &AppHandle) {

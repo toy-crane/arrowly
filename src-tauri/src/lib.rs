@@ -4,6 +4,7 @@ mod state;
 mod tray;
 
 use tauri_plugin_autostart::MacosLauncher;
+use tauri_plugin_store::StoreExt;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -13,14 +14,33 @@ pub fn run() {
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, None))
         .plugin(tauri_nspanel::init())
         .manage(state::SharedState::default())
+        .invoke_handler(tauri::generate_handler![
+            shortcuts::try_register_shortcut,
+            shortcuts::apply_shortcuts,
+            shortcuts::suspend_toggle,
+            shortcuts::resume_toggle,
+        ])
         .setup(|app| {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+
+            // settings.json의 저장된 단축키를 state에 반영한 뒤 등록
+            if let Ok(store) = app.store("settings.json") {
+                let sc = store.get("shortcuts");
+                let field = |k: &str| {
+                    sc.as_ref()
+                        .and_then(|v| v.get(k))
+                        .and_then(|v| v.as_str())
+                        .map(String::from)
+                };
+                shortcuts::load_from_settings(app.handle(), field("toggle"), field("clear"));
+            }
+
             overlay::create(app)?;
             tray::create(app)?;
             if let Err(e) = shortcuts::register_toggle(app.handle()) {
-                // 등록 실패로 앱을 죽이지 않는다 — 트레이(M6) 진입 경로가 생길 때까지는 로그만
-                eprintln!("[arrowly] ⌥Tab 전역 등록 실패: {e}");
+                // 등록 실패로 앱을 죽이지 않는다 — 트레이 메뉴로 진입 가능
+                eprintln!("[arrowly] 그리기 토글 전역 등록 실패: {e}");
             }
             Ok(())
         })

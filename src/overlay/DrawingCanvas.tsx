@@ -1,24 +1,28 @@
 import { CSSProperties, useEffect, useRef } from "react";
 import { listen } from "@tauri-apps/api/event";
+import { matchesAccelerator } from "../shared/accelerator";
 import { strokeWidthPx, WidthKey } from "../shared/constants";
 import { drawStroke, Point, StrokeStore } from "./strokes";
 
 type Props = {
   color: string;
   widthKey: WidthKey;
+  clearAccel: string;
 };
 
 /**
  * 캔버스 2장: base(확정 획) + live(진행 중 획).
  * live는 rAF당 1회만 clear&redraw, base는 획 확정 시 증분 렌더만 한다.
  */
-export function DrawingCanvas({ color, widthKey }: Props) {
+export function DrawingCanvas({ color, widthKey, clearAccel }: Props) {
   const baseRef = useRef<HTMLCanvasElement>(null);
   const liveRef = useRef<HTMLCanvasElement>(null);
   const storeRef = useRef<StrokeStore>(null!);
   if (!storeRef.current) storeRef.current = new StrokeStore();
   const toolRef = useRef({ color, widthKey });
   toolRef.current = { color, widthKey };
+  const clearAccelRef = useRef(clearAccel);
+  clearAccelRef.current = clearAccel;
 
   useEffect(() => {
     const store = storeRef.current;
@@ -103,7 +107,7 @@ export function DrawingCanvas({ color, widthKey }: Props) {
       if (e.metaKey && !e.altKey && !e.ctrlKey && e.code === "KeyZ") {
         e.preventDefault();
         if (e.shiftKey ? store.redo() : store.undo()) renderBase();
-      } else if (e.altKey && e.code === "Backspace") {
+      } else if (matchesAccelerator(e, clearAccelRef.current)) {
         e.preventDefault();
         clearAll();
       }
