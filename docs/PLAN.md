@@ -173,6 +173,8 @@
 5. 임시 토글: 트레이 없이 임시 전역 단축키(⌥Tab)로 `set_ignore_cursor_events` + show/hide 전환.
 6. 커밋 `feat: 오버레이 NSPanel 스파이크` → push → **사용자에게 "M2 판정 체크리스트" 실행 요청 → 결과에 따라 진행/중단.**
 
+> **✅ 판정 결과 (2026-07-09, Go)**: 6항목 전부 통과. 레벨 **Floating(4)** 으로 전체화면 표시·메뉴바 클릭이 모두 충족돼 레벨 상향 불필요. 그리기 ON 중 ⌘Z가 패널로 라우팅되면서(TextEdit 언두 미발동으로 행동 증명) 아래 앱은 컬러 신호등·메뉴바 유지 — 패널이 key만 갖고 main은 아래 앱에 남는 구조 확인. 주의: 사용자 Mac의 ScreenBrush가 ⌥Tab을 자체 토글로 쓰므로(활성 탈취형) 테스트 전 종료 필요.
+
 ## M3. 그리기 엔진
 
 파일: `src/overlay/DrawingCanvas.tsx`, `src/overlay/strokes.ts`, `src/overlay/smoothing.ts`
