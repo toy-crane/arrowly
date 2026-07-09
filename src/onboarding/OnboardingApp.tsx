@@ -22,7 +22,9 @@ export function OnboardingApp() {
       {step === 0 && (
         <>
           <h1 style={h}>그려 보기</h1>
-          <p style={sub}>아래 칸에 마우스로 아무거나 그려 보세요. 한 획을 그으면 다음으로 넘어갈 수 있어요.</p>
+          <p style={sub}>
+            아래 칸에 마우스로 아무거나 그려 보세요. <Hi>한 획</Hi>을 그으면 다음으로 넘어갈 수 있어요.
+          </p>
           <MiniCanvas onFirstStroke={() => setDrew(true)} />
         </>
       )}
@@ -30,7 +32,9 @@ export function OnboardingApp() {
       {step === 1 && (
         <>
           <h1 style={h}>단축키 정하기</h1>
-          <p style={sub}>그리기를 켜고 끄는 키예요. 필드를 눌러 원하는 조합으로 바꿀 수 있어요.</p>
+          <p style={sub}>
+            <Hi>그리기를 켜고 끄는 키</Hi>예요. 필드를 눌러 원하는 조합으로 바꿀 수 있어요.
+          </p>
           <div style={editorCard}>
             <ShortcutEditor />
           </div>
@@ -88,6 +92,11 @@ function Kbd({ children }: { children: React.ReactNode }) {
   return <span style={kbd}>{children}</span>;
 }
 
+/** 형광펜 하이라이트 — 테마 포인트, 단계당 하나만 */
+function Hi({ children }: { children: React.ReactNode }) {
+  return <span style={hi}>{children}</span>;
+}
+
 /** 트레이 아이콘과 같은 화살표 글리프 — 메뉴바에서 찾을 아이콘을 그대로 보여준다 */
 function ArrowGlyph() {
   return (
@@ -115,6 +124,12 @@ const root: CSSProperties = {
 const stepLabel: CSSProperties = { margin: "0 0 4px", fontSize: 12, color: "var(--muted)" };
 const h: CSSProperties = { margin: "0 0 6px", fontSize: 19, fontWeight: 600 };
 const sub: CSSProperties = { margin: "0 0 14px", fontSize: 13.5, color: "var(--muted)" };
+
+const hi: CSSProperties = {
+  background: "linear-gradient(transparent 55%, var(--hi) 55%, var(--hi) 92%, transparent 92%)",
+  color: "var(--fg)",
+  fontWeight: 500,
+};
 
 const editorCard: CSSProperties = {
   border: "0.5px solid var(--line)",
@@ -166,10 +181,11 @@ const btn: CSSProperties = {
   cursor: "pointer",
 };
 
+// 라이트=잉크 블록+형광 글자, 다크=형광 블록+잉크 글자 (앱 아이콘의 반전 관계)
 const btnPrimary: CSSProperties = {
-  background: "#FF2D95",
-  borderColor: "#FF2D95",
-  color: "#fff",
+  background: "var(--primary-bg)",
+  borderColor: "var(--primary-bg)",
+  color: "var(--primary-fg)",
 };
 
 const btnDisabled: CSSProperties = { opacity: 0.4, cursor: "default" };

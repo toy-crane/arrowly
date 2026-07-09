@@ -147,8 +147,8 @@ export const styles: Record<string, CSSProperties> = {
     color: "inherit",
   },
   fieldRecording: {
-    borderColor: "#3b82f6",
-    boxShadow: "0 0 0 2px rgba(59,130,246,0.25)",
+    borderColor: "var(--rec-border)",
+    boxShadow: "0 0 0 2px var(--rec-ring)",
   },
   kbd: {
     display: "inline-flex",
