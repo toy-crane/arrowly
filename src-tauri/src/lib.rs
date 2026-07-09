@@ -3,6 +3,7 @@ mod shortcuts;
 mod state;
 mod tray;
 
+use tauri::Manager;
 use tauri_plugin_autostart::MacosLauncher;
 use tauri_plugin_store::StoreExt;
 
@@ -20,6 +21,15 @@ pub fn run() {
             shortcuts::suspend_toggle,
             shortcuts::resume_toggle,
         ])
+        .on_window_event(|window, event| {
+            // 유틸 창(온보딩·설정)이 닫히면 Dock 표시를 원상 복구
+            if matches!(event, tauri::WindowEvent::Destroyed) {
+                let label = window.label().to_string();
+                if label == "onboarding" || label == "settings" {
+                    overlay::on_util_window_destroyed(window.app_handle(), &label);
+                }
+            }
+        })
         .setup(|app| {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);

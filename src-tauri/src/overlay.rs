@@ -144,9 +144,37 @@ pub fn set_drawing(app: &AppHandle, drawing: bool) {
     crate::tray::sync(app);
 }
 
+/// Accessory(LSUIElement) 앱은 창을 만들어도 앱이 활성화되지 않아 창이 뒤에 숨는다.
+/// 유틸리티 창을 앞으로 가져오려면 NSApplication을 명시적으로 활성화해야 한다.
+#[cfg(target_os = "macos")]
+fn activate_app() {
+    use tauri_nspanel::objc2::MainThreadMarker;
+    use tauri_nspanel::objc2_app_kit::NSApplication;
+    if let Some(mtm) = MainThreadMarker::new() {
+        NSApplication::sharedApplication(mtm).activate();
+    }
+}
+
+const UTIL_LABELS: [&str; 2] = ["onboarding", "settings"];
+
+/// 유틸 창이 모두 닫히면 Accessory로 복귀 — Dock 아이콘이 다시 사라진다.
+pub fn on_util_window_destroyed(app: &AppHandle, closed_label: &str) {
+    let any_open = UTIL_LABELS
+        .iter()
+        .any(|l| *l != closed_label && app.get_webview_window(l).is_some());
+    if !any_open {
+        let _ = app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+    }
+}
+
 /// 일반 유틸리티 창(온보딩·설정)을 연다. 이미 있으면 앞으로 가져온다.
-/// Accessory 정책이라 표시 직전 앱을 잠깐 활성화해 포커스를 받게 한다.
+/// 창이 열려 있는 동안만 Regular 정책으로 전환해 Dock에 표시한다(메뉴바 유틸 표준 패턴 —
+/// 앱 메뉴가 생겨 ⌘W 등 표준 동작이 살아나고, 마지막 창이 닫히면 Accessory로 복귀).
 fn open_util_window(app: &AppHandle, label: &str, route: &str, w: f64, h: f64) {
+    let _ = app.set_activation_policy(tauri::ActivationPolicy::Regular);
+    #[cfg(target_os = "macos")]
+    activate_app();
+
     if let Some(win) = app.get_webview_window(label) {
         let _ = win.show();
         let _ = win.set_focus();
@@ -160,6 +188,7 @@ fn open_util_window(app: &AppHandle, label: &str, route: &str, w: f64, h: f64) {
         .build();
     match built {
         Ok(win) => {
+            let _ = win.show();
             let _ = win.set_focus();
         }
         Err(e) => eprintln!("[arrowly] {label} 창 생성 실패: {e}"),
