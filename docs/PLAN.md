@@ -218,7 +218,7 @@
 2. 그리기 ON 시퀀스: ① `cursor_position()`으로 전역 커서 좌표 ② `available_monitors()`에서 좌표를 포함하는 모니터 선택 ③ 패널 프레임을 그 모니터 전체로 — 직전과 다른 모니터면 `clear-all` emit(이전 그림 좌표 무효) ④ Esc 전역 등록 ⑤ `set_ignore_cursor_events(false)` ⑥ `show()` ⑦ `emit("mode-changed", { drawing: true })` ⑧ 트레이 아이콘 상태 갱신. **④가 실패하면 ⑤~⑦을 하지 않고 에러 알림**(탈출구 없는 진입 금지).
 3. 통과 모드 시퀀스: Esc 해제 → `set_ignore_cursor_events(true)` → 패널 hide → `emit("mode-changed", { drawing: false })` (웹뷰는 live 획만 취소, 그림 버퍼는 유지 — 숨김≠삭제).
 4. 등록 수명: ⌥Tab=기동 시 상시(실패 시 트레이 메뉴로만 진입 가능하게 하고 배지·알림), Esc=그리기 ON 동안만. ⌥⌫은 전역 등록 없음(웹뷰 keydown 처리).
-5. 커서(`src/overlay/cursor.ts`): 현재 색·굵기로 SVG를 data-URI로 만들어 `document.body.style.cursor = url(...) 16 16, crosshair`. 점(현재 색, 지름=굵기px×2, 최소 8) + 흐린 흰 링(rgba(255,255,255,.35), 1.5px). 통과 모드에선 `cursor: default` (어차피 이벤트 무시 상태).
+5. 커서(`src/overlay/cursor.ts`): 현재 색·굵기로 SVG를 data-URI로 만들어 `document.body.style.cursor`에 적용. 점(현재 색, 지름=굵기px×2, 최소 8) + 이중 링 — 흰 링(rgba(255,255,255,.95), 1.8px, 점+2.5px) 바깥에 어두운 헤어라인(rgba(0,0,0,.35), 1px). 통과 모드에선 `cursor: default` (어차피 이벤트 무시 상태). (커서 시안 A 확정)
 6. 검증 커밋 `feat: 모드 토글·전역 단축키` → 사용자 Mac: REQUIREMENTS 구현 순서 4·5 기준 + "웹뷰 강제 정지(무한루프 주입) 상태에서도 Esc로 탈출됨".
 
 ## M5. 플로팅 마커
