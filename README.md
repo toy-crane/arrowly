@@ -3,9 +3,7 @@
 화면 녹화 중 화면 위에 바로 그리는 macOS 주석 오버레이입니다.
 펜 하나로 밑줄·동그라미·화살표를 긋고, 설명이 끝나면 지웁니다.
 
-<!-- 스크린샷 추가 후 주석 해제 (docs/assets/demo.png 또는 demo.gif)
 ![Arrowly 사용 모습](docs/assets/demo.png)
--->
 
 ## 설치
 
