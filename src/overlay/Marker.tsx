@@ -169,8 +169,7 @@ const capsule: CSSProperties = {
   height: 44,
   display: "flex",
   alignItems: "center",
-  gap: 3,
-  padding: "0 10px",
+  padding: "0 8px",
   borderRadius: 999,
   background: "rgba(24,26,32,0.88)",
   border: "1px solid rgba(255,255,255,0.14)",
@@ -179,11 +178,12 @@ const capsule: CSSProperties = {
   touchAction: "none",
 };
 
+// 모든 셀은 동일한 40px 폭 — 내용물이 달라도 영역 균형을 유지한다
 const btn: CSSProperties = {
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  width: 32,
+  width: 40,
   height: 32,
   padding: 0,
   background: "none",
@@ -196,7 +196,13 @@ const dot: CSSProperties = { width: 20, height: 20, borderRadius: "50%", display
 
 const currentRing: CSSProperties = { outline: `2px solid ${NEUTRAL}`, outlineOffset: 2.5 };
 
-const divider: CSSProperties = { width: 1, height: 20, background: "rgba(255,255,255,0.14)" };
+const divider: CSSProperties = {
+  width: 1,
+  height: 20,
+  margin: "0 6px",
+  background: "rgba(255,255,255,0.14)",
+  flexShrink: 0,
+};
 
 const bar = (w: WidthKey): CSSProperties => ({
   width: 34,
