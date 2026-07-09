@@ -1,5 +1,6 @@
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { Color, COLORS, WidthKey, WIDTHS } from "../shared/constants";
+import { loadMarkerPos, MarkerPos, saveMarkerPos } from "../shared/settings";
 
 type Panel = "collapsed" | "colors" | "widths";
 
@@ -10,14 +11,17 @@ type Props = {
   onWidthChange: (w: WidthKey) => void;
 };
 
-// 기본 위치 좌하단(시안 확정). 위치 영속화(settings.json markerPos)는 M7에서.
-const DEFAULT_POS = { xRatio: 0.04, yRatio: 0.92 };
-const BAR_HEIGHTS: Record<WidthKey, number> = { thin: 3, medium: 5, thick: 8 };
+// 기본 위치 좌하단(시안 확정). 드래그하면 settings.json(markerPos)에 저장된다.
+const DEFAULT_POS: MarkerPos = { xRatio: 0.04, yRatio: 0.92 };
+const BAR_HEIGHTS: Record<WidthKey, number> = { thin: 4, medium: 7, thick: 11 };
 const NEUTRAL = "#E8EAF0";
+
+// 마커는 모드 토글마다 언마운트되므로, 세션 내 위치는 모듈 레벨로 기억한다
+let sessionPos: MarkerPos | null = null;
 
 export function Marker({ color, widthKey, onColorChange, onWidthChange }: Props) {
   const [panel, setPanel] = useState<Panel>("collapsed");
-  const [pos, setPos] = useState(DEFAULT_POS);
+  const [pos, setPosState] = useState<MarkerPos>(sessionPos ?? DEFAULT_POS);
   const rootRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{
     startX: number;
@@ -27,6 +31,22 @@ export function Marker({ color, widthKey, onColorChange, onWidthChange }: Props)
     dragging: boolean;
     pointerId: number;
   } | null>(null);
+
+  const setPos = (p: MarkerPos) => {
+    sessionPos = p;
+    setPosState(p);
+  };
+
+  // 첫 마운트에서 저장된 위치 복원
+  useEffect(() => {
+    if (sessionPos) return;
+    loadMarkerPos().then((p) => {
+      if (p && !sessionPos) {
+        sessionPos = p;
+        setPosState(p);
+      }
+    });
+  }, []);
 
   // 바깥 pointerdown(그리기 시작 포함) → 접힘
   useEffect(() => {
@@ -67,8 +87,14 @@ export function Marker({ color, widthKey, onColorChange, onWidthChange }: Props)
   };
 
   const onPointerUp = () => {
+    const wasDragging = dragRef.current?.dragging;
     dragRef.current = null;
-    // M7: 드래그 종료 시 markerPos를 settings.json에 저장
+    if (!wasDragging) return;
+    const el = rootRef.current;
+    if (el) {
+      const r = el.getBoundingClientRect();
+      void saveMarkerPos({ xRatio: r.left / window.innerWidth, yRatio: r.top / window.innerHeight });
+    }
   };
 
   const pickColor = (c: Color) => {
@@ -132,7 +158,7 @@ export function Marker({ color, widthKey, onColorChange, onWidthChange }: Props)
 
 function BackButton({ onClick }: { onClick: () => void }) {
   return (
-    <button style={{ ...btn, color: NEUTRAL, fontSize: 16 }} aria-label="닫기" onClick={onClick}>
+    <button style={{ ...btn, color: NEUTRAL, fontSize: 20 }} aria-label="닫기" onClick={onClick}>
       ‹
     </button>
   );
@@ -140,11 +166,11 @@ function BackButton({ onClick }: { onClick: () => void }) {
 
 const capsule: CSSProperties = {
   position: "fixed",
-  height: 34,
+  height: 44,
   display: "flex",
   alignItems: "center",
-  gap: 2,
-  padding: "0 8px",
+  gap: 3,
+  padding: "0 10px",
   borderRadius: 999,
   background: "rgba(24,26,32,0.88)",
   border: "1px solid rgba(255,255,255,0.14)",
@@ -157,8 +183,8 @@ const btn: CSSProperties = {
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  width: 24,
-  height: 24,
+  width: 32,
+  height: 32,
   padding: 0,
   background: "none",
   border: "none",
@@ -166,14 +192,14 @@ const btn: CSSProperties = {
   lineHeight: 1,
 };
 
-const dot: CSSProperties = { width: 14, height: 14, borderRadius: "50%", display: "block" };
+const dot: CSSProperties = { width: 20, height: 20, borderRadius: "50%", display: "block" };
 
 const currentRing: CSSProperties = { outline: `2px solid ${NEUTRAL}`, outlineOffset: 2.5 };
 
-const divider: CSSProperties = { width: 1, height: 16, background: "rgba(255,255,255,0.14)" };
+const divider: CSSProperties = { width: 1, height: 20, background: "rgba(255,255,255,0.14)" };
 
 const bar = (w: WidthKey): CSSProperties => ({
-  width: 26,
+  width: 34,
   height: BAR_HEIGHTS[w],
   borderRadius: 99,
   display: "block",
