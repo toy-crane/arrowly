@@ -178,14 +178,13 @@ const capsule: CSSProperties = {
   touchAction: "none",
 };
 
-// 모든 셀은 동일한 40px 폭 — 내용물이 달라도 영역 균형을 유지한다
+// 셀은 내용물 크기 + 4px 여백 — 캡슐 패딩 8 + 셀 여백 4 = 잉크 기준 12px 균일 리듬
 const btn: CSSProperties = {
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  width: 40,
   height: 32,
-  padding: 0,
+  padding: "0 4px",
   background: "none",
   border: "none",
   cursor: "pointer",
@@ -199,7 +198,7 @@ const currentRing: CSSProperties = { outline: `2px solid ${NEUTRAL}`, outlineOff
 const divider: CSSProperties = {
   width: 1,
   height: 20,
-  margin: "0 6px",
+  margin: "0 8px",
   background: "rgba(255,255,255,0.14)",
   flexShrink: 0,
 };
