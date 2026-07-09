@@ -64,7 +64,7 @@
 
 | 이름 | 방향 | 페이로드 | 시점 |
 |---|---|---|---|
-| `mode-changed` (event) | Rust→웹뷰 | `{ drawing: boolean }` | 토글·Esc 직후. `drawing:false` 수신 시 웹뷰는 그림 전체 삭제 |
+| `mode-changed` (event) | Rust→웹뷰 | `{ drawing: boolean }` | 토글·Esc 직후. `drawing:false` 수신 시 웹뷰는 live 획만 취소 — 그림 버퍼는 유지(숨김≠삭제) |
 | `clear-all` (event) | Rust→웹뷰 | 없음 | 트레이 "전체 지우기" 클릭 시 (⌥⌫는 웹뷰 keydown이 직접 처리 — 전역 아님) |
 | `marker-hidden-changed` (event) | Rust→웹뷰 | `{ hidden: boolean }` | 트레이 토글 시 |
 | `toggle_drawing` (command) | 웹뷰→Rust | 없음 | 온보딩·마커에서 모드 전환 요청 |
@@ -202,7 +202,7 @@
    ctx.bezierCurveTo(cp1, cp2, p2)
    ```
    공통 스타일: `lineCap="round"`, `lineJoin="round"`, `globalAlpha=1`(외곽선·그림자 금지).
-5. 교정: `undo()`=strokes.pop→redoStack, `redo()`, `clearAll()`. base 재렌더는 undo/redo/clear에서만 전체 수행. ⌘Z/⇧⌘Z는 window keydown에서 처리(`e.metaKey && e.key==="z"`, shift로 분기), ⌥⌫도 window keydown에서 처리(전역 단축키 아님). `clear-all` 이벤트 리스너 연결. `mode-changed` `drawing:false` 수신 시 strokes·redoStack·live 전체 삭제(방식 A: 그림 수명 = 그리기 모드).
+5. 교정: `undo()`=strokes.pop→redoStack, `redo()`, `clearAll()`. base 재렌더는 undo/redo/clear에서만 전체 수행. ⌘Z/⇧⌘Z는 window keydown에서 처리(`e.metaKey && e.code==="KeyZ"`, shift로 분기), ⌥⌫도 window keydown에서 처리(전역 단축키 아님). `clear-all` 이벤트 리스너 연결. `mode-changed` `drawing:false` 수신 시 live 획만 취소 — 그림은 삭제하지 않는다(숨김 유지 정책). `drawing:true` 재진입 시 백킹 재설정 후 base 재렌더로 복원.
 6. 검증: tsc·build 통과 후 커밋 `feat: 캔버스 그리기 엔진` → **사용자 Mac 체감 판정**(빠른 지그재그가 각지지 않는가, Retina에서 선명한가, 지연이 거슬리지 않는가).
 
 ## M4. 모드 토글과 전역 단축키
@@ -213,10 +213,10 @@
    | 현재 | 입력 | 동작 |
    |---|---|---|
    | 통과 | ⌥Tab | 그리기 ON 시퀀스 |
-   | 그리기 | ⌥Tab 또는 Esc | 통과 모드 시퀀스 (그림 전체 삭제 포함) |
+   | 그리기 | ⌥Tab 또는 Esc | 통과 모드 시퀀스 (그림은 유지한 채 숨김) |
    | 그리기 | ⌥⌫ (웹뷰 keydown, 전역 아님) | 웹뷰가 그림 전체 삭제, 모드 유지 |
-2. 그리기 ON 시퀀스: ① `cursor_position()`으로 전역 커서 좌표 ② `available_monitors()`에서 좌표를 포함하는 모니터 선택 ③ 패널 프레임을 그 모니터 전체로 ④ Esc 전역 등록 ⑤ `set_ignore_cursor_events(false)` ⑥ `show()` ⑦ `emit("mode-changed", { drawing: true })` ⑧ 트레이 아이콘 상태 갱신. **④가 실패하면 ⑤~⑦을 하지 않고 에러 알림**(탈출구 없는 진입 금지).
-3. 통과 모드 시퀀스: Esc 해제 → `set_ignore_cursor_events(true)` → 패널 hide → `emit("mode-changed", { drawing: false })` (웹뷰는 수신 즉시 그림 전체 삭제 — 방식 A).
+2. 그리기 ON 시퀀스: ① `cursor_position()`으로 전역 커서 좌표 ② `available_monitors()`에서 좌표를 포함하는 모니터 선택 ③ 패널 프레임을 그 모니터 전체로 — 직전과 다른 모니터면 `clear-all` emit(이전 그림 좌표 무효) ④ Esc 전역 등록 ⑤ `set_ignore_cursor_events(false)` ⑥ `show()` ⑦ `emit("mode-changed", { drawing: true })` ⑧ 트레이 아이콘 상태 갱신. **④가 실패하면 ⑤~⑦을 하지 않고 에러 알림**(탈출구 없는 진입 금지).
+3. 통과 모드 시퀀스: Esc 해제 → `set_ignore_cursor_events(true)` → 패널 hide → `emit("mode-changed", { drawing: false })` (웹뷰는 live 획만 취소, 그림 버퍼는 유지 — 숨김≠삭제).
 4. 등록 수명: ⌥Tab=기동 시 상시(실패 시 트레이 메뉴로만 진입 가능하게 하고 배지·알림), Esc=그리기 ON 동안만. ⌥⌫은 전역 등록 없음(웹뷰 keydown 처리).
 5. 커서(`src/overlay/cursor.ts`): 현재 색·굵기로 SVG를 data-URI로 만들어 `document.body.style.cursor = url(...) 16 16, crosshair`. 점(현재 색, 지름=굵기px×2, 최소 8) + 흐린 흰 링(rgba(255,255,255,.35), 1.5px). 통과 모드에선 `cursor: default` (어차피 이벤트 무시 상태).
 6. 검증 커밋 `feat: 모드 토글·전역 단축키` → 사용자 Mac: REQUIREMENTS 구현 순서 4·5 기준 + "웹뷰 강제 정지(무한루프 주입) 상태에서도 Esc로 탈출됨".
