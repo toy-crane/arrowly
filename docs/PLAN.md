@@ -56,7 +56,7 @@
 ┌─ 웹뷰 (src) ──┴────────────────────────────────┐
 │ overlay/   DrawingCanvas, Marker, CursorLayer   │
 │ onboarding/ 3단계 튜토리얼 + 단축키 레코더           │
-│ shared/    상수(5색·3굵기), store 헬퍼            │
+│ shared/    상수(5색·5굵기), store 헬퍼            │
 └────────────────────────────────────────────────┘
 ```
 
@@ -64,10 +64,9 @@
 
 | 이름 | 방향 | 페이로드 | 시점 |
 |---|---|---|---|
-| `mode-changed` (event) | Rust→웹뷰 | `{ drawing: boolean }` | 토글·Esc 직후 |
-| `clear-all` (event) | Rust→웹뷰 | 없음 | ⌥⌫ 전역 단축키 수신 시 |
+| `mode-changed` (event) | Rust→웹뷰 | `{ drawing: boolean }` | 토글·Esc 직후. `drawing:false` 수신 시 웹뷰는 live 획만 취소 — 그림 버퍼는 유지(숨김≠삭제) |
+| `clear-all` (event) | Rust→웹뷰 | 없음 | 트레이 "전체 지우기" 클릭 시 (⌥⌫는 웹뷰 keydown이 직접 처리 — 전역 아님) |
 | `marker-hidden-changed` (event) | Rust→웹뷰 | `{ hidden: boolean }` | 트레이 토글 시 |
-| `set_strokes_present` (command) | 웹뷰→Rust | `present: boolean` | 획 0↔1개 경계를 넘을 때마다 |
 | `toggle_drawing` (command) | 웹뷰→Rust | 없음 | 온보딩·마커에서 모드 전환 요청 |
 | `try_register_shortcut` (command) | 웹뷰→Rust | `{ id: "toggle"\|"clear", accelerator: string }` | 레코더 검증: 임시 register→unregister, `Result<(), String>` 반환 |
 | `apply_settings` (command) | 웹뷰→Rust | 설정 객체 전체 | 온보딩 완료·설정 변경 시 |
@@ -88,7 +87,7 @@
 }
 ```
 
-5색 상수: `#FFD400 #FF7A00 #FF2D95 #2ED573 #00AEEF`. 굵기 3단계: 화면 짧은 변의 `thin 0.3% / medium 0.55% / thick 1.0%` (최소 2px), 기본 `medium`.
+5색 상수: `#FFD400 #FF7A00 #FF2D95 #2ED573 #00AEEF`. 굵기 5단계(색과 같은 개수): 화면 짧은 변의 `xthin 0.25% / thin 0.4% / medium 0.55% / thick 0.75% / xthick 1.1%` (최소 2px), 기본 `medium`.
 
 ---
 
@@ -143,7 +142,7 @@
    ⚠️ tauri-nspanel의 branch명과 objc2 버전은 구현 시점에 리포/crates.io에서 확인.
 4. `src-tauri/capabilities/default.json`에 권한 추가: `core:default`, `global-shortcut:allow-register`, `global-shortcut:allow-unregister`, `global-shortcut:allow-is-registered`, `store:default`, `autostart:default` (정확한 permission 문자열은 각 플러그인 문서에서 확인).
 5. `lib.rs` 골격: 플러그인 4개 등록, `setup`에서 `app.set_activation_policy(tauri::ActivationPolicy::Accessory)`, `overlay::create(app)?` 호출, 모듈 선언(`mod overlay; mod shortcuts; mod tray; mod state;`).
-6. 프론트 디렉토리: `src/overlay/`, `src/onboarding/`, `src/shared/constants.ts`(5색·3굵기), 해시 라우팅(`location.hash === "#/onboarding"`이면 온보딩, 아니면 오버레이 UI 렌더).
+6. 프론트 디렉토리: `src/overlay/`, `src/onboarding/`, `src/shared/constants.ts`(5색·5굵기), 해시 라우팅(`location.hash === "#/onboarding"`이면 온보딩, 아니면 오버레이 UI 렌더).
 7. 검증(로컬): `bun install && bunx tsc --noEmit && bun run build` 통과. 커밋 `feat: Tauri v2 프로젝트 스캐폴딩` → push → **사용자 Mac에서 `bun tauri dev` 확인 요청.**
 
 ## M2. 오버레이 패널 스파이크 — 리스크 게이트 ⭐
@@ -174,6 +173,8 @@
 5. 임시 토글: 트레이 없이 임시 전역 단축키(⌥Tab)로 `set_ignore_cursor_events` + show/hide 전환.
 6. 커밋 `feat: 오버레이 NSPanel 스파이크` → push → **사용자에게 "M2 판정 체크리스트" 실행 요청 → 결과에 따라 진행/중단.**
 
+> **✅ 판정 결과 (2026-07-09, Go)**: 6항목 전부 통과. 레벨 **Floating(4)** 으로 전체화면 표시·메뉴바 클릭이 모두 충족돼 레벨 상향 불필요. 그리기 ON 중 ⌘Z가 패널로 라우팅되면서(TextEdit 언두 미발동으로 행동 증명) 아래 앱은 컬러 신호등·메뉴바 유지 — 패널이 key만 갖고 main은 아래 앱에 남는 구조 확인. 주의: 사용자 Mac의 ScreenBrush가 ⌥Tab을 자체 토글로 쓰므로(활성 탈취형) 테스트 전 종료 필요.
+
 ## M3. 그리기 엔진
 
 파일: `src/overlay/DrawingCanvas.tsx`, `src/overlay/strokes.ts`, `src/overlay/smoothing.ts`
@@ -194,14 +195,14 @@
 3. 입력 (Pointer Events):
    - `pointerdown`(마커 영역 제외): `live` 시작, `setPointerCapture`
    - `pointermove`: `e.getCoalescedEvents?.() ?? [e]`의 점들을 `live.points`에 push, 렌더는 rAF로 배칭(프레임당 1회, live 캔버스만 clear&redraw)
-   - `pointerup`: live를 strokes에 push, base에 그 획만 추가 렌더(전체 재렌더 금지), live 클리어, `redoStack = []`, 획 0→1이면 `invoke("set_strokes_present", { present: true })`
+   - `pointerup`: live를 strokes에 push, base에 그 획만 추가 렌더(전체 재렌더 금지), live 클리어, `redoStack = []`
 4. 렌더(`smoothing.ts`): 점 4개 미만이면 polyline. 이상이면 Catmull-Rom→cubic Bézier:
    ```
    각 구간 [p1,p2]에 대해 cp1 = p1 + (p2 − p0)/6, cp2 = p2 − (p3 − p1)/6
    ctx.bezierCurveTo(cp1, cp2, p2)
    ```
    공통 스타일: `lineCap="round"`, `lineJoin="round"`, `globalAlpha=1`(외곽선·그림자 금지).
-5. 교정: `undo()`=strokes.pop→redoStack, `redo()`, `clearAll()`. base 재렌더는 undo/redo/clear에서만 전체 수행. ⌘Z/⇧⌘Z는 window keydown에서 처리(`e.metaKey && e.key==="z"`, shift로 분기). `clear-all` 이벤트 리스너 연결. 획이 1→0이 되면 `set_strokes_present(false)`.
+5. 교정: `undo()`=strokes.pop→redoStack, `redo()`, `clearAll()`. base 재렌더는 undo/redo/clear에서만 전체 수행. ⌘Z/⇧⌘Z는 window keydown에서 처리(`e.metaKey && e.code==="KeyZ"`, shift로 분기), ⌥⌫도 window keydown에서 처리(전역 단축키 아님). `clear-all` 이벤트 리스너 연결. `mode-changed` `drawing:false` 수신 시 live 획만 취소 — 그림은 삭제하지 않는다(숨김 유지 정책). `drawing:true` 재진입 시 백킹 재설정 후 base 재렌더로 복원.
 6. 검증: tsc·build 통과 후 커밋 `feat: 캔버스 그리기 엔진` → **사용자 Mac 체감 판정**(빠른 지그재그가 각지지 않는가, Retina에서 선명한가, 지연이 거슬리지 않는가).
 
 ## M4. 모드 토글과 전역 단축키
@@ -212,20 +213,20 @@
    | 현재 | 입력 | 동작 |
    |---|---|---|
    | 통과 | ⌥Tab | 그리기 ON 시퀀스 |
-   | 그리기 | ⌥Tab 또는 Esc | 통과 모드 시퀀스 |
-   | 임의 | ⌥⌫ (획 있을 때만 등록됨) | `clear-all` emit |
-2. 그리기 ON 시퀀스: ① `cursor_position()`으로 전역 커서 좌표 ② `available_monitors()`에서 좌표를 포함하는 모니터 선택 ③ 패널 프레임을 그 모니터 전체로 ④ Esc 전역 등록 ⑤ `set_ignore_cursor_events(false)` ⑥ `show()` ⑦ `emit("mode-changed", { drawing: true })` ⑧ 트레이 아이콘 상태 갱신. **④가 실패하면 ⑤~⑦을 하지 않고 에러 알림**(탈출구 없는 진입 금지).
-3. 통과 모드 시퀀스: Esc 해제 → `set_ignore_cursor_events(true)` → emit. 패널은 hide하지 않는다(그림 유지).
-4. 등록 수명: ⌥Tab=기동 시 상시(실패 시 트레이 메뉴로만 진입 가능하게 하고 배지·알림), Esc=그리기 ON 동안만, ⌥⌫=`set_strokes_present(true/false)`에 따라 등록/해제.
-5. 커서(`src/overlay/cursor.ts`): 현재 색·굵기로 SVG를 data-URI로 만들어 `document.body.style.cursor = url(...) 16 16, crosshair`. 점(현재 색, 지름=굵기px×2, 최소 8) + 흐린 흰 링(rgba(255,255,255,.35), 1.5px). 통과 모드에선 `cursor: default` (어차피 이벤트 무시 상태).
+   | 그리기 | ⌥Tab 또는 Esc | 통과 모드 시퀀스 (그림은 유지한 채 숨김) |
+   | 그리기 | ⌥⌫ (웹뷰 keydown, 전역 아님) | 웹뷰가 그림 전체 삭제, 모드 유지 |
+2. 그리기 ON 시퀀스: ① `cursor_position()`으로 전역 커서 좌표 ② `available_monitors()`에서 좌표를 포함하는 모니터 선택 ③ 패널 프레임을 그 모니터 전체로 — 직전과 다른 모니터면 `clear-all` emit(이전 그림 좌표 무효) ④ Esc 전역 등록 ⑤ `set_ignore_cursor_events(false)` ⑥ `show()` ⑦ `emit("mode-changed", { drawing: true })` ⑧ 트레이 아이콘 상태 갱신. **④가 실패하면 ⑤~⑦을 하지 않고 에러 알림**(탈출구 없는 진입 금지).
+3. 통과 모드 시퀀스: Esc 해제 → `set_ignore_cursor_events(true)` → 패널 hide → `emit("mode-changed", { drawing: false })` (웹뷰는 live 획만 취소, 그림 버퍼는 유지 — 숨김≠삭제).
+4. 등록 수명: ⌥Tab=기동 시 상시(실패 시 트레이 메뉴로만 진입 가능하게 하고 배지·알림), Esc=그리기 ON 동안만. ⌥⌫은 전역 등록 없음(웹뷰 keydown 처리).
+5. 커서(`src/overlay/cursor.ts`): 현재 색·굵기로 SVG를 data-URI로 만들어 `document.body.style.cursor`에 적용. 점(현재 색, 지름=굵기px×2, 최소 8) + 이중 링 — 흰 링(rgba(255,255,255,.95), 1.8px, 점+2.5px) 바깥에 어두운 헤어라인(rgba(0,0,0,.35), 1px). 통과 모드에선 `cursor: default` (어차피 이벤트 무시 상태). (커서 시안 A 확정)
 6. 검증 커밋 `feat: 모드 토글·전역 단축키` → 사용자 Mac: REQUIREMENTS 구현 순서 4·5 기준 + "웹뷰 강제 정지(무한루프 주입) 상태에서도 Esc로 탈출됨".
 
 ## M5. 플로팅 마커
 
 파일: `src/overlay/Marker.tsx`
 
-- 시각 스펙(시안 §02 그대로): 높이 34px 캡슐, `rgba(24,26,32,.88)` + 1px `rgba(255,255,255,.14)` 테두리, radius 999, 그림자 `0 4px 18px rgba(0,0,0,.35)`. 접힘=색 점(14px)+구분선+굵기 획(26×5px). 색 펼침=‹ + 5색 점, 현재 색만 중립 링(`outline 2px #E8EAF0, offset 2.5px`). 굵기 펼침=‹ + 3단계 가로 바(현재만 채움, 나머지 1.5px 테두리만).
-- 상태머신: `collapsed | colors | widths`. 색 점 탭→colors, 굵기 획 탭→widths, 항목 선택→적용+collapsed, ‹·바깥 pointerdown·그리기 시작→collapsed.
+- 시각 스펙(시안 §02, 크기 확대 + 팝오버 구조로 변경): 높이 44px 캡슐, `rgba(24,26,32,.88)` + 1px `rgba(255,255,255,.14)` 테두리, radius 999, 그림자 `0 4px 18px rgba(0,0,0,.35)`. 캡슐=색 점(20px)+구분선+굵기 획(34×7px), **위치·크기 불변**. 선택지는 캡슐 위 8px 팝오버(같은 재질, 중앙 정렬+화면 클램프, 최상단 근처면 아래로). 색 팝오버=5색 점, 현재 색만 중립 링(`outline 2px #E8EAF0, offset 2.5px`). 굵기 팝오버=5단계 가로 바(높이 3/5/7/9/12, 현재만 채움, 나머지 1.5px 테두리만).
+- 상태머신: `collapsed | colors | widths`. 색 점 탭→colors 팝오버, 굵기 획 탭→widths 팝오버(열린 셀은 옅은 하이라이트), 항목 선택·같은 셀 재탭·바깥 pointerdown·그리기 시작→collapsed.
 - 드래그: 마커 루트 `pointerdown`에서 시작(120ms/4px 이동 임계값으로 탭과 구분), 이동 후 `markerPos`(화면 비율)를 store에 저장.
 - **hit-test 규칙**: 마커 내부에서 시작한 포인터 이벤트는 `stopPropagation()`으로 캔버스에 전달 금지 — 마커 위에서 획이 시작되면 안 된다.
 - 표시 조건: `drawing && !markerHidden`. `marker-hidden-changed` 이벤트 구독.
@@ -245,7 +246,7 @@
   | autostart | 로그인 시 실행 ✓ | autostart 플러그인 enable/disable |
   | tutorial | 튜토리얼 다시 보기 | 온보딩 창 열기 |
   | quit | Arrowly 종료 | `app.exit(0)` |
-- 아이콘으로 그리기 상태 표시: ON일 때 채워진 변형 템플릿으로 교체.
+- 트레이 아이콘은 상태와 무관하게 고정(화살표 글리프). 그리기 상태 표시는 플로팅 마커가 전담하므로 아이콘 변형을 두지 않는다(확정).
 - 커밋 `feat: 메뉴바 트레이` → 사용자 Mac: Dock/⌘Tab에 안 보임, 메뉴로 전 기능 동작, 종료 확실.
 
 ## M7. 설정 영속화
@@ -260,7 +261,7 @@
 
 - 창: 일반 WebviewWindow(`onboarding`), 640×480, 불투명, resizable(false), center. `onboardingDone=false`일 때 기동 시 생성. Accessory 정책에서 포커스가 안 오면 표시 직전 `app.show()`/activate 처리 확인.
 - STEP 1 그려보기: 창 내 미니 캔버스(M3 엔진 재사용, 규모만 축소). 획 하나 그리면 "다음" 활성화.
-- STEP 2 단축키 레코더: 필드 포커스 상태에서 `keydown` 캡처 → `e.metaKey/altKey/ctrlKey/shiftKey + e.code`를 accelerator 문자열("Alt+Tab" 형식)로 조립, 심볼 표시(⌥⇥). "적용" 시 `try_register_shortcut` invoke — 실패하면 필드 아래 빨간 인라인 메시지("이 조합은 사용 중"). 기본값 ⌥Tab/⌥⌫ 미리 채움. Esc는 예약 키므로 입력 거부.
+- STEP 2 단축키 레코더: 필드 포커스 상태에서 `keydown` 캡처 → `e.metaKey/altKey/ctrlKey/shiftKey + e.code`를 accelerator 문자열("Alt+Tab" 형식)로 조립, 심볼 표시(⌥⇥). "적용" 시 toggle만 `try_register_shortcut` invoke — 실패하면 필드 아래 빨간 인라인 메시지("이 조합은 사용 중"). clear(⌥⌫)는 앱 내부 키라 전역 충돌 검사 불필요. 기본값 ⌥Tab/⌥⌫ 미리 채움. Esc는 예약 키므로 입력 거부.
 - STEP 3 Esc·⌘Z 체험: 안내 + 미니 캔버스에서 ⌘Z 실습. 마지막 줄 "Arrowly는 메뉴바에서 기다립니다." → 완료 버튼 → `apply_settings` + `onboardingDone=true` 저장 → 창 close.
 - 조건부 권한 단계: 현 아키텍처에선 표시하지 않음. `steps` 배열에 자리만 남긴다.
 - 커밋 `feat: 온보딩` → 사용자 Mac: 20초 완주, 재실행 시 안 뜸, 트레이 "튜토리얼 다시 보기"로 재진입.

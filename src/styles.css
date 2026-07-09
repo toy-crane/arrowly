@@ -1,0 +1,50 @@
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  background: transparent;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* 유틸리티 창(설정·온보딩) 테마 — "잉크 & 종이" (확정).
+   웜 페이퍼 배경 + 잉크 텍스트 + 형광 옐로우 포인트, 다크 모드는 잉크 배경으로 반전.
+   화면 위 요소(마커·커서·오버레이)는 이 테마를 따르지 않고 다크 고정. */
+:root {
+  --win: #faf8f2;
+  --card: #ffffff;
+  --field: #ffffff;
+  --kbd: #faf8f2;
+  --fg: #1c1e24;
+  --muted: #8a867c;
+  --line: rgba(28, 30, 36, 0.1);
+  --line-strong: rgba(28, 30, 36, 0.2);
+  --hi: #ffd400;
+  --primary-bg: #1c1e24;
+  --primary-fg: #ffdf33;
+  --rec-border: #d9b500;
+  --rec-ring: rgba(255, 212, 0, 0.35);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --win: #1c1e24;
+    --card: #26282f;
+    --field: #2b2e36;
+    --kbd: #2b2e36;
+    --fg: #eae8e1;
+    --muted: #9a968c;
+    --line: rgba(234, 232, 225, 0.12);
+    --line-strong: rgba(234, 232, 225, 0.24);
+    --hi: #f5c800;
+    --primary-bg: #ffd400;
+    --primary-fg: #1c1e24;
+    --rec-border: #f5c800;
+    --rec-ring: rgba(245, 200, 0, 0.3);
+  }
+}
