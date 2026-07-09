@@ -5,6 +5,7 @@
   "windows": ["overlay", "onboarding", "settings"],
   "permissions": [
     "core:default",
+    "core:window:allow-close",
     "global-shortcut:allow-register",
     "global-shortcut:allow-unregister",
     "global-shortcut:allow-is-registered",

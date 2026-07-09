@@ -52,6 +52,17 @@ pub fn run() {
                 // 등록 실패로 앱을 죽이지 않는다 — 트레이 메뉴로 진입 가능
                 eprintln!("[arrowly] 그리기 토글 전역 등록 실패: {e}");
             }
+
+            // 첫 실행이면 온보딩을 띄운다
+            let onboarding_done = app
+                .store("settings.json")
+                .ok()
+                .and_then(|s| s.get("onboardingDone"))
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+            if !onboarding_done {
+                overlay::open_onboarding(app.handle());
+            }
             Ok(())
         })
         .run(tauri::generate_context!())

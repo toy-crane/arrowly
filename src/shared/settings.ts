@@ -58,3 +58,9 @@ export async function saveShortcuts(shortcuts: Shortcuts): Promise<void> {
   await store.set("shortcuts", shortcuts);
   await store.save();
 }
+
+export async function saveOnboardingDone(): Promise<void> {
+  const store = await settingsStore();
+  await store.set("onboardingDone", true);
+  await store.save();
+}
