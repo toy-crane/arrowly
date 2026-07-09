@@ -17,7 +17,10 @@ pub fn run() {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
             overlay::create(app)?;
-            shortcuts::register_toggle(app.handle())?;
+            if let Err(e) = shortcuts::register_toggle(app.handle()) {
+                // 등록 실패로 앱을 죽이지 않는다 — 트레이(M6) 진입 경로가 생길 때까지는 로그만
+                eprintln!("[arrowly] ⌥Tab 전역 등록 실패: {e}");
+            }
             Ok(())
         })
         .run(tauri::generate_context!())
