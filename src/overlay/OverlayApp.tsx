@@ -44,7 +44,6 @@ export function OverlayApp() {
         <div>last key: {lastKey || "—"}</div>
         <div>⌘Z count: {undoCount}</div>
       </div>
-      <div style={testRect} />
     </div>
   );
 }
@@ -61,13 +60,3 @@ const hud: CSSProperties = {
   whiteSpace: "pre",
 };
 
-const testRect: CSSProperties = {
-  position: "fixed",
-  top: "40%",
-  left: "40%",
-  width: 320,
-  height: 180,
-  borderRadius: 16,
-  background: "rgba(255, 45, 149, 0.35)",
-  border: "3px solid rgba(255, 45, 149, 0.8)",
-};
