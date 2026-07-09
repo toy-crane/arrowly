@@ -56,7 +56,7 @@
 ┌─ 웹뷰 (src) ──┴────────────────────────────────┐
 │ overlay/   DrawingCanvas, Marker, CursorLayer   │
 │ onboarding/ 3단계 튜토리얼 + 단축키 레코더           │
-│ shared/    상수(5색·3굵기), store 헬퍼            │
+│ shared/    상수(5색·5굵기), store 헬퍼            │
 └────────────────────────────────────────────────┘
 ```
 
@@ -87,7 +87,7 @@
 }
 ```
 
-5색 상수: `#FFD400 #FF7A00 #FF2D95 #2ED573 #00AEEF`. 굵기 3단계: 화면 짧은 변의 `thin 0.3% / medium 0.55% / thick 1.0%` (최소 2px), 기본 `medium`.
+5색 상수: `#FFD400 #FF7A00 #FF2D95 #2ED573 #00AEEF`. 굵기 5단계(색과 같은 개수): 화면 짧은 변의 `xthin 0.25% / thin 0.4% / medium 0.55% / thick 0.75% / xthick 1.1%` (최소 2px), 기본 `medium`.
 
 ---
 
@@ -142,7 +142,7 @@
    ⚠️ tauri-nspanel의 branch명과 objc2 버전은 구현 시점에 리포/crates.io에서 확인.
 4. `src-tauri/capabilities/default.json`에 권한 추가: `core:default`, `global-shortcut:allow-register`, `global-shortcut:allow-unregister`, `global-shortcut:allow-is-registered`, `store:default`, `autostart:default` (정확한 permission 문자열은 각 플러그인 문서에서 확인).
 5. `lib.rs` 골격: 플러그인 4개 등록, `setup`에서 `app.set_activation_policy(tauri::ActivationPolicy::Accessory)`, `overlay::create(app)?` 호출, 모듈 선언(`mod overlay; mod shortcuts; mod tray; mod state;`).
-6. 프론트 디렉토리: `src/overlay/`, `src/onboarding/`, `src/shared/constants.ts`(5색·3굵기), 해시 라우팅(`location.hash === "#/onboarding"`이면 온보딩, 아니면 오버레이 UI 렌더).
+6. 프론트 디렉토리: `src/overlay/`, `src/onboarding/`, `src/shared/constants.ts`(5색·5굵기), 해시 라우팅(`location.hash === "#/onboarding"`이면 온보딩, 아니면 오버레이 UI 렌더).
 7. 검증(로컬): `bun install && bunx tsc --noEmit && bun run build` 통과. 커밋 `feat: Tauri v2 프로젝트 스캐폴딩` → push → **사용자 Mac에서 `bun tauri dev` 확인 요청.**
 
 ## M2. 오버레이 패널 스파이크 — 리스크 게이트 ⭐
@@ -225,7 +225,7 @@
 
 파일: `src/overlay/Marker.tsx`
 
-- 시각 스펙(시안 §02, 크기 확대 + 팝오버 구조로 변경): 높이 44px 캡슐, `rgba(24,26,32,.88)` + 1px `rgba(255,255,255,.14)` 테두리, radius 999, 그림자 `0 4px 18px rgba(0,0,0,.35)`. 캡슐=색 점(20px)+구분선+굵기 획(34×7px), **위치·크기 불변**. 선택지는 캡슐 위 8px 팝오버(같은 재질, 중앙 정렬+화면 클램프, 최상단 근처면 아래로). 색 팝오버=5색 점, 현재 색만 중립 링(`outline 2px #E8EAF0, offset 2.5px`). 굵기 팝오버=3단계 가로 바(높이 4/7/11, 현재만 채움, 나머지 1.5px 테두리만).
+- 시각 스펙(시안 §02, 크기 확대 + 팝오버 구조로 변경): 높이 44px 캡슐, `rgba(24,26,32,.88)` + 1px `rgba(255,255,255,.14)` 테두리, radius 999, 그림자 `0 4px 18px rgba(0,0,0,.35)`. 캡슐=색 점(20px)+구분선+굵기 획(34×7px), **위치·크기 불변**. 선택지는 캡슐 위 8px 팝오버(같은 재질, 중앙 정렬+화면 클램프, 최상단 근처면 아래로). 색 팝오버=5색 점, 현재 색만 중립 링(`outline 2px #E8EAF0, offset 2.5px`). 굵기 팝오버=5단계 가로 바(높이 3/5/7/9/12, 현재만 채움, 나머지 1.5px 테두리만).
 - 상태머신: `collapsed | colors | widths`. 색 점 탭→colors 팝오버, 굵기 획 탭→widths 팝오버(열린 셀은 옅은 하이라이트), 항목 선택·같은 셀 재탭·바깥 pointerdown·그리기 시작→collapsed.
 - 드래그: 마커 루트 `pointerdown`에서 시작(120ms/4px 이동 임계값으로 탭과 구분), 이동 후 `markerPos`(화면 비율)를 store에 저장.
 - **hit-test 규칙**: 마커 내부에서 시작한 포인터 이벤트는 `stopPropagation()`으로 캔버스에 전달 금지 — 마커 위에서 획이 시작되면 안 된다.

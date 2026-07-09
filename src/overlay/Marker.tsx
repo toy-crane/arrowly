@@ -13,7 +13,7 @@ type Props = {
 
 // 기본 위치 좌하단(시안 확정). 드래그하면 settings.json(markerPos)에 저장된다.
 const DEFAULT_POS: MarkerPos = { xRatio: 0.04, yRatio: 0.92 };
-const BAR_HEIGHTS: Record<WidthKey, number> = { thin: 4, medium: 7, thick: 11 };
+const BAR_HEIGHTS: Record<WidthKey, number> = { xthin: 3, thin: 5, medium: 7, thick: 9, xthick: 12 };
 const NEUTRAL = "#E8EAF0";
 
 // 마커는 모드 토글마다 언마운트되므로, 세션 내 위치는 모듈 레벨로 기억한다
