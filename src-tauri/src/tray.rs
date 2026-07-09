@@ -51,9 +51,8 @@ pub fn sync(app: &AppHandle) {
     }
     let bytes = if drawing { ICON_ON } else { ICON_OFF };
     if let Ok(img) = Image::from_bytes(bytes) {
-        let _ = tray.set_icon(Some(img));
-        // set_icon이 템플릿 플래그를 리셋할 수 있어 다시 켠다
-        let _ = tray.set_icon_as_template(true);
+        // tray-icon의 set_icon은 템플릿 플래그를 false로 리셋하므로 원자 API를 쓴다
+        let _ = tray.set_icon_with_as_template(Some(img), true);
     }
 }
 
