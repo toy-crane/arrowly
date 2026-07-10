@@ -90,7 +90,8 @@ fn enter_drawing(app: &AppHandle) -> bool {
                 let _ = win.set_position(*m.position());
                 let _ = win.set_size(*m.size());
                 if monitor_changed {
-                    let _ = app.emit("clear-all", ());
+                    // 좌표가 무효라 복원 대상이 아니다 — ⌘Z로 복구되는 clear-all과 다른 경로
+                    let _ = app.emit("reset-strokes", ());
                 }
             }
         }

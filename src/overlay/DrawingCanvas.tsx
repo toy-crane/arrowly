@@ -102,6 +102,13 @@ export function DrawingCanvas({ color, widthKey, clearAccel }: Props) {
       renderLive();
     };
 
+    // 모니터 변경으로 좌표가 무효 — 복원해도 어긋나므로 히스토리까지 버린다
+    const resetAll = () => {
+      store.reset();
+      renderBase();
+      renderLive();
+    };
+
     const onKeyDown = (e: KeyboardEvent) => {
       // e.code 기준: 한글 입력 소스에서도 물리 키로 판정
       if (e.metaKey && !e.altKey && !e.ctrlKey && e.code === "KeyZ") {
@@ -131,6 +138,7 @@ export function DrawingCanvas({ color, widthKey, clearAccel }: Props) {
       }
     });
     const unlistenClear = listen("clear-all", clearAll);
+    const unlistenReset = listen("reset-strokes", resetAll);
 
     return () => {
       window.removeEventListener("resize", setupBacking);
@@ -141,6 +149,7 @@ export function DrawingCanvas({ color, widthKey, clearAccel }: Props) {
       live.removeEventListener("pointercancel", onPointerCancel);
       unlistenMode.then((f) => f());
       unlistenClear.then((f) => f());
+      unlistenReset.then((f) => f());
       if (rafId) cancelAnimationFrame(rafId);
     };
   }, []);
