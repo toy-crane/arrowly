@@ -33,14 +33,16 @@ vi.mock("./cursor", () => ({
 vi.mock("./DrawingCanvas", () => ({
   DrawingCanvas: ({
     clearAccel,
+    textAccel,
     textMode,
     onTextModeChange,
   }: {
     clearAccel: string;
+    textAccel: string;
     textMode: boolean;
     onTextModeChange: (on: boolean) => void;
   }) => (
-    <div data-testid="canvas" data-textmode={String(textMode)}>
+    <div data-testid="canvas" data-textmode={String(textMode)} data-textaccel={textAccel}>
       <button onClick={() => onTextModeChange(!textMode)}>text-toggle</button>
       {clearAccel}
     </div>
@@ -69,7 +71,7 @@ describe("OverlayApp", () => {
 
   beforeEach(() => {
     commands.length = 0;
-    mocks.loadShortcuts.mockReset().mockResolvedValue({ toggle: "Alt+Tab", board: "Shift+Alt+Tab", clear: "Control+KeyK" });
+    mocks.loadShortcuts.mockReset().mockResolvedValue({ toggle: "Alt+Tab", board: "Shift+Alt+Tab", clear: "Control+KeyK", text: "KeyT" });
     mocks.loadTool.mockReset().mockResolvedValue({ color: "#2ED573", width: "thin" });
     mocks.saveColor.mockReset().mockResolvedValue(undefined);
     mocks.saveWidth.mockReset().mockResolvedValue(undefined);
@@ -102,10 +104,11 @@ describe("OverlayApp", () => {
 
     await act(async () => {
       await emit("board-changed", { on: false });
-      await emit("shortcuts-changed", { clear: "Alt+KeyC" });
+      await emit("shortcuts-changed", { clear: "Alt+KeyC", text: "KeyY" });
       await emit("marker-hidden-changed", { hidden: true });
     });
     expect(screen.getByTestId("canvas")).toHaveTextContent("Alt+KeyC");
+    expect(screen.getByTestId("canvas")).toHaveAttribute("data-textaccel", "KeyY");
     expect(screen.queryByTestId("marker")).not.toBeInTheDocument();
 
     await act(async () => {

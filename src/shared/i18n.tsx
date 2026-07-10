@@ -19,6 +19,7 @@ const en = {
   "shortcut.toggle": "Toggle drawing",
   "shortcut.board": "Toggle blackboard",
   "shortcut.clear": "Clear all",
+  "shortcut.text": "Typing text",
   "shortcut.recording": "Press a new shortcut…",
   "shortcut.reset": "Reset",
   "shortcut.error.undo": "This key is used for Undo",
@@ -37,6 +38,7 @@ const en = {
   "marker.colorValue": "Color {value}",
   "marker.widthValue": "Thickness {value}",
   "marker.toggleBoard": "Toggle blackboard",
+  "marker.textMode": "Type text",
 } as const;
 
 export type Key = keyof typeof en;
@@ -59,6 +61,7 @@ const ko: Record<Key, string> = {
   "shortcut.toggle": "그리기 토글",
   "shortcut.board": "블랙보드 토글",
   "shortcut.clear": "전체 지우기",
+  "shortcut.text": "텍스트 입력",
   "shortcut.recording": "새 단축키를 누르세요…",
   "shortcut.reset": "기본값",
   "shortcut.error.undo": "실행 취소에 쓰이는 키예요",
@@ -77,6 +80,7 @@ const ko: Record<Key, string> = {
   "marker.colorValue": "색 {value}",
   "marker.widthValue": "굵기 {value}",
   "marker.toggleBoard": "블랙보드 토글",
+  "marker.textMode": "텍스트 입력",
 };
 
 // 시스템 언어 자동 감지 — Rust 쪽(i18n.rs)과 같은 소스(macOS 선호 언어)·같은 규칙

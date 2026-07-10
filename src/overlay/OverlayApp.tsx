@@ -14,10 +14,14 @@ export function OverlayApp() {
   const [color, setColor] = useState<Color>(DEFAULT_COLOR);
   const [widthKey, setWidthKey] = useState<WidthKey>(DEFAULT_WIDTH);
   const [clearAccel, setClearAccel] = useState(DEFAULT_SHORTCUTS.clear);
+  const [textAccel, setTextAccel] = useState(DEFAULT_SHORTCUTS.text);
   const [textMode, setTextMode] = useState(false);
 
   useEffect(() => {
-    loadShortcuts().then((s) => setClearAccel(s.clear));
+    loadShortcuts().then((s) => {
+      setClearAccel(s.clear);
+      setTextAccel(s.text);
+    });
     loadTool().then(({ color, width }) => {
       setColor(color);
       setWidthKey(width);
@@ -32,9 +36,10 @@ export function OverlayApp() {
     const unMarker = listen<{ hidden: boolean }>("marker-hidden-changed", (e) =>
       setMarkerHidden(e.payload.hidden),
     );
-    const unShortcuts = listen<{ clear: string }>("shortcuts-changed", (e) =>
-      setClearAccel(e.payload.clear),
-    );
+    const unShortcuts = listen<{ clear: string; text: string }>("shortcuts-changed", (e) => {
+      setClearAccel(e.payload.clear);
+      setTextAccel(e.payload.text);
+    });
     return () => {
       unMode.then((f) => f());
       unBoard.then((f) => f());
@@ -63,7 +68,7 @@ export function OverlayApp() {
         color={color}
         widthKey={widthKey}
         clearAccel={clearAccel}
-        textAccel="KeyT" // M11.4에서 설정 연동으로 교체
+        textAccel={textAccel}
         textMode={textMode}
         onTextModeChange={setTextMode}
       />

@@ -29,7 +29,7 @@ describe("OnboardingApp", () => {
 
   beforeEach(() => {
     commands.length = 0;
-    mocks.loadShortcuts.mockReset().mockResolvedValue({ toggle: "Alt+Tab", board: "Control+Cmd+KeyB", clear: "Alt+Backspace" });
+    mocks.loadShortcuts.mockReset().mockResolvedValue({ toggle: "Alt+Tab", board: "Control+Cmd+KeyB", clear: "Alt+Backspace", text: "KeyT" });
     mocks.saveOnboardingDone.mockReset().mockResolvedValue(undefined);
     mockWindows("onboarding");
     mockIPC((cmd) => void commands.push(cmd));
