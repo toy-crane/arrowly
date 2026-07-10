@@ -17,6 +17,9 @@ export const MIN_CLOSED_PATH_RATIO = 1.2;
 export const CORNER_TURN_DEG = 55;
 /** 모서리가 이 개수 이상이면 사각형, 미만이면 원/타원. */
 export const MIN_RECT_CORNERS = 3;
+/** 닫힌 획이 타원으로 스냅되려면 짧은 축(bbox 반변)이 이 값 이상이어야 한다.
+ * 미만이면 직선 왕복(같은 경로를 되짚어온 획) 같은 퇴화 형태일 가능성이 높아 손그림으로 남긴다. */
+export const MIN_ELLIPSE_MINOR_PX = 8; // MIN_SNAP_DIAG_PX / 3
 
 export type SnapResult =
   | { shape: "rect"; geometry: RectGeometry }
@@ -106,6 +109,8 @@ export function classifyStroke(points: Point[]): SnapResult | null {
     if (countCorners(rs) >= MIN_RECT_CORNERS) {
       return { shape: "rect", geometry: bbox };
     }
+    const minorAxis = Math.min(bbox.w, bbox.h) / 2;
+    if (minorAxis < MIN_ELLIPSE_MINOR_PX) return null; // 직선 왕복 등 — 찌그러진 타원으로 오인하지 않는다
     return {
       shape: "ellipse",
       geometry: { cx: bbox.x + bbox.w / 2, cy: bbox.y + bbox.h / 2, rx: bbox.w / 2, ry: bbox.h / 2 },

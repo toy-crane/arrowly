@@ -6,6 +6,7 @@ import {
   CORNER_TURN_DEG,
   HOLD_MS,
   MIN_CLOSED_PATH_RATIO,
+  MIN_ELLIPSE_MINOR_PX,
   MIN_RECT_CORNERS,
   MIN_SNAP_DIAG_PX,
   RING_DELAY_MS,
@@ -108,6 +109,14 @@ describe("classifyStroke", () => {
     expect(classifyStroke(v)?.shape).toBe("arrow");
   });
 
+  it("refuses to snap a straight out-and-back stroke as a degenerate ellipse", () => {
+    // 드래그로 나갔다가 같은 경로로 되짚어 시작점 근처로 돌아온 획 — 닫힘 판정은 통과하지만
+    // 수직 퍼짐이 거의 없어 보이지 않는 납작 타원이 되면 안 된다
+    const out = linePath({ x: 100, y: 100 }, { x: 220, y: 100 }, 20);
+    const back = linePath({ x: 220, y: 100 }, { x: 100, y: 100 }, 20).slice(1);
+    expect(classifyStroke(jitter([...out, ...back], 1))).toBeNull();
+  });
+
   it("refuses to snap tiny scribbles and degenerate strokes", () => {
     expect(classifyStroke([])).toBeNull();
     expect(classifyStroke([{ x: 5, y: 5 }])).toBeNull();
@@ -126,5 +135,6 @@ describe("classifyStroke", () => {
     expect(MIN_CLOSED_PATH_RATIO).toBe(1.2);
     expect(CORNER_TURN_DEG).toBe(55);
     expect(MIN_RECT_CORNERS).toBe(3);
+    expect(MIN_ELLIPSE_MINOR_PX).toBe(8);
   });
 });
