@@ -1,13 +1,15 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { DEFAULT_COLOR } from "../shared/constants";
 import { drawStroke, Point, StrokeStore } from "../overlay/strokes";
 
 type Props = {
   onFirstStroke?: () => void;
+  /** ⌘B로 배경을 검게 전환하는 블랙보드 체험 허용 (③단계 전용) */
+  boardable?: boolean;
 };
 
 /** 온보딩용 미니 캔버스 — M3 엔진(strokes·smoothing) 재사용, 창 안에서만 동작. */
-export function MiniCanvas({ onFirstStroke }: Props) {
+export function MiniCanvas({ onFirstStroke, boardable = false }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const storeRef = useRef<StrokeStore>(null!);
@@ -15,6 +17,9 @@ export function MiniCanvas({ onFirstStroke }: Props) {
   const firedRef = useRef(false);
   const onFirstRef = useRef(onFirstStroke);
   onFirstRef.current = onFirstStroke;
+  const [board, setBoard] = useState(false);
+  const boardableRef = useRef(boardable);
+  boardableRef.current = boardable;
 
   useEffect(() => {
     const wrap = wrapRef.current!;
@@ -89,6 +94,17 @@ export function MiniCanvas({ onFirstStroke }: Props) {
         e.preventDefault();
         store.clear();
         render();
+      } else if (
+        boardableRef.current &&
+        !e.repeat &&
+        e.metaKey &&
+        !e.altKey &&
+        !e.ctrlKey &&
+        !e.shiftKey &&
+        e.code === "KeyB"
+      ) {
+        e.preventDefault();
+        setBoard((b) => !b);
       }
     };
 
@@ -117,6 +133,9 @@ export function MiniCanvas({ onFirstStroke }: Props) {
         border: "1px dashed var(--line-strong)",
         borderRadius: 10,
         overflow: "hidden",
+        // 오버레이 블랙보드 백드롭과 같은 페이드감 (OverlayApp 참조)
+        background: board ? "#000" : "transparent",
+        transition: "background 150ms ease-out",
       }}
     >
       <canvas

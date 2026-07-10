@@ -10,7 +10,8 @@ const en = {
   "onboarding.shortcut.hi": "the key that turns drawing on and off",
   "onboarding.erase.title": "Undo and exit",
   "onboarding.erase.body":
-    "Made a mistake? Press {cmd}{z} to undo one stroke at a time. While drawing, press {esc} anytime to exit. Try drawing below, then press {cmd}{z}.",
+    "Made a mistake? Press {cmd}{z} to undo one stroke at a time. While drawing, {cmd}{b} turns {hi} — your strokes stay. Press {esc} anytime to exit. Try drawing below, then press {cmd}{b}.",
+  "onboarding.erase.hi": "the screen into a blackboard",
   "onboarding.menubar": "Arrowly lives in the menu bar at the top right of your screen — look for the {arrow} icon.",
   "onboarding.back": "Back",
   "onboarding.next": "Next",
@@ -47,7 +48,8 @@ const ko: Record<Key, string> = {
   "onboarding.shortcut.hi": "그리기를 켜고 끄는 키",
   "onboarding.erase.title": "지우기와 빠져나가기",
   "onboarding.erase.body":
-    "그리다 실수하면 {cmd}{z}로 한 획씩 취소돼요. 그리기 모드에서는 {esc}로 언제든 빠져나옵니다. 아래에서 그리고 {cmd}{z}를 눌러 보세요.",
+    "그리다 실수하면 {cmd}{z}로 한 획씩 취소돼요. 그리는 중 {cmd}{b}를 누르면 {hi}이 되고 그림은 그대로 남아요. {esc}로 언제든 빠져나옵니다. 아래에서 그리고 {cmd}{b}를 눌러 보세요.",
+  "onboarding.erase.hi": "화면이 검은 칠판",
   "onboarding.menubar": "Arrowly는 화면 오른쪽 위 메뉴바의 {arrow} 아이콘에 있어요.",
   "onboarding.back": "이전",
   "onboarding.next": "다음",
