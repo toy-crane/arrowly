@@ -219,6 +219,106 @@ describe("DrawingCanvas", () => {
     });
   });
 
+  describe("hold-to-snap", () => {
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "Date"] });
+      // 반복 스케줄 검증에는 id=0 반환이 필요하다 — 동기 스텁이 1을 반환하면
+      // rafId가 콜백 후에 1로 덮여 다음 scheduleLive가 조기 반환된다.
+      vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+        callback(1);
+        return 0;
+      });
+    });
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    function renderCanvas() {
+      const { container } = render(
+        <DrawingCanvas {...baseProps} textMode={false} onTextModeChange={vi.fn()} />,
+      );
+      return { live: container.querySelectorAll("canvas")[1], baseCtx: contexts[0], liveCtx: contexts[1] };
+    }
+
+    function traceSquare(live: Element, x: number, y: number, size: number, pointerId = 1) {
+      fireEvent.pointerDown(live, { button: 0, clientX: x, clientY: y, pointerId });
+      const perSide = 12;
+      const sides: [number, number][] = [];
+      for (let i = 1; i <= perSide; i++) sides.push([x + (size * i) / perSide, y]);
+      for (let i = 1; i <= perSide; i++) sides.push([x + size, y + (size * i) / perSide]);
+      for (let i = 1; i <= perSide; i++) sides.push([x + size - (size * i) / perSide, y + size]);
+      for (let i = 1; i <= perSide; i++) sides.push([x, y + size - (size * i) / perSide]);
+      for (const [px, py] of sides) fireEvent.pointerMove(live, { clientX: px, clientY: py, pointerId });
+    }
+
+    it("snaps a held closed stroke to a rectangle committed as one undoable mark", () => {
+      const { live, baseCtx, liveCtx } = renderCanvas();
+      traceSquare(live, 100, 100, 120);
+      expect(liveCtx.rect).not.toHaveBeenCalled();
+
+      vi.advanceTimersByTime(700); // HOLD_MS 도달 → 스냅 미리보기
+      expect(liveCtx.rect).toHaveBeenCalled();
+      expect(baseCtx.rect).not.toHaveBeenCalled();
+
+      fireEvent.pointerUp(live, { clientX: 100, clientY: 100, pointerId: 1 });
+      expect(baseCtx.rect).toHaveBeenCalledTimes(1); // 증분 커밋 1회
+
+      // 스냅된 도형도 ⌘Z 한 번에 통째로 사라진다
+      fireEvent.keyDown(window, { code: "KeyZ", metaKey: true });
+      expect(baseCtx.rect).toHaveBeenCalledTimes(1); // renderBase 재실행에서 재호출 없음
+    });
+
+    it("shows the progress ring only after the delay", () => {
+      const { live, liveCtx } = renderCanvas();
+      fireEvent.pointerDown(live, { button: 0, clientX: 50, clientY: 50, pointerId: 1 });
+
+      vi.advanceTimersByTime(100); // RING_DELAY_MS 이전
+      expect(liveCtx.arc).not.toHaveBeenCalled();
+
+      vi.advanceTimersByTime(200); // 링 표시 구간
+      expect(liveCtx.arc).toHaveBeenCalled();
+      fireEvent.pointerUp(live, { clientX: 50, clientY: 50, pointerId: 1 });
+    });
+
+    it("resets the hold when the pointer moves, committing freehand on release", () => {
+      const { live, baseCtx } = renderCanvas();
+      fireEvent.pointerDown(live, { button: 0, clientX: 0, clientY: 0, pointerId: 1 });
+      vi.advanceTimersByTime(500);
+      fireEvent.pointerMove(live, { clientX: 100, clientY: 100, pointerId: 1 }); // 홀드 리셋
+      vi.advanceTimersByTime(300); // 리셋 이후 300ms — 스냅 안 됨
+      fireEvent.pointerUp(live, { clientX: 120, clientY: 120, pointerId: 1 });
+
+      expect(baseCtx.rect).not.toHaveBeenCalled();
+      expect(baseCtx.ellipse).not.toHaveBeenCalled();
+      expect(baseCtx.stroke).toHaveBeenCalledTimes(1); // 프리핸드 유지
+    });
+
+    it("never snaps strokes below the minimum size", () => {
+      const { live, baseCtx } = renderCanvas();
+      fireEvent.pointerDown(live, { button: 0, clientX: 10, clientY: 10, pointerId: 1 });
+      fireEvent.pointerMove(live, { clientX: 18, clientY: 14, pointerId: 1 }); // 대각 < 24px
+      vi.advanceTimersByTime(900);
+      fireEvent.pointerUp(live, { clientX: 18, clientY: 14, pointerId: 1 });
+
+      expect(baseCtx.rect).not.toHaveBeenCalled();
+      expect(baseCtx.ellipse).not.toHaveBeenCalled();
+      expect(baseCtx.stroke).toHaveBeenCalledTimes(1);
+    });
+
+    it("clears pending snap state on mode-changed without committing", async () => {
+      const { live, baseCtx, liveCtx } = renderCanvas();
+      traceSquare(live, 100, 100, 120);
+      vi.advanceTimersByTime(700);
+      expect(liveCtx.rect).toHaveBeenCalled(); // 스냅 미리보기 상태
+
+      await act(async () => {
+        await emit("mode-changed", { drawing: false });
+      });
+      fireEvent.pointerUp(live, { clientX: 100, clientY: 100, pointerId: 1 });
+      expect(baseCtx.rect).not.toHaveBeenCalled(); // 아무것도 커밋되지 않았다
+    });
+  });
+
   it("discards the editing session when text mode turns off without committing", () => {
     const { container } = render(<Harness initialTextMode />);
     const [baseCtx] = contexts;

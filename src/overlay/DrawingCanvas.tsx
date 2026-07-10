@@ -2,7 +2,8 @@ import { CSSProperties, useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { matchesAccelerator } from "../shared/accelerator";
 import { strokeWidthPx, textSizePx, WidthKey } from "../shared/constants";
-import { drawMark, Point, StrokeStore, TextMark } from "./strokes";
+import { classifyStroke, HOLD_MS, RING_DELAY_MS, STILL_RADIUS_PX } from "./shapes";
+import { drawMark, Point, ShapeMark, StrokeStore, TextMark } from "./strokes";
 import { TextEditor } from "./TextEditor";
 
 type Props = {
@@ -64,9 +65,73 @@ export function DrawingCanvas({ color, widthKey, clearAccel, textAccel, textMode
       for (const s of store.marks) drawMark(baseCtx, s);
     };
 
+    // ---- 홀드 스냅: 버튼을 누른 채 STILL_RADIUS_PX 안에서 HOLD_MS 멈추면 도형으로 치환 ----
+    const HOLD_TICK_MS = 50;
+    let holdAnchor: Point | null = null;
+    let holdStart = 0;
+    let holdTimer = 0;
+    let snapped: ShapeMark | null = null;
+    let ringProgress = 0;
+
+    const stopHold = () => {
+      if (holdTimer) window.clearInterval(holdTimer);
+      holdTimer = 0;
+      holdAnchor = null;
+      ringProgress = 0;
+    };
+
+    const drawHoldRing = (ctx: CanvasRenderingContext2D, p: Point, progress: number) => {
+      const cx = p.x + 18;
+      const cy = p.y - 18;
+      ctx.lineWidth = 2;
+      ctx.lineCap = "round";
+      ctx.strokeStyle = "rgba(232,234,240,0.25)";
+      ctx.beginPath();
+      ctx.arc(cx, cy, 13, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.strokeStyle = "rgba(232,234,240,0.9)";
+      ctx.beginPath();
+      ctx.arc(cx, cy, 13, -Math.PI / 2, -Math.PI / 2 + progress * Math.PI * 2);
+      ctx.stroke();
+    };
+
     const renderLive = () => {
       liveCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
-      if (store.live) drawMark(liveCtx, store.live);
+      if (snapped) {
+        drawMark(liveCtx, snapped); // 스냅 미리보기 — 떼면 확정
+        return;
+      }
+      if (store.live) {
+        drawMark(liveCtx, store.live);
+        if (ringProgress > 0) {
+          drawHoldRing(liveCtx, store.live.points[store.live.points.length - 1], ringProgress);
+        }
+      }
+    };
+
+    const holdTick = () => {
+      if (!store.live || snapped) return;
+      const still = Date.now() - holdStart;
+      if (still >= HOLD_MS) {
+        const result = classifyStroke(store.live.points);
+        if (result) {
+          const { color, widthKey } = toolRef.current;
+          snapped = {
+            kind: "shape",
+            ...result,
+            color,
+            width: strokeWidthPx(widthKey, Math.min(window.innerWidth, window.innerHeight)),
+          } as ShapeMark;
+          stopHold();
+        } else {
+          holdStart = Date.now(); // 과소 획 — 재무장
+          ringProgress = 0;
+        }
+        scheduleLive();
+      } else if (still >= RING_DELAY_MS) {
+        ringProgress = (still - RING_DELAY_MS) / (HOLD_MS - RING_DELAY_MS);
+        scheduleLive();
+      }
     };
 
     // Retina 백킹: 물리 픽셀 크기 + dpr 스케일 (setTransform이라 재호출 누적 없음)
@@ -126,13 +191,26 @@ export function DrawingCanvas({ color, widthKey, clearAccel, textAccel, textMode
       const width = strokeWidthPx(widthKey, Math.min(window.innerWidth, window.innerHeight));
       store.beginLive(color, width, p);
       live.setPointerCapture(e.pointerId);
+      snapped = null;
+      holdAnchor = p;
+      holdStart = Date.now();
+      holdTimer = window.setInterval(holdTick, HOLD_TICK_MS);
       scheduleLive();
     };
 
     const onPointerMove = (e: PointerEvent) => {
+      if (snapped) return; // 스냅 후에는 떼기 전까지 도형이 고정된다
       if (!store.live) return;
-      const coalesced = e.getCoalescedEvents?.() ?? [e];
-      store.extendLive(coalesced.map(toPoint));
+      const coalesced = e.getCoalescedEvents?.() ?? [];
+      // 일부 구현은 빈 배열을 반환한다 — 이벤트 자신으로 폴백
+      const points = (coalesced.length ? coalesced : [e]).map(toPoint);
+      store.extendLive(points);
+      const last = points[points.length - 1];
+      if (holdAnchor && Math.hypot(last.x - holdAnchor.x, last.y - holdAnchor.y) > STILL_RADIUS_PX) {
+        holdAnchor = last; // 유의미한 이동 — 홀드 리셋
+        holdStart = Date.now();
+        ringProgress = 0;
+      }
       scheduleLive();
     };
 
@@ -150,6 +228,17 @@ export function DrawingCanvas({ color, widthKey, clearAccel, textAccel, textMode
         onTextModeChangeRef.current(true);
         return;
       }
+      stopHold();
+      if (snapped) {
+        // 스냅 확정: 손그림 live를 버리고 도형 마크를 커밋한다 (undo 1단위)
+        const mark = snapped;
+        snapped = null;
+        store.cancelLive();
+        store.push(mark);
+        drawMark(baseCtx, mark);
+        renderLive();
+        return;
+      }
       if (!store.live) return;
       store.extendLive([toPoint(e)]);
       const stroke = store.commitLive();
@@ -164,6 +253,8 @@ export function DrawingCanvas({ color, widthKey, clearAccel, textAccel, textMode
 
     const onPointerCancel = () => {
       dblPending = null;
+      stopHold();
+      snapped = null;
       store.cancelLive();
       renderLive();
     };
@@ -221,6 +312,8 @@ export function DrawingCanvas({ color, widthKey, clearAccel, textAccel, textMode
         // 숨김≠삭제: 진행 중이던 live 획만 취소하고 그림 버퍼는 유지한다 (커서는 OverlayApp 담당)
         lastClick = null;
         dblPending = null;
+        stopHold();
+        snapped = null;
         store.cancelLive();
         renderLive();
       }
@@ -237,6 +330,7 @@ export function DrawingCanvas({ color, widthKey, clearAccel, textAccel, textMode
       unlistenMode.then((f) => f());
       unlistenClear.then((f) => f());
       if (rafId) cancelAnimationFrame(rafId);
+      stopHold();
       apiRef.current = null;
     };
   }, []);
