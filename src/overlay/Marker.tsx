@@ -186,8 +186,14 @@ export function Marker({ color, widthKey, board, onColorChange, onWidthChange, o
           }}
         >
           {panel === "colors"
-            ? COLORS.map((c) => (
-                <button key={c} style={btn} aria-label={t("marker.colorValue", { value: c })} onClick={() => pickColor(c)}>
+            ? COLORS.map((c, i) => (
+                <button
+                  key={c}
+                  style={btn}
+                  aria-label={t("marker.colorValue", { value: c })}
+                  title={t("marker.colorKeyHint", { key: i + 1 })}
+                  onClick={() => pickColor(c)}
+                >
                   <span style={{ ...dot, background: c, ...(c === color ? currentRing : undefined) }} />
                 </button>
               ))

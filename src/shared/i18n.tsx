@@ -35,6 +35,7 @@ const en = {
   "marker.changeColor": "Change color",
   "marker.changeWidth": "Change thickness",
   "marker.colorValue": "Color {value}",
+  "marker.colorKeyHint": "Press {key} while drawing",
   "marker.widthValue": "Thickness {value}",
   "marker.toggleBoard": "Toggle blackboard",
 } as const;
@@ -75,6 +76,7 @@ const ko: Record<Key, string> = {
   "marker.changeColor": "색 바꾸기",
   "marker.changeWidth": "굵기 바꾸기",
   "marker.colorValue": "색 {value}",
+  "marker.colorKeyHint": "그리기 중 {key} 키",
   "marker.widthValue": "굵기 {value}",
   "marker.toggleBoard": "블랙보드 토글",
 };

@@ -1,7 +1,7 @@
 import { CSSProperties, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { Color, DEFAULT_COLOR, DEFAULT_WIDTH, strokeWidthPx, WidthKey } from "../shared/constants";
+import { Color, COLORS, DEFAULT_COLOR, DEFAULT_WIDTH, strokeWidthPx, WidthKey } from "../shared/constants";
 import { DEFAULT_SHORTCUTS, loadShortcuts, loadTool, saveColor, saveWidth } from "../shared/settings";
 import { applyPenCursor, resetCursor } from "./cursor";
 import { DrawingCanvas } from "./DrawingCanvas";
@@ -40,6 +40,23 @@ export function OverlayApp() {
       unShortcuts.then((f) => f());
     };
   }, []);
+
+  // 그리기 중 숫자 키 1–5로 색 즉시 전환(팔레트 순서) — 판서 중 마커 왕복은 녹화에 찍힌다.
+  // 오버레이 로컬 키라 전역 등록이 없고, ⌘Z처럼 오버레이 keydown 경로를 쓴다.
+  useEffect(() => {
+    if (!drawing) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.metaKey || e.altKey || e.ctrlKey || e.shiftKey || e.repeat) return;
+      const m = /^(?:Digit|Numpad)([1-5])$/.exec(e.code);
+      if (!m) return;
+      e.preventDefault();
+      const c = COLORS[Number(m[1]) - 1];
+      setColor(c);
+      void saveColor(c);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [drawing]);
 
   // 색·굵기가 바뀌면 커서도 즉시 갱신
   useEffect(() => {
