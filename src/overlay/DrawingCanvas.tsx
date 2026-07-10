@@ -1,5 +1,4 @@
 import { CSSProperties, useEffect, useRef } from "react";
-import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { matchesAccelerator } from "../shared/accelerator";
 import { strokeWidthPx, WidthKey } from "../shared/constants";
@@ -111,10 +110,6 @@ export function DrawingCanvas({ color, widthKey, clearAccel }: Props) {
       } else if (matchesAccelerator(e, clearAccelRef.current)) {
         e.preventDefault();
         clearAll();
-      } else if (!e.repeat && e.metaKey && !e.altKey && !e.ctrlKey && !e.shiftKey && e.code === "KeyB") {
-        // repeat 가드: 꾹 누르면 auto-repeat로 보드가 깜빡인다 (⌘Z와 달리 토글이라 반복이 해롭다)
-        e.preventDefault();
-        void invoke("toggle_board");
       }
     };
 

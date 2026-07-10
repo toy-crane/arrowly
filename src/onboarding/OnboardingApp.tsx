@@ -1,8 +1,9 @@
-import { CSSProperties, useState } from "react";
+import { CSSProperties, useEffect, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { AutostartToggle } from "../shared/AutostartToggle";
+import { acceleratorSymbols } from "../shared/accelerator";
 import { t, tx } from "../shared/i18n";
-import { saveOnboardingDone } from "../shared/settings";
+import { DEFAULT_SHORTCUTS, loadShortcuts, saveOnboardingDone } from "../shared/settings";
 import { ShortcutEditor } from "../shared/ShortcutEditor";
 import { MiniCanvas } from "./MiniCanvas";
 
@@ -11,6 +12,11 @@ const TOTAL = 3;
 export function OnboardingApp() {
   const [step, setStep] = useState(0);
   const [drew, setDrew] = useState(false);
+  const [boardAccel, setBoardAccel] = useState(DEFAULT_SHORTCUTS.board);
+
+  useEffect(() => {
+    loadShortcuts().then((shortcuts) => setBoardAccel(shortcuts.board));
+  }, []);
 
   const finish = async () => {
     await saveOnboardingDone();
@@ -36,12 +42,12 @@ export function OnboardingApp() {
             {tx("onboarding.erase.body", {
               cmd: <Kbd>⌘</Kbd>,
               z: <Kbd>Z</Kbd>,
-              b: <Kbd>B</Kbd>,
+              board: <KeyCombo accelerator={boardAccel} />,
               esc: <Kbd>Esc</Kbd>,
               hi: <Hi>{t("onboarding.erase.hi")}</Hi>,
             })}
           </p>
-          <MiniCanvas boardable />
+          <MiniCanvas boardable boardAccel={boardAccel} />
         </>
       )}
 
@@ -90,6 +96,10 @@ export function OnboardingApp() {
 
 function Kbd({ children }: { children: React.ReactNode }) {
   return <span style={kbd}>{children}</span>;
+}
+
+function KeyCombo({ accelerator }: { accelerator: string }) {
+  return acceleratorSymbols(accelerator).map((symbol, index) => <Kbd key={index}>{symbol}</Kbd>);
 }
 
 /** 형광펜 하이라이트 — 테마 포인트, 단계당 하나만 */

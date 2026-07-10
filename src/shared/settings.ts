@@ -44,8 +44,12 @@ export async function saveMarkerPos(pos: MarkerPos): Promise<void> {
   await store.save();
 }
 
-export type Shortcuts = { toggle: string; clear: string };
-export const DEFAULT_SHORTCUTS: Shortcuts = { toggle: "Alt+Tab", clear: "Alt+Backspace" };
+export type Shortcuts = { toggle: string; board: string; clear: string };
+export const DEFAULT_SHORTCUTS: Shortcuts = {
+  toggle: "Alt+Tab",
+  board: "Shift+Alt+Tab",
+  clear: "Alt+Backspace",
+};
 
 export async function loadShortcuts(): Promise<Shortcuts> {
   const store = await settingsStore();

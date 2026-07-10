@@ -49,7 +49,7 @@
 ┌─ Rust (src-tauri) ────────────────────────────┐
 │ state.rs      앱 상태: 모드(그리기/통과), 획 유무, 설정 │
 │ overlay.rs    NSPanel 생성·모드 전환·모니터 배치      │
-│ shortcuts.rs  전역 단축키 등록/해제 (⌥Tab·Esc·⌥⌫)   │
+│ shortcuts.rs  전역 단축키 등록/해제 (⌥Tab·⇧⌥Tab·Esc) │
 │ tray.rs       메뉴바 아이콘·메뉴                     │
 └──────────────┬────────────────────────────────┘
                │ emit / invoke
@@ -68,7 +68,7 @@
 | `clear-all` (event) | Rust→웹뷰 | 없음 | 트레이 "전체 지우기" 클릭 시 (⌥⌫는 웹뷰 keydown이 직접 처리 — 전역 아님) |
 | `marker-hidden-changed` (event) | Rust→웹뷰 | `{ hidden: boolean }` | 트레이 토글 시 |
 | `toggle_drawing` (command) | 웹뷰→Rust | 없음 | 온보딩·마커에서 모드 전환 요청 |
-| `try_register_shortcut` (command) | 웹뷰→Rust | `{ id: "toggle"\|"clear", accelerator: string }` | 레코더 검증: 임시 register→unregister, `Result<(), String>` 반환 |
+| `try_register_shortcut` (command) | 웹뷰→Rust | `{ id: "toggle"\|"board", accelerator: string }` | 상시 전역 키 레코더 검증: 임시 register→unregister, `Result<(), String>` 반환 |
 | `apply_settings` (command) | 웹뷰→Rust | 설정 객체 전체 | 온보딩 완료·설정 변경 시 |
 
 설정 저장은 웹뷰가 `@tauri-apps/plugin-store`로 직접 읽고 쓴다(파일 `settings.json`). Rust는 기동 시 같은 파일을 읽어 단축키를 등록한다.
@@ -81,7 +81,7 @@
   "width": "medium",
   "markerPos": { "xRatio": 0.04, "yRatio": 0.92 },
   "markerHidden": false,
-  "shortcuts": { "toggle": "Alt+Tab", "clear": "Alt+Backspace" },
+  "shortcuts": { "toggle": "Alt+Tab", "board": "Shift+Alt+Tab", "clear": "Alt+Backspace" },
   "onboardingDone": false,
   "autostart": false
 }

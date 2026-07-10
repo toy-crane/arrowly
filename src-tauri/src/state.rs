@@ -13,6 +13,8 @@ pub struct AppState {
     pub marker_hidden: bool,
     /// 현재 그리기 토글 전역 단축키 accelerator (재설정 가능)
     pub toggle_accel: String,
+    /// 현재 블랙보드 전역 단축키 accelerator (재설정 가능)
+    pub board_accel: String,
     /// 현재 전체 지우기 accelerator (웹뷰 처리, 메뉴 라벨 표시용)
     pub clear_accel: String,
 }
@@ -25,6 +27,7 @@ impl Default for AppState {
             last_monitor_pos: None,
             marker_hidden: false,
             toggle_accel: "Alt+Tab".into(),
+            board_accel: "Shift+Alt+Tab".into(),
             clear_accel: "Alt+Backspace".into(),
         }
     }

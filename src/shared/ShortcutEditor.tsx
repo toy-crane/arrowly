@@ -8,11 +8,24 @@ type FieldId = keyof Shortcuts;
 
 const ROWS: { id: FieldId; label: string }[] = [
   { id: "toggle", label: t("shortcut.toggle") },
+  { id: "board", label: t("shortcut.board") },
   { id: "clear", label: t("shortcut.clear") },
 ];
 
-// 전체 지우기가 실행 취소(⌘Z/⇧⌘Z)를 덮으면 안 된다
+// 어느 동작도 실행 취소(⌘Z/⇧⌘Z)를 덮으면 안 된다.
 const UNDO_ACCELS = new Set(["Cmd+KeyZ", "Shift+Cmd+KeyZ", "Cmd+Shift+KeyZ"]);
+
+function localValidationError(id: FieldId, accel: string, shortcuts: Shortcuts): string | null {
+  const parts = accel.split("+");
+  const code = parts[parts.length - 1];
+  if (code === "Escape") return t("shortcut.error.reservedEsc");
+  if (parts.length < 2) return t("shortcut.error.modifierRequired");
+  if (UNDO_ACCELS.has(accel)) return t("shortcut.error.undo");
+  if (Object.entries(shortcuts).some(([other, value]) => other !== id && value === accel)) {
+    return t("shortcut.error.duplicate");
+  }
+  return null;
+}
 
 /** 단축키 레코더 2행(그리기 토글·전체 지우기). 설정 창과 온보딩에서 공용. */
 export function ShortcutEditor() {
@@ -30,7 +43,7 @@ export function ShortcutEditor() {
 
   const stopRecording = async (opts?: { keepSuspended?: boolean }) => {
     setRecording(null);
-    if (!opts?.keepSuspended) await invoke("resume_toggle");
+    if (!opts?.keepSuspended) await invoke("resume_shortcuts");
   };
 
   const startRecording = async (id: FieldId) => {
@@ -40,7 +53,8 @@ export function ShortcutEditor() {
     }
     setError(null);
     setRecording(id);
-    await invoke("suspend_toggle"); // 등록된 토글이 있으면 OS가 키를 가로채므로 잠시 해제
+    // 두 전역 키가 현재 조합을 웹뷰보다 먼저 가로채므로 레코딩 동안 함께 해제한다.
+    await invoke("suspend_shortcuts");
   };
 
   useEffect(() => {
@@ -57,8 +71,9 @@ export function ShortcutEditor() {
       const accel = buildAccelerator(e);
       if (!accel) return; // 수식어만 눌린 상태 — 계속 대기
 
-      if (id === "clear" && UNDO_ACCELS.has(accel)) {
-        setError({ id, msg: t("shortcut.error.undo") });
+      const validationError = localValidationError(id, accel, shortcutsRef.current);
+      if (validationError) {
+        setError({ id, msg: validationError });
         await stopRecording();
         return;
       }
@@ -66,10 +81,10 @@ export function ShortcutEditor() {
       const next: Shortcuts = { ...shortcutsRef.current, [id]: accel };
 
       try {
-        if (id === "toggle") {
-          await invoke("try_register_shortcut", { accelerator: accel });
+        if (id === "toggle" || id === "board") {
+          await invoke("try_register_shortcut", { id, accelerator: accel });
         }
-        await invoke("apply_shortcuts", { toggle: next.toggle, clear: next.clear });
+        await invoke("apply_shortcuts", next);
       } catch (err) {
         setError({ id, msg: shortcutErrorMessage(err) });
         await stopRecording();
@@ -79,17 +94,20 @@ export function ShortcutEditor() {
       await saveShortcuts(next);
       setShortcuts(next);
       setError(null);
-      await stopRecording({ keepSuspended: true }); // apply_shortcuts가 이미 재등록함
+      await stopRecording({ keepSuspended: true }); // apply_shortcuts가 두 전역 키를 이미 재등록함
     };
 
     window.addEventListener("keydown", onKeyDown, true);
-    return () => window.removeEventListener("keydown", onKeyDown, true);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown, true);
+      if (recordingRef.current) void invoke("resume_shortcuts");
+    };
   }, []);
 
   const resetOne = async (id: FieldId) => {
     const next: Shortcuts = { ...shortcuts, [id]: DEFAULT_SHORTCUTS[id] };
     try {
-      await invoke("apply_shortcuts", { toggle: next.toggle, clear: next.clear });
+      await invoke("apply_shortcuts", next);
     } catch (err) {
       setError({ id, msg: shortcutErrorMessage(err) });
       return;
