@@ -65,7 +65,8 @@
 | 이름 | 방향 | 페이로드 | 시점 |
 |---|---|---|---|
 | `mode-changed` (event) | Rust→웹뷰 | `{ drawing: boolean }` | 토글·Esc 직후. `drawing:false` 수신 시 웹뷰는 live 획만 취소 — 그림 버퍼는 유지(숨김≠삭제) |
-| `clear-all` (event) | Rust→웹뷰 | 없음 | 트레이 "전체 지우기" 클릭 시 (⌥⌫는 웹뷰 keydown이 직접 처리 — 전역 아님) |
+| `clear-all` (event) | Rust→웹뷰 | 없음 | 트레이 "전체 지우기" 클릭 시 (⌥⌫는 웹뷰 keydown이 직접 처리 — 전역 아님). ⌘Z로 복구된다 |
+| `reset-strokes` (event) | Rust→웹뷰 | 없음 | 모니터 변경으로 좌표가 무효일 때 — 히스토리까지 버리는 복구 불가 리셋 |
 | `marker-hidden-changed` (event) | Rust→웹뷰 | `{ hidden: boolean }` | 트레이 토글 시 |
 | `toggle_drawing` (command) | 웹뷰→Rust | 없음 | 온보딩·마커에서 모드 전환 요청 |
 | `try_register_shortcut` (command) | 웹뷰→Rust | `{ id: "toggle"\|"board", accelerator: string }` | 상시 전역 키 레코더 검증: 임시 register→unregister, `Result<(), String>` 반환 |
