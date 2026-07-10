@@ -123,20 +123,33 @@ fn toggle_marker_hidden(app: &AppHandle) {
 }
 
 fn toggle_autostart(app: &AppHandle) {
+    set_autostart(app, !autostart_enabled(app));
+    sync(app);
+}
+
+fn set_autostart(app: &AppHandle, enabled: bool) {
     let manager = app.autolaunch();
-    let result = if manager.is_enabled().unwrap_or(false) {
-        manager.disable()
-    } else {
-        manager.enable()
-    };
+    let result = if enabled { manager.enable() } else { manager.disable() };
     if let Err(e) = result {
         eprintln!("[arrowly] 자동 실행 설정 실패: {e}");
     }
-    sync(app);
 }
 
 fn autostart_enabled(app: &AppHandle) -> bool {
     app.autolaunch().is_enabled().unwrap_or(false)
+}
+
+/// 온보딩 웹뷰에서 자동 실행 상태를 읽는다 — 트레이와 같은 OS 로그인 항목을 조회한다.
+#[tauri::command]
+pub fn autostart_get(app: AppHandle) -> bool {
+    autostart_enabled(&app)
+}
+
+/// 온보딩 웹뷰에서 자동 실행을 켜고 끈다. 트레이 토글과 같은 set_autostart를 공유한다.
+#[tauri::command]
+pub fn autostart_set(app: AppHandle, enabled: bool) {
+    set_autostart(&app, enabled);
+    sync(&app);
 }
 
 fn load_marker_hidden(app: &AppHandle) -> bool {
