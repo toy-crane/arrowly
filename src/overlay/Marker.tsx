@@ -150,7 +150,7 @@ export function Marker({ color, widthKey, board, onColorChange, onWidthChange, o
         aria-label={t("marker.changeWidth")}
         onClick={() => togglePanel("widths")}
       >
-        <span style={{ ...bar(widthKey), background: NEUTRAL }} />
+        <WidthSteps current={widthKey} />
       </button>
       <span style={divider} />
       <button
@@ -162,18 +162,18 @@ export function Marker({ color, widthKey, board, onColorChange, onWidthChange, o
         }}
       >
         <svg
-          width="19"
-          height="19"
+          width="20"
+          height="20"
           viewBox="0 0 20 20"
           fill="none"
           stroke={NEUTRAL}
-          strokeWidth="1.6"
+          strokeWidth="1.8"
           strokeLinecap="round"
           strokeLinejoin="round"
         >
-          <rect x="2.8" y="3.2" width="14.4" height="10.6" rx="1.5" />
-          <path d="M6.2 8.8 C 7.6 6.8, 9.4 10.4, 11.6 7.9" />
-          <path d="M6.6 16.8 L 8.2 13.8 M13.4 16.8 L 11.8 13.8" />
+          <rect x="2" y="4" width="16" height="9.5" rx="1.5" />
+          <path d="M6 9 C 7.6 6.6, 9.8 10.6, 12.4 8" />
+          <path d="M6.5 17 L 8.3 13.5 M13.5 17 L 11.7 13.5" />
         </svg>
       </button>
 
@@ -279,3 +279,28 @@ const bar = (w: WidthKey): CSSProperties => ({
   display: "block",
   boxSizing: "border-box",
 });
+
+// 캡슐의 굵기 표시 — 5단계가 있음을 아이콘 자체가 보여주도록 세로획 5개를 상시 그리고
+// 현재 단계만 밝힌다. 높이는 균일(신호세기로 오독 방지), 굵기는 정수 px(안티앨리어싱 뭉개짐 방지).
+const STEP_X = [0.5, 3.6, 7.7, 12.8, 18.9];
+const STEP_W = [2, 3, 4, 5, 6];
+
+function WidthSteps({ current }: { current: WidthKey }) {
+  const cur = (Object.keys(WIDTHS) as WidthKey[]).indexOf(current);
+  return (
+    <svg width="25" height="20" viewBox="0 0 25 20">
+      {STEP_W.map((w, i) => (
+        <rect
+          key={w}
+          x={STEP_X[i]}
+          y={3}
+          width={w}
+          height={14}
+          rx={w / 2}
+          fill={NEUTRAL}
+          opacity={i === cur ? 1 : 0.35}
+        />
+      ))}
+    </svg>
+  );
+}
