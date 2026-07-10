@@ -71,6 +71,8 @@ export function DrawingCanvas({ color, widthKey, clearAccel, textAccel, textMode
     let holdStart = 0;
     let holdTimer = 0;
     let snapped: ShapeMark | null = null;
+    // @ts-expect-error sanity-check-marker
+    const __sanityCheck: string = 5;
     let ringProgress = 0;
 
     const stopHold = () => {
@@ -121,7 +123,7 @@ export function DrawingCanvas({ color, widthKey, clearAccel, textAccel, textMode
             ...result,
             color,
             width: strokeWidthPx(widthKey, Math.min(window.innerWidth, window.innerHeight)),
-          } as ShapeMark;
+          };
           stopHold();
         } else {
           holdStart = Date.now(); // 과소 획 — 재무장
