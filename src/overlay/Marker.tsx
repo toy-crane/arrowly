@@ -209,13 +209,14 @@ const popover: CSSProperties = {
   width: "max-content",
 };
 
-// 셀은 내용물 크기 + 4px 여백 — 캡슐 패딩 8 + 셀 여백 4 = 잉크 기준 12px 균일 리듬
+// 셀은 고정폭 42(최대 내용물인 굵기 획 34 + 좌우 4) — 캡슐 셀과 팝오버 셀이 모두 같은 폭으로 정렬된다
 const btn: CSSProperties = {
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
+  width: 42,
   height: 32,
-  padding: "0 4px",
+  padding: 0,
   background: "none",
   border: "none",
   cursor: "pointer",
