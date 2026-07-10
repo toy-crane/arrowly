@@ -146,8 +146,13 @@ describe("OverlayApp", () => {
     fireEvent.click(screen.getByRole("button", { name: "text-toggle" }));
     expect(mocks.applyPenCursor).toHaveBeenCalledOnce();
 
+    // 트레이 "텍스트 입력" 이벤트도 같은 토글을 켠다
+    await act(async () => {
+      await emit("enter-text-mode");
+    });
+    expect(screen.getByTestId("canvas")).toHaveAttribute("data-textmode", "true");
+
     // 그리기 종료는 텍스트 모드도 함께 폐기한다
-    fireEvent.click(screen.getByRole("button", { name: "text-toggle" }));
     await act(async () => {
       await emit("mode-changed", { drawing: false, board: false });
     });

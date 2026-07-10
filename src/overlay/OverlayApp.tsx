@@ -40,11 +40,14 @@ export function OverlayApp() {
       setClearAccel(e.payload.clear);
       setTextAccel(e.payload.text);
     });
+    // 트레이 "텍스트 입력" — Rust가 그리기 진입을 보장한 뒤 emit한다
+    const unEnterText = listen("enter-text-mode", () => setTextMode(true));
     return () => {
       unMode.then((f) => f());
       unBoard.then((f) => f());
       unMarker.then((f) => f());
       unShortcuts.then((f) => f());
+      unEnterText.then((f) => f());
     };
   }, []);
 
