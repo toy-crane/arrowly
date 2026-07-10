@@ -1,5 +1,6 @@
 mod i18n;
 mod overlay;
+mod shortcut_policy;
 mod shortcuts;
 mod state;
 mod tray;

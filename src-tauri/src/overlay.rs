@@ -3,7 +3,7 @@ use tauri_nspanel::{
     tauri_panel, CollectionBehavior, ManagerExt, PanelLevel, StyleMask, WebviewWindowExt,
 };
 
-use crate::state::SharedState;
+use crate::state::{BlackboardAction, SharedState};
 
 pub const OVERLAY_LABEL: &str = "overlay";
 
@@ -83,9 +83,7 @@ fn enter_drawing(app: &AppHandle) -> bool {
                 let state = app.state::<SharedState>();
                 let monitor_changed = {
                     let mut s = state.lock().unwrap();
-                    let changed = s.last_monitor_pos.is_some_and(|prev| prev != origin);
-                    s.last_monitor_pos = Some(origin);
-                    changed
+                    s.update_monitor(origin)
                 };
                 let _ = win.set_position(*m.position());
                 let _ = win.set_size(*m.size());
@@ -189,17 +187,14 @@ pub fn toggle_board(app: AppHandle) {
 /// 전역 블랙보드 단축키 동작. 통과 모드에서는 숨겨진 board 상태와 무관하게
 /// 블랙보드로 진입하고, 그리기 중에는 배경만 토글한다.
 pub fn activate_or_toggle_board(app: &AppHandle) {
-    let (drawing, board) = {
+    let action = {
         let state = app.state::<SharedState>();
         let s = state.lock().unwrap();
-        (s.drawing, s.board)
+        s.blackboard_action()
     };
-    if drawing {
-        set_board(app, !board);
-    } else if board {
-        set_drawing(app, true);
-    } else {
-        set_board(app, true);
+    match action {
+        BlackboardAction::SetBoard(on) => set_board(app, on),
+        BlackboardAction::EnterDrawing => set_drawing(app, true),
     }
 }
 
