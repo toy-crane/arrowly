@@ -1,12 +1,6 @@
-# Arrowly
+@AGENTS.md
 
-macOS 화면 주석 오버레이 앱. 요구사항은 `docs/REQUIREMENTS.md` 참고.
+## Claude Code 전용 안내
 
-## 스택
-
-Tauri v2 + Vite/React/TypeScript + Bun. 타깃 macOS.
-
-## Tauri v2
-
-- 이 프로젝트는 Tauri v2를 쓴다. v1 API를 생성하지 않는다.
-- Tauri API는 학습 기억이 아니라 공식 `https://tauri.app/llms-full.txt`를 fetch해 v2 기준으로 확인한 뒤 작성한다.
+- 공통 규칙과 스킬의 원본은 `AGENTS.md`와 `.agents/skills/`다. 이 파일에 공통 규칙을 복사해 두지 않는다.
+- Claude Code 전용 설정은 `.claude/settings.json`과 `.claude/launch.json`에 둔다.

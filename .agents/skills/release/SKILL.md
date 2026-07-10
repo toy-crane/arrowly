@@ -53,14 +53,15 @@ disable-model-invocation: true
   (https://github.com/toy-crane/arrowly/actions/workflows/release.yml).
 - 빌드(~10–20분) 완료 후 Releases 탭에 draft가 생긴다: DMG 에셋 + 자동 생성 노트.
 - **이 스킬은 draft를 자동 공개하지 않는다** — 검증·게시는 `/publish` 스킬
-  (`.claude/skills/publish`)로 진행한다. 게시 실행 전 사용자 확인은 그쪽에서 받는다.
+  (`.agents/skills/publish`)로 진행한다. 게시 실행 전 사용자 확인은 그쪽에서 받는다.
 
 ## 원격(웹) 세션 제약
 
-Claude Code 웹/원격 세션의 git 프록시는 `claude/*` 브랜치 외의 ref 쓰기(main push, 태그 push)를
-403으로 차단한다. 우회하지 말고 다음으로 대체한다:
+원격 세션의 git 프록시가 main 또는 태그 push를 차단하면 우회하지 말고 작업 브랜치와 PR을
+사용한다. Claude Code 세션은 `claude/release-vX.Y.Z`, Codex 세션은 `Codex/release-vX.Y.Z`
+형식을 사용한다.
 
-- **3의 main push가 403이면**: bump 커밋을 `claude/release-vX.Y.Z` 브랜치로 push하고 PR을 만들어
+- **3의 main push가 403이면**: bump 커밋을 현재 도구에 맞는 release 브랜치로 push하고 PR을 만들어
   사용자가 머지하게 한다.
 - **4의 태그 push는 항상 사용자 몫** — bump가 main에 반영된 뒤 로컬 터미널에서 실행할 명령을 건넨다:
   ```bash
