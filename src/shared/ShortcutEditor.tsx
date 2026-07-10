@@ -28,7 +28,7 @@ function localValidationError(id: FieldId, accel: string, shortcuts: Shortcuts):
 }
 
 /** 단축키 레코더 2행(그리기 토글·전체 지우기). 설정 창과 온보딩에서 공용. */
-export function ShortcutEditor() {
+export function ShortcutEditor({ showReset = true }: { showReset?: boolean }) {
   const [shortcuts, setShortcuts] = useState<Shortcuts>(DEFAULT_SHORTCUTS);
   const [recording, setRecording] = useState<FieldId | null>(null);
   const [error, setError] = useState<{ id: FieldId; msg: string } | null>(null);
@@ -137,9 +137,11 @@ export function ShortcutEditor() {
                 ))
               )}
             </button>
-            <button style={styles.reset} onClick={() => resetOne(id)}>
-              {t("shortcut.reset")}
-            </button>
+            {showReset && (
+              <button style={styles.reset} onClick={() => resetOne(id)}>
+                {t("shortcut.reset")}
+              </button>
+            )}
           </div>
           {error?.id === id && <p style={styles.errText}>{error.msg}</p>}
         </div>

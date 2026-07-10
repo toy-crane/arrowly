@@ -5,14 +5,13 @@ const en = {
   "onboarding.draw.title": "Try drawing",
   "onboarding.draw.body": "Draw anything in the box below with your mouse. Once you finish {hi}, you can move on.",
   "onboarding.draw.hi": "one stroke",
-  "onboarding.shortcut.title": "Set your shortcut",
-  "onboarding.shortcut.body": "This is {hi}. Click the field to change it to any combination you like.",
-  "onboarding.shortcut.hi": "the key that turns drawing on and off",
+  "onboarding.shortcut.title": "Choose your shortcuts",
+  "onboarding.shortcut.body": "Click a field, then press the combination you want to use.",
   "onboarding.erase.title": "Undo and exit",
   "onboarding.erase.body":
     "Made a mistake? Press {cmd}{z} to undo one stroke at a time. While drawing, {board} turns {hi} — your strokes stay. Press {esc} anytime to exit. Try drawing below, then press {board}.",
   "onboarding.erase.hi": "the screen into a blackboard",
-  "onboarding.menubar": "Arrowly lives in the menu bar at the top right of your screen — look for the {arrow} icon.",
+  "onboarding.menubar": "You can change these later from the {arrow} menu bar icon.",
   "onboarding.back": "Back",
   "onboarding.next": "Next",
   "onboarding.start": "Get started",
@@ -38,7 +37,6 @@ const en = {
   "marker.colorValue": "Color {value}",
   "marker.widthValue": "Thickness {value}",
   "marker.toggleBoard": "Toggle blackboard",
-  "autostart.label": "Launch at Login",
 } as const;
 
 export type Key = keyof typeof en;
@@ -48,13 +46,12 @@ const ko: Record<Key, string> = {
   "onboarding.draw.body": "아래 칸에 마우스로 아무거나 그려 보세요. {hi}을 그으면 다음으로 넘어갈 수 있어요.",
   "onboarding.draw.hi": "한 획",
   "onboarding.shortcut.title": "단축키 정하기",
-  "onboarding.shortcut.body": "{hi}예요. 필드를 눌러 원하는 조합으로 바꿀 수 있어요.",
-  "onboarding.shortcut.hi": "그리기를 켜고 끄는 키",
+  "onboarding.shortcut.body": "필드를 누른 다음 원하는 키 조합을 입력하세요.",
   "onboarding.erase.title": "지우기와 빠져나가기",
   "onboarding.erase.body":
     "그리다 실수하면 {cmd}{z}로 한 획씩 취소돼요. 그리는 중 {board}를 누르면 {hi}이 되고 그림은 그대로 남아요. {esc}로 언제든 빠져나옵니다. 아래에서 그리고 {board}를 눌러 보세요.",
   "onboarding.erase.hi": "화면이 검은 칠판",
-  "onboarding.menubar": "Arrowly는 화면 오른쪽 위 메뉴바의 {arrow} 아이콘에 있어요.",
+  "onboarding.menubar": "나중에 메뉴바의 {arrow} 아이콘에서 다시 바꿀 수 있어요.",
   "onboarding.back": "이전",
   "onboarding.next": "다음",
   "onboarding.start": "시작하기",
@@ -80,7 +77,6 @@ const ko: Record<Key, string> = {
   "marker.colorValue": "색 {value}",
   "marker.widthValue": "굵기 {value}",
   "marker.toggleBoard": "블랙보드 토글",
-  "autostart.label": "로그인 시 실행",
 };
 
 // 시스템 언어 자동 감지 — Rust 쪽(i18n.rs)과 같은 소스(macOS 선호 언어)·같은 규칙

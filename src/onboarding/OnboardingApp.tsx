@@ -1,6 +1,5 @@
 import { CSSProperties, useEffect, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { AutostartToggle } from "../shared/AutostartToggle";
 import { acceleratorSymbols } from "../shared/accelerator";
 import { t, tx } from "../shared/i18n";
 import { DEFAULT_SHORTCUTS, loadShortcuts, saveOnboardingDone } from "../shared/settings";
@@ -54,10 +53,9 @@ export function OnboardingApp() {
       {step === 2 && (
         <>
           <h1 style={h}>{t("onboarding.shortcut.title")}</h1>
-          <p style={sub}>{tx("onboarding.shortcut.body", { hi: <Hi>{t("onboarding.shortcut.hi")}</Hi> })}</p>
+          <p style={sub}>{t("onboarding.shortcut.body")}</p>
           <div style={editorCard}>
-            <ShortcutEditor />
-            <AutostartToggle />
+            <ShortcutEditor showReset={false} />
           </div>
           <p style={menubarLine}>{tx("onboarding.menubar", { arrow: <ArrowGlyph /> })}</p>
         </>
@@ -129,6 +127,7 @@ const root: CSSProperties = {
   background: "var(--win)",
   color: "var(--fg)",
   font: "400 14px/1.55 -apple-system, BlinkMacSystemFont, sans-serif",
+  overflowY: "auto",
 };
 
 const stepLabel: CSSProperties = { margin: "0 0 4px", fontSize: 12, color: "var(--muted)" };

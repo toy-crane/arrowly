@@ -45,6 +45,8 @@
 ```bash
 bun install
 bun tauri dev
+# 기존 설정을 보존한 채 온보딩만 다시 시작
+bun run tauri:fresh
 ```
 
 Tauri v2 + React/TypeScript + Bun.

@@ -1,6 +1,5 @@
 import { CSSProperties } from "react";
 import { acceleratorSymbols } from "../shared/accelerator";
-import { AutostartToggle } from "../shared/AutostartToggle";
 import { t } from "../shared/i18n";
 import { ShortcutEditor, styles as ed } from "../shared/ShortcutEditor";
 
@@ -16,7 +15,6 @@ export function SettingsApp() {
       <h1 style={title}>{t("settings.title")}</h1>
       <div style={card}>
         <ShortcutEditor />
-        <AutostartToggle />
         {FIXED_ROWS.map(({ label, accel }) => (
           <div key={label} style={{ ...ed.row, borderTop: "0.5px solid var(--line)" }}>
             <div style={ed.rowMain}>
@@ -44,6 +42,7 @@ const root: CSSProperties = {
   background: "var(--win)",
   color: "var(--fg)",
   font: "400 14px/1.5 -apple-system, BlinkMacSystemFont, sans-serif",
+  overflowY: "auto",
 };
 
 const title: CSSProperties = { margin: "0 0 14px", fontSize: 15, fontWeight: 600 };
