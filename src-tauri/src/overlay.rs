@@ -179,7 +179,7 @@ pub fn set_board(app: &AppHandle, on: bool) {
     }
 }
 
-/// 오버레이 ⌘B와 트레이 메뉴가 공유하는 토글 경로.
+/// 마커 버튼과 트레이 메뉴가 공유하는 블랙보드 토글 경로.
 #[tauri::command]
 pub fn toggle_board(app: AppHandle) {
     let on = app.state::<SharedState>().lock().unwrap().board;

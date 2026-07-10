@@ -11,7 +11,12 @@ use crate::state::SharedState;
 pub const DEFAULT_TOGGLE: &str = "Alt+Tab";
 pub const DEFAULT_BOARD: &str = "Shift+Alt+Tab";
 pub const DEFAULT_CLEAR: &str = "Alt+Backspace";
-const BOARD_FALLBACKS: [&str; 3] = [DEFAULT_BOARD, "Control+Cmd+KeyB", "Shift+Control+Cmd+KeyB"];
+const BOARD_FALLBACKS: [&str; 4] = [
+    DEFAULT_BOARD,
+    "Control+Cmd+KeyB",
+    "Shift+Control+Cmd+KeyB",
+    "Alt+Control+Cmd+KeyB",
+];
 
 fn current_toggle(app: &AppHandle) -> Option<Shortcut> {
     let accel = app
@@ -288,6 +293,14 @@ mod tests {
             migrated_board_default(DEFAULT_TOGGLE, DEFAULT_CLEAR),
             DEFAULT_BOARD
         );
+        assert_eq!(
+            migrated_board_default(DEFAULT_BOARD, "Control+Cmd+KeyB"),
+            "Shift+Control+Cmd+KeyB"
+        );
+        assert_eq!(
+            migrated_board_default(DEFAULT_BOARD, "Shift+Control+Cmd+KeyB"),
+            "Control+Cmd+KeyB"
+        );
     }
 
     #[test]
@@ -302,5 +315,12 @@ mod tests {
             parse_valid("Shift+Escape").unwrap_err(),
             "error:reserved_escape"
         );
+    }
+
+    #[test]
+    fn default_shortcuts_are_valid() {
+        for accelerator in [DEFAULT_TOGGLE, DEFAULT_BOARD, DEFAULT_CLEAR] {
+            assert!(parse_valid(accelerator).is_ok(), "invalid default: {accelerator}");
+        }
     }
 }

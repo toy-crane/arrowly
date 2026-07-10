@@ -27,7 +27,7 @@ function localValidationError(id: FieldId, accel: string, shortcuts: Shortcuts):
   return null;
 }
 
-/** 단축키 레코더 2행(그리기 토글·전체 지우기). 설정 창과 온보딩에서 공용. */
+/** 단축키 레코더 3행(그리기·블랙보드·전체 지우기). 설정 창과 온보딩에서 공용. */
 export function ShortcutEditor({ showReset = true }: { showReset?: boolean }) {
   const [shortcuts, setShortcuts] = useState<Shortcuts>(DEFAULT_SHORTCUTS);
   const [recording, setRecording] = useState<FieldId | null>(null);
