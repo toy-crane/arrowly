@@ -1,15 +1,23 @@
 import { useEffect, useRef, useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
+import { matchesAccelerator } from "../shared/accelerator";
 import { DEFAULT_COLOR } from "../shared/constants";
+import { DEFAULT_SHORTCUTS } from "../shared/settings";
 import { drawStroke, Point, StrokeStore } from "../overlay/strokes";
 
 type Props = {
   onFirstStroke?: () => void;
-  /** ⌘B로 배경을 검게 전환하는 블랙보드 체험 허용 (③단계 전용) */
+  /** 현재 블랙보드 키로 배경을 검게 전환하는 체험 허용 */
   boardable?: boolean;
+  boardAccel?: string;
 };
 
 /** 온보딩용 미니 캔버스 — M3 엔진(strokes·smoothing) 재사용, 창 안에서만 동작. */
-export function MiniCanvas({ onFirstStroke, boardable = false }: Props) {
+export function MiniCanvas({
+  onFirstStroke,
+  boardable = false,
+  boardAccel = DEFAULT_SHORTCUTS.board,
+}: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const storeRef = useRef<StrokeStore>(null!);
@@ -20,6 +28,8 @@ export function MiniCanvas({ onFirstStroke, boardable = false }: Props) {
   const [board, setBoard] = useState(false);
   const boardableRef = useRef(boardable);
   boardableRef.current = boardable;
+  const boardAccelRef = useRef(boardAccel);
+  boardAccelRef.current = boardAccel;
 
   useEffect(() => {
     const wrap = wrapRef.current!;
@@ -97,11 +107,7 @@ export function MiniCanvas({ onFirstStroke, boardable = false }: Props) {
       } else if (
         boardableRef.current &&
         !e.repeat &&
-        e.metaKey &&
-        !e.altKey &&
-        !e.ctrlKey &&
-        !e.shiftKey &&
-        e.code === "KeyB"
+        matchesAccelerator(e, boardAccelRef.current)
       ) {
         e.preventDefault();
         setBoard((b) => !b);
@@ -113,6 +119,7 @@ export function MiniCanvas({ onFirstStroke, boardable = false }: Props) {
     canvas.addEventListener("pointerup", onPointerUp);
     canvas.addEventListener("pointercancel", onPointerCancel);
     window.addEventListener("keydown", onKeyDown);
+    if (boardableRef.current) void invoke("suspend_shortcuts");
     return () => {
       ro.disconnect();
       canvas.removeEventListener("pointerdown", onPointerDown);
@@ -120,6 +127,7 @@ export function MiniCanvas({ onFirstStroke, boardable = false }: Props) {
       canvas.removeEventListener("pointerup", onPointerUp);
       canvas.removeEventListener("pointercancel", onPointerCancel);
       window.removeEventListener("keydown", onKeyDown);
+      if (boardableRef.current) void invoke("resume_shortcuts");
     };
   }, []);
 

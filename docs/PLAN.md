@@ -49,7 +49,7 @@
 ┌─ Rust (src-tauri) ────────────────────────────┐
 │ state.rs      앱 상태: 모드(그리기/통과), 획 유무, 설정 │
 │ overlay.rs    NSPanel 생성·모드 전환·모니터 배치      │
-│ shortcuts.rs  전역 단축키 등록/해제 (⌥Tab·Esc·⌥⌫)   │
+│ shortcuts.rs  전역 단축키 등록/해제 (⌥Tab·⇧⌥Tab·Esc) │
 │ tray.rs       메뉴바 아이콘·메뉴                     │
 └──────────────┬────────────────────────────────┘
                │ emit / invoke
@@ -68,7 +68,7 @@
 | `clear-all` (event) | Rust→웹뷰 | 없음 | 트레이 "전체 지우기" 클릭 시 (⌥⌫는 웹뷰 keydown이 직접 처리 — 전역 아님) |
 | `marker-hidden-changed` (event) | Rust→웹뷰 | `{ hidden: boolean }` | 트레이 토글 시 |
 | `toggle_drawing` (command) | 웹뷰→Rust | 없음 | 온보딩·마커에서 모드 전환 요청 |
-| `try_register_shortcut` (command) | 웹뷰→Rust | `{ id: "toggle"\|"clear", accelerator: string }` | 레코더 검증: 임시 register→unregister, `Result<(), String>` 반환 |
+| `try_register_shortcut` (command) | 웹뷰→Rust | `{ id: "toggle"\|"board", accelerator: string }` | 상시 전역 키 레코더 검증: 임시 register→unregister, `Result<(), String>` 반환 |
 | `apply_settings` (command) | 웹뷰→Rust | 설정 객체 전체 | 온보딩 완료·설정 변경 시 |
 
 설정 저장은 웹뷰가 `@tauri-apps/plugin-store`로 직접 읽고 쓴다(파일 `settings.json`). Rust는 기동 시 같은 파일을 읽어 단축키를 등록한다.
@@ -81,9 +81,8 @@
   "width": "medium",
   "markerPos": { "xRatio": 0.04, "yRatio": 0.92 },
   "markerHidden": false,
-  "shortcuts": { "toggle": "Alt+Tab", "clear": "Alt+Backspace" },
-  "onboardingDone": false,
-  "autostart": false
+  "shortcuts": { "toggle": "Alt+Tab", "board": "Shift+Alt+Tab", "clear": "Alt+Backspace" },
+  "onboardingDone": false
 }
 ```
 
@@ -261,8 +260,8 @@
 
 - 창: 일반 WebviewWindow(`onboarding`), 640×480, 불투명, resizable(false), center. `onboardingDone=false`일 때 기동 시 생성. Accessory 정책에서 포커스가 안 오면 표시 직전 `app.show()`/activate 처리 확인.
 - STEP 1 그려보기: 창 내 미니 캔버스(M3 엔진 재사용, 규모만 축소). 획 하나 그리면 "다음" 활성화.
-- STEP 2 단축키 레코더: 필드 포커스 상태에서 `keydown` 캡처 → `e.metaKey/altKey/ctrlKey/shiftKey + e.code`를 accelerator 문자열("Alt+Tab" 형식)로 조립, 심볼 표시(⌥⇥). "적용" 시 toggle만 `try_register_shortcut` invoke — 실패하면 필드 아래 빨간 인라인 메시지("이 조합은 사용 중"). clear(⌥⌫)는 앱 내부 키라 전역 충돌 검사 불필요. 기본값 ⌥Tab/⌥⌫ 미리 채움. Esc는 예약 키므로 입력 거부.
-- STEP 3 Esc·⌘Z 체험: 안내 + 미니 캔버스에서 ⌘Z 실습. 마지막 줄 "Arrowly는 메뉴바에서 기다립니다." → 완료 버튼 → `apply_settings` + `onboardingDone=true` 저장 → 창 close.
+- STEP 2 Esc·⌘Z·블랙보드 체험: 저장된 블랙보드 accelerator를 미니 캔버스에서 사용해 배경 전환과 획 유지를 확인한다. 체험 중에는 상시 전역 단축키를 잠시 해제하고, 단계가 끝나거나 창이 닫히면 복구한다.
+- STEP 3 단축키 설정: 그리기 토글·블랙보드 토글·전체 지우기 세 행을 레코딩한다. 필드 포커스 상태에서 `keydown`을 캡처해 accelerator 문자열로 조립하고, 전역 충돌·중복·예약 키·수식키 없는 입력은 필드 아래 오류로 보여준다. 온보딩에서는 Reset을 숨기고, 마지막 줄에서 메뉴바의 단축키 설정 진입점을 안내한 뒤 `onboardingDone=true`를 저장하고 창을 닫는다.
 - 조건부 권한 단계: 현 아키텍처에선 표시하지 않음. `steps` 배열에 자리만 남긴다.
 - 커밋 `feat: 온보딩` → 사용자 Mac: 20초 완주, 재실행 시 안 뜸, 트레이 "튜토리얼 다시 보기"로 재진입.
 

@@ -146,7 +146,10 @@ pub fn set_drawing(app: &AppHandle, drawing: bool) {
         s.board
     };
     // board 동봉 — 웹뷰가 리로드돼도 다음 모드 전환에서 보드 상태가 재동기화된다
-    let _ = app.emit("mode-changed", serde_json::json!({ "drawing": drawing, "board": board }));
+    let _ = app.emit(
+        "mode-changed",
+        serde_json::json!({ "drawing": drawing, "board": board }),
+    );
     crate::tray::sync(app);
 }
 
@@ -176,11 +179,28 @@ pub fn set_board(app: &AppHandle, on: bool) {
     }
 }
 
-/// 오버레이 ⌘B와 트레이 메뉴가 공유하는 토글 경로.
+/// 마커 버튼과 트레이 메뉴가 공유하는 블랙보드 토글 경로.
 #[tauri::command]
 pub fn toggle_board(app: AppHandle) {
     let on = app.state::<SharedState>().lock().unwrap().board;
     set_board(&app, !on);
+}
+
+/// 전역 블랙보드 단축키 동작. 통과 모드에서는 숨겨진 board 상태와 무관하게
+/// 블랙보드로 진입하고, 그리기 중에는 배경만 토글한다.
+pub fn activate_or_toggle_board(app: &AppHandle) {
+    let (drawing, board) = {
+        let state = app.state::<SharedState>();
+        let s = state.lock().unwrap();
+        (s.drawing, s.board)
+    };
+    if drawing {
+        set_board(app, !board);
+    } else if board {
+        set_drawing(app, true);
+    } else {
+        set_board(app, true);
+    }
 }
 
 /// Accessory(LSUIElement) 앱은 창을 만들어도 앱이 활성화되지 않아 창이 뒤에 숨는다.
@@ -219,12 +239,16 @@ fn open_util_window(app: &AppHandle, label: &str, route: &str, w: f64, h: f64) {
         let _ = win.set_focus();
         return;
     }
-    let built = WebviewWindowBuilder::new(app, label, WebviewUrl::App(format!("index.html{route}").into()))
-        .title("Arrowly")
-        .inner_size(w, h)
-        .resizable(false)
-        .center()
-        .build();
+    let built = WebviewWindowBuilder::new(
+        app,
+        label,
+        WebviewUrl::App(format!("index.html{route}").into()),
+    )
+    .title("Arrowly")
+    .inner_size(w, h)
+    .resizable(false)
+    .center()
+    .build();
     match built {
         Ok(win) => {
             let _ = win.show();
@@ -241,7 +265,7 @@ pub fn open_onboarding(app: &AppHandle) {
 
 /// 단축키 설정 창
 pub fn open_settings(app: &AppHandle) {
-    open_util_window(app, "settings", "#/settings", 380.0, 340.0);
+    open_util_window(app, "settings", "#/settings", 380.0, 400.0);
 }
 
 pub fn toggle(app: &AppHandle) {

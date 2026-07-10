@@ -23,7 +23,13 @@ pub fn create(app: &tauri::App) -> tauri::Result<()> {
         state.lock().unwrap().marker_hidden = marker_hidden;
     }
 
-    let menu = build_menu(handle, false, false, marker_hidden, autostart_enabled(handle))?;
+    let menu = build_menu(
+        handle,
+        false,
+        false,
+        marker_hidden,
+        autostart_enabled(handle),
+    )?;
 
     TrayIconBuilder::with_id(TRAY_ID)
         .icon(Image::from_bytes(TRAY_ICON)?)
@@ -36,7 +42,7 @@ pub fn create(app: &tauri::App) -> tauri::Result<()> {
     Ok(())
 }
 
-/// 상태(그리기·마커·자동 실행)가 바뀔 때마다 메뉴 라벨·체크를 다시 그린다.
+/// 상태(그리기·블랙보드·마커·단축키·자동 실행)가 바뀔 때마다 메뉴를 다시 그린다.
 /// 아이콘은 고정이라 건드리지 않는다.
 pub fn sync(app: &AppHandle) {
     let (drawing, board, marker_hidden) = {
@@ -59,26 +65,52 @@ fn build_menu(
     marker_hidden: bool,
     autostart_on: bool,
 ) -> tauri::Result<Menu<Wry>> {
-    let (toggle_accel, clear_accel) = {
+    let (toggle_accel, board_accel, clear_accel) = {
         let state = app.state::<SharedState>();
         let s = state.lock().unwrap();
-        (s.toggle_accel.clone(), s.clear_accel.clone())
+        (
+            s.toggle_accel.clone(),
+            s.board_accel.clone(),
+            s.clear_accel.clone(),
+        )
     };
     let tr = crate::i18n::tray();
     let toggle = MenuItem::with_id(
         app,
         "toggle",
-        if drawing { tr.stop_drawing } else { tr.start_drawing },
+        if drawing {
+            tr.stop_drawing
+        } else {
+            tr.start_drawing
+        },
         true,
         Some(toggle_accel.as_str()),
     )?;
-    // ⌘B는 오버레이 keydown이 처리 — clear의 ⌥⌫처럼 표기는 치트시트 역할만 한다
-    let board_item =
-        CheckMenuItem::with_id(app, "board", tr.blackboard, true, board, Some("CmdOrCtrl+B"))?;
+    let board_item = CheckMenuItem::with_id(
+        app,
+        "board",
+        tr.blackboard,
+        true,
+        board,
+        Some(board_accel.as_str()),
+    )?;
     let clear = MenuItem::with_id(app, "clear", tr.clear_all, true, Some(clear_accel.as_str()))?;
-    let marker = CheckMenuItem::with_id(app, "marker", tr.hide_marker, true, marker_hidden, None::<&str>)?;
-    let autostart =
-        CheckMenuItem::with_id(app, "autostart", tr.launch_at_login, true, autostart_on, None::<&str>)?;
+    let marker = CheckMenuItem::with_id(
+        app,
+        "marker",
+        tr.hide_marker,
+        true,
+        marker_hidden,
+        None::<&str>,
+    )?;
+    let autostart = CheckMenuItem::with_id(
+        app,
+        "autostart",
+        tr.launch_at_login,
+        true,
+        autostart_on,
+        None::<&str>,
+    )?;
     let shortcuts = MenuItem::with_id(app, "shortcuts", tr.shortcut_settings, true, None::<&str>)?;
     let tutorial = MenuItem::with_id(app, "tutorial", tr.replay_tutorial, true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", tr.quit, true, None::<&str>)?;
@@ -87,7 +119,18 @@ fn build_menu(
 
     Menu::with_items(
         app,
-        &[&toggle, &board_item, &clear, &sep1, &marker, &autostart, &shortcuts, &sep2, &tutorial, &quit],
+        &[
+            &toggle,
+            &board_item,
+            &clear,
+            &sep1,
+            &marker,
+            &autostart,
+            &shortcuts,
+            &sep2,
+            &tutorial,
+            &quit,
+        ],
     )
 }
 
@@ -118,7 +161,10 @@ fn toggle_marker_hidden(app: &AppHandle) {
         store.set("markerHidden", serde_json::json!(hidden));
         let _ = store.save();
     }
-    let _ = app.emit("marker-hidden-changed", serde_json::json!({ "hidden": hidden }));
+    let _ = app.emit(
+        "marker-hidden-changed",
+        serde_json::json!({ "hidden": hidden }),
+    );
     sync(app);
 }
 
@@ -129,7 +175,11 @@ fn toggle_autostart(app: &AppHandle) {
 
 fn set_autostart(app: &AppHandle, enabled: bool) {
     let manager = app.autolaunch();
-    let result = if enabled { manager.enable() } else { manager.disable() };
+    let result = if enabled {
+        manager.enable()
+    } else {
+        manager.disable()
+    };
     if let Err(e) = result {
         eprintln!("[arrowly] 자동 실행 설정 실패: {e}");
     }
@@ -139,18 +189,6 @@ fn autostart_enabled(app: &AppHandle) -> bool {
     app.autolaunch().is_enabled().unwrap_or(false)
 }
 
-/// 온보딩 웹뷰에서 자동 실행 상태를 읽는다 — 트레이와 같은 OS 로그인 항목을 조회한다.
-#[tauri::command]
-pub fn autostart_get(app: AppHandle) -> bool {
-    autostart_enabled(&app)
-}
-
-/// 온보딩 웹뷰에서 자동 실행을 켜고 끈다. 트레이 토글과 같은 set_autostart를 공유한다.
-#[tauri::command]
-pub fn autostart_set(app: AppHandle, enabled: bool) {
-    set_autostart(&app, enabled);
-    sync(&app);
-}
 
 fn load_marker_hidden(app: &AppHandle) -> bool {
     app.store("settings.json")
