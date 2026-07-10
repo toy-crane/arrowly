@@ -1,5 +1,6 @@
 import { CSSProperties, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { AutostartToggle } from "../shared/AutostartToggle";
 import { t, tx } from "../shared/i18n";
 import { saveOnboardingDone } from "../shared/settings";
 import { ShortcutEditor } from "../shared/ShortcutEditor";
@@ -30,16 +31,6 @@ export function OnboardingApp() {
 
       {step === 1 && (
         <>
-          <h1 style={h}>{t("onboarding.shortcut.title")}</h1>
-          <p style={sub}>{tx("onboarding.shortcut.body", { hi: <Hi>{t("onboarding.shortcut.hi")}</Hi> })}</p>
-          <div style={editorCard}>
-            <ShortcutEditor />
-          </div>
-        </>
-      )}
-
-      {step === 2 && (
-        <>
           <h1 style={h}>{t("onboarding.erase.title")}</h1>
           <p style={sub}>
             {tx("onboarding.erase.body", {
@@ -51,6 +42,17 @@ export function OnboardingApp() {
             })}
           </p>
           <MiniCanvas boardable />
+        </>
+      )}
+
+      {step === 2 && (
+        <>
+          <h1 style={h}>{t("onboarding.shortcut.title")}</h1>
+          <p style={sub}>{tx("onboarding.shortcut.body", { hi: <Hi>{t("onboarding.shortcut.hi")}</Hi> })}</p>
+          <div style={editorCard}>
+            <ShortcutEditor />
+            <AutostartToggle />
+          </div>
           <p style={menubarLine}>{tx("onboarding.menubar", { arrow: <ArrowGlyph /> })}</p>
         </>
       )}

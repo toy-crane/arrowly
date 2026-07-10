@@ -35,6 +35,7 @@ const en = {
   "marker.colorValue": "Color {value}",
   "marker.widthValue": "Thickness {value}",
   "marker.toggleBoard": "Toggle blackboard",
+  "autostart.label": "Launch at Login",
 } as const;
 
 export type Key = keyof typeof en;
@@ -73,6 +74,7 @@ const ko: Record<Key, string> = {
   "marker.colorValue": "색 {value}",
   "marker.widthValue": "굵기 {value}",
   "marker.toggleBoard": "블랙보드 토글",
+  "autostart.label": "로그인 시 실행",
 };
 
 // 시스템 언어 자동 감지 — Rust 쪽(i18n.rs)과 같은 소스(macOS 선호 언어)·같은 규칙
