@@ -45,3 +45,8 @@ export function applyPenCursor(color: string, strokeWidthPx: number) {
 export function resetCursor() {
   document.body.style.cursor = "default";
 }
+
+/** 텍스트 모드 표시 — 표준 I-beam. */
+export function applyTextCursor() {
+  document.body.style.cursor = "text";
+}

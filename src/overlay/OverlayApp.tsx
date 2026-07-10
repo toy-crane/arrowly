@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { Color, DEFAULT_COLOR, DEFAULT_WIDTH, strokeWidthPx, WidthKey } from "../shared/constants";
 import { DEFAULT_SHORTCUTS, loadShortcuts, loadTool, saveColor, saveWidth } from "../shared/settings";
-import { applyPenCursor, resetCursor } from "./cursor";
+import { applyPenCursor, applyTextCursor, resetCursor } from "./cursor";
 import { DrawingCanvas } from "./DrawingCanvas";
 import { Marker } from "./Marker";
 
@@ -14,6 +14,7 @@ export function OverlayApp() {
   const [color, setColor] = useState<Color>(DEFAULT_COLOR);
   const [widthKey, setWidthKey] = useState<WidthKey>(DEFAULT_WIDTH);
   const [clearAccel, setClearAccel] = useState(DEFAULT_SHORTCUTS.clear);
+  const [textMode, setTextMode] = useState(false);
 
   useEffect(() => {
     loadShortcuts().then((s) => setClearAccel(s.clear));
@@ -25,6 +26,7 @@ export function OverlayApp() {
     const unMode = listen<{ drawing: boolean; board: boolean }>("mode-changed", (e) => {
       setDrawing(e.payload.drawing);
       setBoard(e.payload.board);
+      if (!e.payload.drawing) setTextMode(false); // Esc·토글로 나가면 텍스트 모드도 폐기
     });
     const unBoard = listen<{ on: boolean }>("board-changed", (e) => setBoard(e.payload.on));
     const unMarker = listen<{ hidden: boolean }>("marker-hidden-changed", (e) =>
@@ -41,19 +43,30 @@ export function OverlayApp() {
     };
   }, []);
 
-  // 색·굵기가 바뀌면 커서도 즉시 갱신
+  // 색·굵기·모드가 바뀌면 커서도 즉시 갱신
   useEffect(() => {
     if (!drawing) {
       resetCursor();
       return;
     }
+    if (textMode) {
+      applyTextCursor();
+      return;
+    }
     applyPenCursor(color, strokeWidthPx(widthKey, Math.min(window.innerWidth, window.innerHeight)));
-  }, [drawing, color, widthKey]);
+  }, [drawing, textMode, color, widthKey]);
 
   return (
     <>
       <div style={boardBackdrop(board)} />
-      <DrawingCanvas color={color} widthKey={widthKey} clearAccel={clearAccel} />
+      <DrawingCanvas
+        color={color}
+        widthKey={widthKey}
+        clearAccel={clearAccel}
+        textAccel="KeyT" // M11.4에서 설정 연동으로 교체
+        textMode={textMode}
+        onTextModeChange={setTextMode}
+      />
       {drawing && !markerHidden && (
         <Marker
           color={color}

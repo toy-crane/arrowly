@@ -1,20 +1,30 @@
-import { CSSProperties, useEffect, useRef } from "react";
+import { CSSProperties, useEffect, useRef, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { matchesAccelerator } from "../shared/accelerator";
-import { strokeWidthPx, WidthKey } from "../shared/constants";
-import { drawMark, Point, StrokeStore } from "./strokes";
+import { strokeWidthPx, textSizePx, WidthKey } from "../shared/constants";
+import { drawMark, Point, StrokeStore, TextMark } from "./strokes";
+import { TextEditor } from "./TextEditor";
 
 type Props = {
   color: string;
   widthKey: WidthKey;
   clearAccel: string;
+  textAccel: string;
+  textMode: boolean;
+  onTextModeChange: (on: boolean) => void;
 };
+
+/** 편집 요소가 포커스면 오버레이 단축키는 전부 타이핑으로 흡수된다 (우선순위 확정). */
+function isEditableTarget(e: KeyboardEvent): boolean {
+  const t = e.target as HTMLElement | null;
+  return !!t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable);
+}
 
 /**
  * 캔버스 2장: base(확정 획) + live(진행 중 획).
  * live는 rAF당 1회만 clear&redraw, base는 획 확정 시 증분 렌더만 한다.
  */
-export function DrawingCanvas({ color, widthKey, clearAccel }: Props) {
+export function DrawingCanvas({ color, widthKey, clearAccel, textAccel, textMode, onTextModeChange }: Props) {
   const baseRef = useRef<HTMLCanvasElement>(null);
   const liveRef = useRef<HTMLCanvasElement>(null);
   const storeRef = useRef<StrokeStore>(null!);
@@ -23,6 +33,23 @@ export function DrawingCanvas({ color, widthKey, clearAccel }: Props) {
   toolRef.current = { color, widthKey };
   const clearAccelRef = useRef(clearAccel);
   clearAccelRef.current = clearAccel;
+  const textAccelRef = useRef(textAccel);
+  textAccelRef.current = textAccel;
+  const textModeRef = useRef(textMode);
+  textModeRef.current = textMode;
+  const onTextModeChangeRef = useRef(onTextModeChange);
+  onTextModeChangeRef.current = onTextModeChange;
+
+  // 편집 세션: 캐럿 위치. 텍스트 모드가 꺼지면(Esc·토글) 입력은 폐기된다.
+  const [editorPos, setEditorPos] = useState<Point | null>(null);
+  const editingRef = useRef(false);
+  editingRef.current = textMode && editorPos !== null;
+  useEffect(() => {
+    if (!textMode) setEditorPos(null);
+  }, [textMode]);
+
+  // effect 클로저의 렌더 경로를 React 이벤트 핸들러에서 쓰기 위한 다리
+  const apiRef = useRef<{ commitText: (p: Point, text: string) => void } | null>(null);
 
   useEffect(() => {
     const store = storeRef.current;
@@ -69,6 +96,12 @@ export function DrawingCanvas({ color, widthKey, clearAccel }: Props) {
 
     const onPointerDown = (e: PointerEvent) => {
       if (e.button !== 0) return;
+      if (textModeRef.current) {
+        // 텍스트 모드: 클릭 = 캐럿 배치, 드래그는 그리지 않는다. 편집 중의 바깥 클릭은
+        // TextEditor의 캡처 리스너가 먼저 확정 처리하므로 여기서는 삼킨다.
+        if (!editingRef.current) setEditorPos(toPoint(e));
+        return;
+      }
       const { color, widthKey } = toolRef.current;
       const width = strokeWidthPx(widthKey, Math.min(window.innerWidth, window.innerHeight));
       store.beginLive(color, width, toPoint(e));
@@ -103,6 +136,7 @@ export function DrawingCanvas({ color, widthKey, clearAccel }: Props) {
     };
 
     const onKeyDown = (e: KeyboardEvent) => {
+      if (isEditableTarget(e)) return; // 입력 중에는 모든 오버레이 단축키를 흡수
       // e.code 기준: 한글 입력 소스에서도 물리 키로 판정
       if (e.metaKey && !e.altKey && !e.ctrlKey && e.code === "KeyZ") {
         e.preventDefault();
@@ -110,7 +144,27 @@ export function DrawingCanvas({ color, widthKey, clearAccel }: Props) {
       } else if (matchesAccelerator(e, clearAccelRef.current)) {
         e.preventDefault();
         clearAll();
+      } else if (matchesAccelerator(e, textAccelRef.current)) {
+        e.preventDefault();
+        onTextModeChangeRef.current(!textModeRef.current);
       }
+    };
+
+    // 텍스트 확정: TextMark를 push하고 base에 증분 렌더 (확정 획 커밋과 같은 경로)
+    apiRef.current = {
+      commitText: (p, text) => {
+        const { color, widthKey } = toolRef.current;
+        const mark: TextMark = {
+          kind: "text",
+          x: p.x,
+          y: p.y,
+          text,
+          color,
+          size: textSizePx(widthKey, Math.min(window.innerWidth, window.innerHeight)),
+        };
+        store.push(mark);
+        drawMark(baseCtx, mark);
+      },
     };
 
     setupBacking();
@@ -142,6 +196,7 @@ export function DrawingCanvas({ color, widthKey, clearAccel }: Props) {
       unlistenMode.then((f) => f());
       unlistenClear.then((f) => f());
       if (rafId) cancelAnimationFrame(rafId);
+      apiRef.current = null;
     };
   }, []);
 
@@ -149,6 +204,23 @@ export function DrawingCanvas({ color, widthKey, clearAccel }: Props) {
     <>
       <canvas ref={baseRef} style={canvasStyle} />
       <canvas ref={liveRef} style={canvasStyle} />
+      {textMode && editorPos && (
+        <TextEditor
+          x={editorPos.x}
+          y={editorPos.y}
+          color={color}
+          size={textSizePx(widthKey, Math.min(window.innerWidth, window.innerHeight))}
+          onCommit={(text) => {
+            apiRef.current?.commitText(editorPos, text);
+            setEditorPos(null);
+            onTextModeChange(false); // one-shot: 확정 후 펜 복귀
+          }}
+          onCancel={() => {
+            setEditorPos(null);
+            onTextModeChange(false);
+          }}
+        />
+      )}
     </>
   );
 }
