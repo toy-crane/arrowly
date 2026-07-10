@@ -42,9 +42,15 @@ export function OnboardingApp() {
         <>
           <h1 style={h}>{t("onboarding.erase.title")}</h1>
           <p style={sub}>
-            {tx("onboarding.erase.body", { cmd: <Kbd>⌘</Kbd>, z: <Kbd>Z</Kbd>, esc: <Kbd>Esc</Kbd> })}
+            {tx("onboarding.erase.body", {
+              cmd: <Kbd>⌘</Kbd>,
+              z: <Kbd>Z</Kbd>,
+              b: <Kbd>B</Kbd>,
+              esc: <Kbd>Esc</Kbd>,
+              hi: <Hi>{t("onboarding.erase.hi")}</Hi>,
+            })}
           </p>
-          <MiniCanvas />
+          <MiniCanvas boardable />
           <p style={menubarLine}>{tx("onboarding.menubar", { arrow: <ArrowGlyph /> })}</p>
         </>
       )}
