@@ -6,7 +6,7 @@ disable-model-invocation: true
 
 # Arrowly 릴리스
 
-버전을 올리고 태그를 push해 CI 릴리스 빌드를 발동한다. 산출물은 draft Release + 무서명 universal DMG
+버전을 올리고 태그를 push해 CI 릴리스 빌드를 발동한다. 산출물은 draft Release + 서명·공증된 universal DMG
 (배경: `docs/RELEASE.md`).
 
 인자(`$ARGUMENTS`, 선택): `patch` | `minor` | `major` 또는 명시 버전(예: `0.3.0`).
