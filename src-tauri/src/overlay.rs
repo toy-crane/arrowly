@@ -272,7 +272,8 @@ pub fn open_onboarding(app: &AppHandle) {
 
 /// 단축키 설정 창
 pub fn open_settings(app: &AppHandle) {
-    open_util_window(app, "settings", "#/settings", 380.0, 400.0);
+    // 재설정 4행 + 고정 2행(≈56px/행) + 타이틀·패딩 크롬 ≈ 410px — 여유 포함 460
+    open_util_window(app, "settings", "#/settings", 380.0, 460.0);
 }
 
 pub fn toggle(app: &AppHandle) {
