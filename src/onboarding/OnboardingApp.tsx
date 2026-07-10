@@ -1,5 +1,6 @@
 import { CSSProperties, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { t, tx } from "../shared/i18n";
 import { saveOnboardingDone } from "../shared/settings";
 import { ShortcutEditor } from "../shared/ShortcutEditor";
 import { MiniCanvas } from "./MiniCanvas";
@@ -21,20 +22,16 @@ export function OnboardingApp() {
 
       {step === 0 && (
         <>
-          <h1 style={h}>그려 보기</h1>
-          <p style={sub}>
-            아래 칸에 마우스로 아무거나 그려 보세요. <Hi>한 획</Hi>을 그으면 다음으로 넘어갈 수 있어요.
-          </p>
+          <h1 style={h}>{t("onboarding.draw.title")}</h1>
+          <p style={sub}>{tx("onboarding.draw.body", { hi: <Hi>{t("onboarding.draw.hi")}</Hi> })}</p>
           <MiniCanvas onFirstStroke={() => setDrew(true)} />
         </>
       )}
 
       {step === 1 && (
         <>
-          <h1 style={h}>단축키 정하기</h1>
-          <p style={sub}>
-            <Hi>그리기를 켜고 끄는 키</Hi>예요. 필드를 눌러 원하는 조합으로 바꿀 수 있어요.
-          </p>
+          <h1 style={h}>{t("onboarding.shortcut.title")}</h1>
+          <p style={sub}>{tx("onboarding.shortcut.body", { hi: <Hi>{t("onboarding.shortcut.hi")}</Hi> })}</p>
           <div style={editorCard}>
             <ShortcutEditor />
           </div>
@@ -43,17 +40,12 @@ export function OnboardingApp() {
 
       {step === 2 && (
         <>
-          <h1 style={h}>지우기와 빠져나가기</h1>
+          <h1 style={h}>{t("onboarding.erase.title")}</h1>
           <p style={sub}>
-            그리다 실수하면 <Kbd>⌘</Kbd>
-            <Kbd>Z</Kbd>로 한 획씩 취소돼요. 그리기 모드에서는 <Kbd>Esc</Kbd>로 언제든 빠져나옵니다.
-            아래에서 그리고 <Kbd>⌘</Kbd>
-            <Kbd>Z</Kbd>를 눌러 보세요.
+            {tx("onboarding.erase.body", { cmd: <Kbd>⌘</Kbd>, z: <Kbd>Z</Kbd>, esc: <Kbd>Esc</Kbd> })}
           </p>
           <MiniCanvas />
-          <p style={menubarLine}>
-            Arrowly는 화면 오른쪽 위 메뉴바의 <ArrowGlyph /> 아이콘에 있어요.
-          </p>
+          <p style={menubarLine}>{tx("onboarding.menubar", { arrow: <ArrowGlyph /> })}</p>
         </>
       )}
 
@@ -66,7 +58,7 @@ export function OnboardingApp() {
         <span style={{ display: "flex", gap: 8 }}>
           {step > 0 && (
             <button style={btn} onClick={() => setStep(step - 1)}>
-              이전
+              {t("onboarding.back")}
             </button>
           )}
           {step < TOTAL - 1 ? (
@@ -75,11 +67,11 @@ export function OnboardingApp() {
               disabled={step === 0 && !drew}
               onClick={() => setStep(step + 1)}
             >
-              다음
+              {t("onboarding.next")}
             </button>
           ) : (
             <button style={{ ...btn, ...btnPrimary }} onClick={finish}>
-              시작하기
+              {t("onboarding.start")}
             </button>
           )}
         </span>
@@ -100,7 +92,7 @@ function Hi({ children }: { children: React.ReactNode }) {
 /** 트레이 아이콘과 같은 화살표 글리프 — 메뉴바에서 찾을 아이콘을 그대로 보여준다 */
 function ArrowGlyph() {
   return (
-    <svg viewBox="0 0 100 100" style={{ width: 15, height: 15, verticalAlign: -2 }} aria-label="화살표 아이콘">
+    <svg viewBox="0 0 100 100" style={{ width: 15, height: 15, verticalAlign: -2 }} aria-label={t("onboarding.arrowIcon")}>
       <g fill="none" stroke="currentColor" strokeWidth="12" strokeLinecap="round">
         <path d="M21 85 C27 72 29 64 36 54 C41 46.5 47 41 54 36.5 C62 31.5 69 29 76 27.8" />
         <path d="M60 14.5 C67 18 74 22.5 81 28.5" />
