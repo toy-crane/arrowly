@@ -29,6 +29,7 @@ git push origin v0.2.0
 
 - Actions 탭에서 빌드가 끝나면 **Releases** 탭에 draft가 생긴다: `Arrowly_<version>_universal.dmg` 에셋 + 자동 노트.
 - 내용을 확인하고 **Publish** 버튼으로 공개한다(draft는 자동 공개되지 않는다).
+  Claude Code에서는 `/publish` 스킬이 게시 전 검증(에셋·서명·공증)과 게시를 대신한다.
 - CI가 서명·공증까지 수행하므로 다른 Mac에서도 Gatekeeper 경고 없이 열린다.
 - 필요한 저장소 Actions secrets(등록 완료, 인증서 만료 2031-07): `APPLE_CERTIFICATE`(base64 .p12),
   `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`, `KEYCHAIN_PASSWORD`,
