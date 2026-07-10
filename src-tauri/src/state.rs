@@ -5,6 +5,8 @@ use std::sync::Mutex;
 pub struct AppState {
     /// true = 그리기 모드, false = 통과 모드
     pub drawing: bool,
+    /// 블랙보드(불투명 검정 배경). 그리기 OFF/ON을 넘나들며 유지되고, 영속화하지 않는다.
+    pub board: bool,
     /// 마지막으로 오버레이가 덮은 모니터의 물리 원점. 바뀌면 이전 그림 좌표가 무효다.
     pub last_monitor_pos: Option<(i32, i32)>,
     /// 플로팅 마커 숨김 (트레이 토글, settings.json에 저장)
@@ -19,6 +21,7 @@ impl Default for AppState {
     fn default() -> Self {
         Self {
             drawing: false,
+            board: false,
             last_monitor_pos: None,
             marker_hidden: false,
             toggle_accel: "Alt+Tab".into(),

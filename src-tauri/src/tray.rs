@@ -23,7 +23,7 @@ pub fn create(app: &tauri::App) -> tauri::Result<()> {
         state.lock().unwrap().marker_hidden = marker_hidden;
     }
 
-    let menu = build_menu(handle, false, marker_hidden, autostart_enabled(handle))?;
+    let menu = build_menu(handle, false, false, marker_hidden, autostart_enabled(handle))?;
 
     TrayIconBuilder::with_id(TRAY_ID)
         .icon(Image::from_bytes(TRAY_ICON)?)
@@ -39,15 +39,15 @@ pub fn create(app: &tauri::App) -> tauri::Result<()> {
 /// 상태(그리기·마커·자동 실행)가 바뀔 때마다 메뉴 라벨·체크를 다시 그린다.
 /// 아이콘은 고정이라 건드리지 않는다.
 pub fn sync(app: &AppHandle) {
-    let (drawing, marker_hidden) = {
+    let (drawing, board, marker_hidden) = {
         let state = app.state::<SharedState>();
         let s = state.lock().unwrap();
-        (s.drawing, s.marker_hidden)
+        (s.drawing, s.board, s.marker_hidden)
     };
     let Some(tray) = app.tray_by_id(TRAY_ID) else {
         return;
     };
-    if let Ok(menu) = build_menu(app, drawing, marker_hidden, autostart_enabled(app)) {
+    if let Ok(menu) = build_menu(app, drawing, board, marker_hidden, autostart_enabled(app)) {
         let _ = tray.set_menu(Some(menu));
     }
 }
@@ -55,6 +55,7 @@ pub fn sync(app: &AppHandle) {
 fn build_menu(
     app: &AppHandle,
     drawing: bool,
+    board: bool,
     marker_hidden: bool,
     autostart_on: bool,
 ) -> tauri::Result<Menu<Wry>> {
@@ -71,6 +72,9 @@ fn build_menu(
         true,
         Some(toggle_accel.as_str()),
     )?;
+    // ⌘B는 오버레이 keydown이 처리 — clear의 ⌥⌫처럼 표기는 치트시트 역할만 한다
+    let board_item =
+        CheckMenuItem::with_id(app, "board", tr.blackboard, true, board, Some("CmdOrCtrl+B"))?;
     let clear = MenuItem::with_id(app, "clear", tr.clear_all, true, Some(clear_accel.as_str()))?;
     let marker = CheckMenuItem::with_id(app, "marker", tr.hide_marker, true, marker_hidden, None::<&str>)?;
     let autostart =
@@ -83,13 +87,14 @@ fn build_menu(
 
     Menu::with_items(
         app,
-        &[&toggle, &clear, &sep1, &marker, &autostart, &shortcuts, &sep2, &tutorial, &quit],
+        &[&toggle, &board_item, &clear, &sep1, &marker, &autostart, &shortcuts, &sep2, &tutorial, &quit],
     )
 }
 
 fn handle_menu(app: &AppHandle, id: &str) {
     match id {
         "toggle" => crate::overlay::toggle(app),
+        "board" => crate::overlay::toggle_board(app.clone()),
         "clear" => {
             let _ = app.emit("clear-all", ());
         }
