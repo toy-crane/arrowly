@@ -4,19 +4,12 @@
 use std::str::FromStr;
 
 use tauri::{plugin::TauriPlugin, AppHandle, Emitter, Manager, Wry};
-use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
+use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Shortcut, ShortcutState};
 
+use crate::shortcut_policy::parse_valid;
 use crate::state::SharedState;
 
-pub const DEFAULT_TOGGLE: &str = "Alt+Tab";
-pub const DEFAULT_BOARD: &str = "Shift+Alt+Tab";
-pub const DEFAULT_CLEAR: &str = "Alt+Backspace";
-const BOARD_FALLBACKS: [&str; 4] = [
-    DEFAULT_BOARD,
-    "Control+Cmd+KeyB",
-    "Shift+Control+Cmd+KeyB",
-    "Alt+Control+Cmd+KeyB",
-];
+pub use crate::shortcut_policy::{migrated_board_default, DEFAULT_CLEAR, DEFAULT_TOGGLE};
 
 fn current_toggle(app: &AppHandle) -> Option<Shortcut> {
     let accel = app
@@ -40,31 +33,6 @@ fn current_board(app: &AppHandle) -> Option<Shortcut> {
 
 fn escape_shortcut() -> Shortcut {
     Shortcut::new(None, Code::Escape)
-}
-
-fn parse_valid(accelerator: &str) -> Result<Shortcut, String> {
-    let shortcut =
-        Shortcut::from_str(accelerator).map_err(|_| "error:invalid_shortcut".to_string())?;
-    validate_shortcut(&shortcut)?;
-    Ok(shortcut)
-}
-
-fn validate_shortcut(shortcut: &Shortcut) -> Result<(), String> {
-    if shortcut.key == Code::Escape {
-        return Err("error:reserved_escape".into());
-    }
-    if shortcut.mods.is_empty() {
-        return Err("error:modifier_required".into());
-    }
-    let command_undo = shortcut.key == Code::KeyZ
-        && shortcut.mods.contains(Modifiers::SUPER)
-        && !shortcut
-            .mods
-            .intersects(Modifiers::ALT | Modifiers::CONTROL);
-    if command_undo {
-        return Err("error:reserved_undo".into());
-    }
-    Ok(())
 }
 
 pub fn init() -> TauriPlugin<Wry> {
@@ -250,15 +218,6 @@ pub fn resume_shortcuts(app: AppHandle) {
     }
 }
 
-/// 기존 설정과 겹치지 않는 블랙보드 초기값을 고른다. 기존 사용자 값이 항상 우선이다.
-pub fn migrated_board_default(toggle: &str, clear: &str) -> String {
-    BOARD_FALLBACKS
-        .iter()
-        .find(|candidate| **candidate != toggle && **candidate != clear)
-        .unwrap_or(&DEFAULT_BOARD)
-        .to_string()
-}
-
 /// 기동 시 settings.json의 accelerator를 state에 반영한다.
 pub fn load_from_settings(
     app: &AppHandle,
@@ -282,45 +241,42 @@ pub fn load_from_settings(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tauri::webview::InvokeRequest;
 
-    #[test]
-    fn board_migration_preserves_existing_shortcuts() {
-        assert_eq!(
-            migrated_board_default(DEFAULT_BOARD, DEFAULT_CLEAR),
-            "Control+Cmd+KeyB"
-        );
-        assert_eq!(
-            migrated_board_default(DEFAULT_TOGGLE, DEFAULT_CLEAR),
-            DEFAULT_BOARD
-        );
-        assert_eq!(
-            migrated_board_default(DEFAULT_BOARD, "Control+Cmd+KeyB"),
-            "Shift+Control+Cmd+KeyB"
-        );
-        assert_eq!(
-            migrated_board_default(DEFAULT_BOARD, "Shift+Control+Cmd+KeyB"),
-            "Control+Cmd+KeyB"
-        );
+    #[tauri::command]
+    fn validate_shortcut_command(accelerator: String) -> Result<(), String> {
+        parse_valid(&accelerator).map(|_| ())
     }
 
-    #[test]
-    fn validation_rejects_unsafe_shortcuts() {
-        assert_eq!(parse_valid("KeyB").unwrap_err(), "error:modifier_required");
-        assert_eq!(parse_valid("Cmd+KeyZ").unwrap_err(), "error:reserved_undo");
-        assert_eq!(
-            parse_valid("Shift+Cmd+KeyZ").unwrap_err(),
-            "error:reserved_undo"
-        );
-        assert_eq!(
-            parse_valid("Shift+Escape").unwrap_err(),
-            "error:reserved_escape"
-        );
-    }
-
-    #[test]
-    fn default_shortcuts_are_valid() {
-        for accelerator in [DEFAULT_TOGGLE, DEFAULT_BOARD, DEFAULT_CLEAR] {
-            assert!(parse_valid(accelerator).is_ok(), "invalid default: {accelerator}");
+    fn ipc_request(accelerator: &str) -> InvokeRequest {
+        InvokeRequest {
+            cmd: "validate_shortcut_command".into(),
+            callback: tauri::ipc::CallbackFn(0),
+            error: tauri::ipc::CallbackFn(1),
+            url: "tauri://localhost".parse().unwrap(),
+            body: tauri::ipc::InvokeBody::Json(serde_json::json!({
+                "accelerator": accelerator
+            })),
+            headers: Default::default(),
+            invoke_key: tauri::test::INVOKE_KEY.to_string(),
         }
+    }
+
+    #[test]
+    fn mock_runtime_exercises_shortcut_policy_through_tauri_ipc() {
+        let app = tauri::test::mock_builder()
+            .invoke_handler(tauri::generate_handler![validate_shortcut_command])
+            .build(tauri::test::mock_context(tauri::test::noop_assets()))
+            .unwrap();
+        let webview = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+
+        tauri::test::assert_ipc_response(&webview, ipc_request(DEFAULT_TOGGLE), Ok(()));
+        tauri::test::assert_ipc_response(
+            &webview,
+            ipc_request("Cmd+KeyZ"),
+            Err("error:reserved_undo"),
+        );
     }
 }
