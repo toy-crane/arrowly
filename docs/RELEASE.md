@@ -6,7 +6,7 @@ v1 배포는 **DMG 직접 배포**로 확정 (App Store는 비공개 API·비샌
 ## 자동 릴리스 (권장) — 태그 push
 
 버전 태그를 push하면 GitHub Actions(`.github/workflows/release.yml`)가 macOS 러너에서
-**서명 없는** universal DMG를 빌드하고, draft Release에 첨부하며, 릴리스 노트를
+**Developer ID 서명·공증된** universal DMG를 빌드하고, draft Release에 첨부하며, 릴리스 노트를
 GitHub 내장 자동 생성(지난 태그 이후 머지된 PR 목록)으로 채운다.
 
 > Claude Code에서는 `/release` 스킬(`.claude/skills/release`)이 아래 절차 전체
@@ -28,8 +28,11 @@ git push origin v0.2.0
 
 - Actions 탭에서 빌드가 끝나면 **Releases** 탭에 draft가 생긴다: `Arrowly_<version>_universal.dmg` 에셋 + 자동 노트.
 - 내용을 확인하고 **Publish** 버튼으로 공개한다(draft는 자동 공개되지 않는다).
-- **서명 없는 빌드**라 다른 Mac에서 처음 열 때 Gatekeeper 경고가 뜬다 — Finder에서 **우클릭 → 열기**로 실행한다.
-- 코드 서명·공증으로 이 경고를 없애려면 아래 수동 절차(인증서 + `APPLE_*` 환경변수)를 쓴다. 필요해지면 워크플로에 같은 시크릿을 추가해 CI에서 서명하도록 확장할 수 있다.
+- CI가 서명·공증까지 수행하므로 다른 Mac에서도 Gatekeeper 경고 없이 열린다.
+- 필요한 저장소 Actions secrets(등록 완료, 인증서 만료 2031-07): `APPLE_CERTIFICATE`(base64 .p12),
+  `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`, `KEYCHAIN_PASSWORD`,
+  `APPLE_ID`, `APPLE_PASSWORD`(앱 암호), `APPLE_TEAM_ID`.
+  인증서를 재발급하면 아래 수동 절차로 .p12를 다시 만들어 secrets를 갱신한다.
 
 ## 0. 사전 요구 (수동 서명·공증 빌드)
 
