@@ -70,6 +70,9 @@
 | `toggle_drawing` (command) | 웹뷰→Rust | 없음 | 온보딩·마커에서 모드 전환 요청 |
 | `try_register_shortcut` (command) | 웹뷰→Rust | `{ id: "toggle"\|"board", accelerator: string }` | 상시 전역 키 레코더 검증: 임시 register→unregister, `Result<(), String>` 반환 |
 | `apply_settings` (command) | 웹뷰→Rust | 설정 객체 전체 | 온보딩 완료·설정 변경 시 |
+| `shortcuts-changed` (event) | Rust→웹뷰 | `{ board, clear, text }` | `apply_shortcuts` 성공 직후 — 오버레이가 로컬 키(clear·text) 매칭 기준을 갱신 |
+| `enter-text-mode` (event) | Rust→웹뷰 | 없음 | 트레이 "텍스트 입력" 클릭 시. 통과 모드였다면 Rust가 그리기 진입을 먼저 수행한 뒤 emit |
+| `apply_shortcuts` (command) | 웹뷰→Rust | `{ toggle, board, clear, text }` | 단축키 저장 시. toggle·board는 전역 재등록, clear·text는 검증·보관만(전역 미등록) |
 
 설정 저장은 웹뷰가 `@tauri-apps/plugin-store`로 직접 읽고 쓴다(파일 `settings.json`). Rust는 기동 시 같은 파일을 읽어 단축키를 등록한다.
 
@@ -81,7 +84,7 @@
   "width": "medium",
   "markerPos": { "xRatio": 0.04, "yRatio": 0.92 },
   "markerHidden": false,
-  "shortcuts": { "toggle": "Alt+Tab", "board": "Shift+Alt+Tab", "clear": "Alt+Backspace" },
+  "shortcuts": { "toggle": "Alt+Tab", "board": "Shift+Alt+Tab", "clear": "Alt+Backspace", "text": "KeyT" },
   "onboardingDone": false
 }
 ```
@@ -261,7 +264,7 @@
 - 창: 일반 WebviewWindow(`onboarding`), 640×480, 불투명, resizable(false), center. `onboardingDone=false`일 때 기동 시 생성. Accessory 정책에서 포커스가 안 오면 표시 직전 `app.show()`/activate 처리 확인.
 - STEP 1 그려보기: 창 내 미니 캔버스(M3 엔진 재사용, 규모만 축소). 획 하나 그리면 "다음" 활성화.
 - STEP 2 Esc·⌘Z·블랙보드 체험: 저장된 블랙보드 accelerator를 미니 캔버스에서 사용해 배경 전환과 획 유지를 확인한다. 체험 중에는 상시 전역 단축키를 잠시 해제하고, 단계가 끝나거나 창이 닫히면 복구한다.
-- STEP 3 단축키 설정: 그리기 토글·블랙보드 토글·전체 지우기 세 행을 레코딩한다. 필드 포커스 상태에서 `keydown`을 캡처해 accelerator 문자열로 조립하고, 전역 충돌·중복·예약 키·수식키 없는 입력은 필드 아래 오류로 보여준다. 온보딩에서는 Reset을 숨기고, 마지막 줄에서 메뉴바의 단축키 설정 진입점을 안내한 뒤 `onboardingDone=true`를 저장하고 창을 닫는다.
+- STEP 3 단축키 설정: 그리기 토글·블랙보드 토글·전체 지우기·텍스트 네 행을 레코딩한다(M11에서 텍스트 행 추가 — 온보딩·설정 창 동일 4행). 필드 포커스 상태에서 `keydown`을 캡처해 accelerator 문자열로 조립하고, 전역 충돌·중복·예약 키·수식키 없는 입력은 필드 아래 오류로 보여준다(텍스트 행만 수식키 없는 단독 키 허용 — 전역 미등록 키). 온보딩에서는 Reset을 숨기고, 마지막 줄에서 메뉴바의 단축키 설정 진입점을 안내한 뒤 `onboardingDone=true`를 저장하고 창을 닫는다.
 - 조건부 권한 단계: 현 아키텍처에선 표시하지 않음. `steps` 배열에 자리만 남긴다.
 - 커밋 `feat: 온보딩` → 사용자 Mac: 20초 완주, 재실행 시 안 뜸, 트레이 "튜토리얼 다시 보기"로 재진입.
 
@@ -285,6 +288,42 @@
 2. 서명·공증(사용자 계정 필요): 환경변수 `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD`(앱 암호), `APPLE_TEAM_ID` — Tauri 내장 공증 흐름 사용.
 3. `docs/RELEASE.md` 작성: 인증서 발급 → 환경변수 → 빌드 → 공증 확인(`spctl -a -vv`) → DMG 배포 절차.
 4. 커밋 `docs: 릴리스 가이드` / `chore: universal 빌드 설정`.
+
+## M11. 타이핑 텍스트 + 도형 홀드 스냅
+
+블랙보드 강의 인터뷰(REQUIREMENTS "타이핑 텍스트"·"그리기 > 도형 홀드 스냅")로 확정된 두 기능. 하위 단계: M11.1 문서 계약 → M11.2 마크 모델 → **M11.3 텍스트 에디터 (IME 게이트)** → M11.4 텍스트 키 배선 → M11.5 마커 T 셀·더블클릭 → M11.6 트레이 항목 → M11.7 도형 분류기 → M11.8 홀드 스냅 통합 → M11.9 테스트 문서.
+
+### 마크 모델 (M11.2)
+
+`strokes.ts`의 `Stroke`를 discriminated union `Mark`로 확장: `PenMark`(kind "pen", 기존 구조) / `TextMark`(kind "text", x·y·text·color·size) / `ShapeMark`(kind "shape", rect|ellipse|arrow geometry·color·width). undo 단위 = 마크 1개. `StrokeStore.push(mark)`는 redoStack을 비운다(commitLive와 동일 불변식). `retractLast()`는 redo에 넣지 않고 회수(더블클릭 점 회수 전용). `drawStroke`→`drawMark` 디스패치.
+
+### 텍스트 상태 머신 (M11.3)
+
+- `OverlayApp`이 `textMode` 소유(마커 하이라이트·커서), `DrawingCanvas`가 편집 세션(`editorPos`) 소유.
+- `textMode && !editorPos` = 대기(I-beam 커서, 클릭=캐럿 배치, 드래그 무시) / `+editorPos` = 편집 중(DOM `<input>` — 한글 IME는 네이티브 input으로 처리).
+- 확정 = Enter(조합 중 제외) 또는 바깥 클릭 → `TextMark` push + 증분 렌더 → 펜 복귀(one-shot). 취소 = 입력 중 ⌘Z(입력만 폐기, 그리기 유지). Esc = Rust 전역 그대로(그리기 종료 + 폐기, 특수처리 없음). 크기 = `textSizePx(widthKey)` (굵기 5단계 × TEXT_SIZE_FACTOR 5, 최소 14px), 색 = 현재 잉크.
+- **keydown 우선순위(확정)**: 편집 요소 포커스 중에는 오버레이 window keydown이 즉시 return — undo·clear·텍스트 키 전부 타이핑으로 흡수된다. ⌘Z 취소는 에디터 자체 핸들러가 처리.
+
+### 텍스트 키 (M11.4)
+
+4번째 재설정 단축키 `shortcuts.text`, 기본 `KeyT`. clear와 같은 경로(검증·보관, 전역 미등록·오버레이 keydown 매칭). 정책: `parse_valid_local` — 로컬 키는 수식키 면제, Esc·⌘Z 계열·중복은 여전히 거부. 레거시 3키 스토어는 프런트 `DEFAULT_SHORTCUTS` merge가 자동 보완(`migrated_board_default`식 Rust 마이그레이션 불필요 — 단독 KeyT는 기존 3키와 충돌 불가).
+
+### 더블클릭 진입 (M11.5)
+
+`DBLCLICK_MS=350 / DBLCLICK_SLOP_PX=6 / CLICK_SLOP_PX=4`. 두 번째 클릭이 조건 충족 시 획을 시작하지 않고 pointerUp에서 직전 클릭 점 마크를 `retractLast()`로 회수 후 에디터를 연다. 트레이드오프: 첫 클릭 점이 최대 350ms 보였다 사라짐 — 거슬리면 대안(점 커밋 지연)으로 교체.
+
+### 도형 홀드 스냅 (M11.7–8)
+
+`shapes.ts` 순수 분류기 상수: `HOLD_MS=600 / RING_DELAY_MS=200 / STILL_RADIUS_PX=3.5 / MIN_SNAP_DIAG_PX=24 / CLOSED_GAP_RATIO=0.25 / MIN_CLOSED_PATH_RATIO=1.2 / CORNER_TURN_DEG=55 / MIN_RECT_CORNERS=3`. 파이프라인: bbox 최소치 → 호길이 리샘플 → 닫힘 판정 → 모서리 카운트 → rect(축정렬 bbox) / ellipse(bbox 내접) / arrow(시작→최원점). 직선 스냅 없음. 감도 튜닝은 사용자 Mac 체크리스트가 게이트.
+
+### ⭐ M11.3 IME 판정 게이트 (M2 방식 Go/No-Go)
+
+non-activating panel에서 한글 조합 입력 검증 — 실패 상태로 M11.4+ 안착 금지:
+1. 그리기 ON 위에서 T→클릭→2벌식 "안녕하세요" 조합(밑줄·후보창 포함) 정상
+2. Enter 확정·바깥 클릭 확정, 확정 클릭이 획을 시작하지 않음
+3. 입력 중 ⌘Z = 입력만 취소 / Esc = 그리기 종료+폐기
+
+실패 시 폴백 사다리: (a) 편집 시작 시 `make_key_window()` 재호출 커맨드 → (b) 편집 중에만 활성화 수용(포커스 탈취는 입력 중 한정) → (c) 사용자 에스컬레이션(기능 차단).
 
 ---
 
