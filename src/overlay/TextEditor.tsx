@@ -40,8 +40,14 @@ export function TextEditor({ x, y, color, size, onCommit, onCancel }: Props) {
   useEffect(() => {
     inputRef.current?.focus();
     // 바깥 클릭 = 확정. 캡처 단계라 캔버스 pointerdown보다 먼저 처리된다.
+    // 단, 마커 캡슐 내부는 제외 — 캡처가 먼저 finish()로 모드를 끈 뒤 이어지는 마커 버튼
+    // 클릭이 setTextMode(v => !v)로 되켜는 이중 반응을 막고, 편집 중 색·굵기 변경이
+    // 초안을 살린 채 라이브로 적용되게 한다.
     const onPointerDown = (e: PointerEvent) => {
-      if (e.target !== inputRef.current) finish();
+      const target = e.target as Element | null;
+      if (target === inputRef.current) return;
+      if (target?.closest?.("[data-arrowly-marker]")) return;
+      finish();
     };
     window.addEventListener("pointerdown", onPointerDown, true);
     return () => window.removeEventListener("pointerdown", onPointerDown, true);

@@ -142,6 +142,7 @@ export function Marker({
   return (
     <div
       ref={rootRef}
+      data-arrowly-marker=""
       style={{ ...capsule, left: `${pos.xRatio * 100}%`, top: `${pos.yRatio * 100}%` }}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
