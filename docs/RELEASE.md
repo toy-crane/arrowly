@@ -9,15 +9,21 @@ v1 배포는 **DMG 직접 배포**로 확정 (App Store는 비공개 API·비샌
 **서명 없는** universal DMG를 빌드하고, draft Release에 첨부하며, 릴리스 노트를
 GitHub 내장 자동 생성(지난 태그 이후 머지된 PR 목록)으로 채운다.
 
+> Claude Code에서는 `/release` 스킬(`.claude/skills/release`)이 아래 절차 전체
+> (버전 3곳 동기화 → 커밋 → 태그 → push)를 대신한다.
+
 ```bash
-# 1. 버전을 올리고 커밋 (태그와 반드시 일치시킨다)
+# 1. 버전을 올리고 커밋 → main에 push (태그와 반드시 일치시킨다)
 #    - src-tauri/tauri.conf.json 의 "version"
 #    - package.json 의 "version"
+#    - src-tauri/Cargo.toml 의 version
 git commit -am "chore: bump version to 0.2.0"
+git push origin main
 
-# 2. 같은 버전으로 태그를 찍어 push  ← 이 순간 워크플로 발동
-git tag v0.2.0
-git push origin main --follow-tags   # 또는: git push origin v0.2.0
+# 2. push된 커밋에 같은 버전으로 태그를 찍어 push  ← 이 순간 워크플로 발동
+git fetch origin main
+git tag v0.2.0 origin/main   # 커밋을 명시 — 워크트리/브랜치 무관하게 안전
+git push origin v0.2.0
 ```
 
 - Actions 탭에서 빌드가 끝나면 **Releases** 탭에 draft가 생긴다: `Arrowly_<version>_universal.dmg` 에셋 + 자동 노트.
