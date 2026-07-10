@@ -3,7 +3,29 @@
 v1 배포는 **DMG 직접 배포**로 확정 (App Store는 비공개 API·비샌드박스 구조라 불가 — REQUIREMENTS 배포 절 참조).
 자동 업데이트 없음 — 새 버전은 재다운로드.
 
-## 0. 사전 요구
+## 자동 릴리스 (권장) — 태그 push
+
+버전 태그를 push하면 GitHub Actions(`.github/workflows/release.yml`)가 macOS 러너에서
+**서명 없는** universal DMG를 빌드하고, draft Release에 첨부하며, 릴리스 노트를
+GitHub 내장 자동 생성(지난 태그 이후 머지된 PR 목록)으로 채운다.
+
+```bash
+# 1. 버전을 올리고 커밋 (태그와 반드시 일치시킨다)
+#    - src-tauri/tauri.conf.json 의 "version"
+#    - package.json 의 "version"
+git commit -am "chore: bump version to 0.2.0"
+
+# 2. 같은 버전으로 태그를 찍어 push  ← 이 순간 워크플로 발동
+git tag v0.2.0
+git push origin main --follow-tags   # 또는: git push origin v0.2.0
+```
+
+- Actions 탭에서 빌드가 끝나면 **Releases** 탭에 draft가 생긴다: `Arrowly_<version>_universal.dmg` 에셋 + 자동 노트.
+- 내용을 확인하고 **Publish** 버튼으로 공개한다(draft는 자동 공개되지 않는다).
+- **서명 없는 빌드**라 다른 Mac에서 처음 열 때 Gatekeeper 경고가 뜬다 — Finder에서 **우클릭 → 열기**로 실행한다.
+- 코드 서명·공증으로 이 경고를 없애려면 아래 수동 절차(인증서 + `APPLE_*` 환경변수)를 쓴다. 필요해지면 워크플로에 같은 시크릿을 추가해 CI에서 서명하도록 확장할 수 있다.
+
+## 0. 사전 요구 (수동 서명·공증 빌드)
 
 - **Apple Developer Program 가입** (연 $99) — 서명·공증에 필수. 가입 전에는 3장의 무서명 빌드까지만 가능.
 - Xcode 설치, rustup 타깃 2종:
