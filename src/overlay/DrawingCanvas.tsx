@@ -2,7 +2,7 @@ import { CSSProperties, useEffect, useRef } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { matchesAccelerator } from "../shared/accelerator";
 import { strokeWidthPx, WidthKey } from "../shared/constants";
-import { drawStroke, Point, StrokeStore } from "./strokes";
+import { drawMark, Point, StrokeStore } from "./strokes";
 
 type Props = {
   color: string;
@@ -34,12 +34,12 @@ export function DrawingCanvas({ color, widthKey, clearAccel }: Props) {
 
     const renderBase = () => {
       baseCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
-      for (const s of store.strokes) drawStroke(baseCtx, s);
+      for (const s of store.marks) drawMark(baseCtx, s);
     };
 
     const renderLive = () => {
       liveCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
-      if (store.live) drawStroke(liveCtx, store.live);
+      if (store.live) drawMark(liveCtx, store.live);
     };
 
     // Retina 백킹: 물리 픽셀 크기 + dpr 스케일 (setTransform이라 재호출 누적 없음)
@@ -87,7 +87,7 @@ export function DrawingCanvas({ color, widthKey, clearAccel }: Props) {
       if (!store.live) return;
       store.extendLive([toPoint(e)]);
       const stroke = store.commitLive();
-      if (stroke) drawStroke(baseCtx, stroke); // 확정 획만 base에 증분 렌더
+      if (stroke) drawMark(baseCtx, stroke); // 확정 획만 base에 증분 렌더
       renderLive();
     };
 

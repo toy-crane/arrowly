@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { matchesAccelerator } from "../shared/accelerator";
 import { DEFAULT_COLOR } from "../shared/constants";
 import { DEFAULT_SHORTCUTS } from "../shared/settings";
-import { drawStroke, Point, StrokeStore } from "../overlay/strokes";
+import { drawMark, Point, StrokeStore } from "../overlay/strokes";
 
 type Props = {
   onFirstStroke?: () => void;
@@ -41,8 +41,8 @@ export function MiniCanvas({
 
     const render = () => {
       ctx.clearRect(0, 0, dims.w, dims.h);
-      for (const s of store.strokes) drawStroke(ctx, s);
-      if (store.live) drawStroke(ctx, store.live);
+      for (const s of store.marks) drawMark(ctx, s);
+      if (store.live) drawMark(ctx, store.live);
     };
 
     // 창이 자리 잡기 전(마운트 직후)의 크기로 한 번만 재면 백킹과 CSS 크기가
@@ -86,7 +86,7 @@ export function MiniCanvas({
       store.extendLive([toPoint(e)]);
       store.commitLive();
       render();
-      if (!firedRef.current && store.strokes.length > 0) {
+      if (!firedRef.current && store.marks.length > 0) {
         firedRef.current = true;
         onFirstRef.current?.();
       }
