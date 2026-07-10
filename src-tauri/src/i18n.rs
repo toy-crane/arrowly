@@ -7,6 +7,7 @@ use std::sync::OnceLock;
 pub struct TrayText {
     pub start_drawing: &'static str,
     pub stop_drawing: &'static str,
+    pub blackboard: &'static str,
     pub clear_all: &'static str,
     pub hide_marker: &'static str,
     pub launch_at_login: &'static str,
@@ -18,6 +19,7 @@ pub struct TrayText {
 static EN: TrayText = TrayText {
     start_drawing: "Start Drawing",
     stop_drawing: "Stop Drawing",
+    blackboard: "Blackboard",
     clear_all: "Clear All",
     hide_marker: "Hide Marker",
     launch_at_login: "Launch at Login",
@@ -29,6 +31,7 @@ static EN: TrayText = TrayText {
 static KO: TrayText = TrayText {
     start_drawing: "그리기 시작",
     stop_drawing: "그리기 중지",
+    blackboard: "블랙보드",
     clear_all: "전체 지우기",
     hide_marker: "마커 숨기기",
     launch_at_login: "로그인 시 실행",

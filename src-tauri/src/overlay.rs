@@ -139,9 +139,48 @@ pub fn set_drawing(app: &AppHandle, drawing: bool) {
         return;
     }
 
-    app.state::<SharedState>().lock().unwrap().drawing = drawing;
-    let _ = app.emit("mode-changed", serde_json::json!({ "drawing": drawing }));
+    let board = {
+        let state = app.state::<SharedState>();
+        let mut s = state.lock().unwrap();
+        s.drawing = drawing;
+        s.board
+    };
+    // board 동봉 — 웹뷰가 리로드돼도 다음 모드 전환에서 보드 상태가 재동기화된다
+    let _ = app.emit("mode-changed", serde_json::json!({ "drawing": drawing, "board": board }));
     crate::tray::sync(app);
+}
+
+/// 블랙보드 전이의 단일 소스. 보드를 먼저 켜고 emit한 뒤 그리기에 진입해야
+/// 패널이 뜰 때 이미 검정이라 투명 플래시가 없다.
+pub fn set_board(app: &AppHandle, on: bool) {
+    {
+        let state = app.state::<SharedState>();
+        let mut s = state.lock().unwrap();
+        if s.board == on {
+            return;
+        }
+        s.board = on;
+    }
+    let _ = app.emit("board-changed", serde_json::json!({ "on": on }));
+    crate::tray::sync(app);
+
+    // 통과 모드에서 켜면 그리기 모드로 함께 진입한다. 진입이 거부되면(Esc 등록 실패)
+    // 보드를 되돌려 트레이 체크가 유령으로 남지 않게 한다.
+    if on && !app.state::<SharedState>().lock().unwrap().drawing {
+        set_drawing(app, true);
+        if !app.state::<SharedState>().lock().unwrap().drawing {
+            app.state::<SharedState>().lock().unwrap().board = false;
+            let _ = app.emit("board-changed", serde_json::json!({ "on": false }));
+            crate::tray::sync(app);
+        }
+    }
+}
+
+/// 오버레이 ⌘B와 트레이 메뉴가 공유하는 토글 경로.
+#[tauri::command]
+pub fn toggle_board(app: AppHandle) {
+    let on = app.state::<SharedState>().lock().unwrap().board;
+    set_board(&app, !on);
 }
 
 /// Accessory(LSUIElement) 앱은 창을 만들어도 앱이 활성화되지 않아 창이 뒤에 숨는다.

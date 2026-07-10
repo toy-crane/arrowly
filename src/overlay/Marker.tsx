@@ -8,8 +8,10 @@ type Panel = "collapsed" | "colors" | "widths";
 type Props = {
   color: Color;
   widthKey: WidthKey;
+  board: boolean;
   onColorChange: (c: Color) => void;
   onWidthChange: (w: WidthKey) => void;
+  onBoardToggle: () => void;
 };
 
 // 기본 위치 좌하단(시안 확정). 드래그하면 settings.json(markerPos)에 저장된다.
@@ -20,7 +22,7 @@ const NEUTRAL = "#E8EAF0";
 // 마커는 모드 토글마다 언마운트되므로, 세션 내 위치는 모듈 레벨로 기억한다
 let sessionPos: MarkerPos | null = null;
 
-export function Marker({ color, widthKey, onColorChange, onWidthChange }: Props) {
+export function Marker({ color, widthKey, board, onColorChange, onWidthChange, onBoardToggle }: Props) {
   const [panel, setPanel] = useState<Panel>("collapsed");
   const [pos, setPosState] = useState<MarkerPos>(sessionPos ?? DEFAULT_POS);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -150,6 +152,30 @@ export function Marker({ color, widthKey, onColorChange, onWidthChange }: Props)
       >
         <span style={{ ...bar(widthKey), background: NEUTRAL }} />
       </button>
+      <span style={divider} />
+      <button
+        style={{ ...btn, ...(board ? boardOn : undefined) }}
+        aria-label={t("marker.toggleBoard")}
+        onClick={() => {
+          setPanel("collapsed");
+          onBoardToggle();
+        }}
+      >
+        <svg
+          width="19"
+          height="19"
+          viewBox="0 0 20 20"
+          fill="none"
+          stroke={NEUTRAL}
+          strokeWidth="1.6"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <rect x="2.8" y="3.2" width="14.4" height="10.6" rx="1.5" />
+          <path d="M6.2 8.8 C 7.6 6.8, 9.4 10.4, 11.6 7.9" />
+          <path d="M6.6 16.8 L 8.2 13.8 M13.4 16.8 L 11.8 13.8" />
+        </svg>
+      </button>
 
       {panel !== "collapsed" && (
         <div
@@ -225,6 +251,12 @@ const btn: CSSProperties = {
 
 const activeCell: CSSProperties = {
   background: "rgba(255,255,255,0.08)",
+  borderRadius: 8,
+};
+
+// 보드 ON 표시 — 팝오버 열림(activeCell)보다 한 단계 진한 중립 하이라이트. 색은 색 차원 전용.
+const boardOn: CSSProperties = {
+  background: "rgba(255,255,255,0.16)",
   borderRadius: 8,
 };
 
