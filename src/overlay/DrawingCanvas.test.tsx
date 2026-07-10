@@ -399,6 +399,24 @@ describe("DrawingCanvas", () => {
     });
   });
 
+  it("commits text at the size shown while typing even if the window resized mid-edit", () => {
+    const { container } = render(<Harness initialTextMode />);
+    const [baseCtx] = contexts;
+    const live = container.querySelectorAll("canvas")[1];
+    fireEvent.pointerDown(live, { button: 0, clientX: 10, clientY: 10, pointerId: 1 });
+    const input = screen.getByRole("textbox");
+    fireEvent.change(input, { target: { value: "크기 고정" } });
+
+    // 편집 중 해상도 변경 — 리렌더 없이 백킹만 재설정되므로 표시 크기는 그대로다
+    Object.defineProperty(window, "innerHeight", { configurable: true, value: 1200 });
+    fireEvent(window, new Event("resize"));
+
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(baseCtx.fillText).toHaveBeenCalledOnce();
+    // 짧은 변 600 기준 16.5px — 리사이즈 후 재계산(22px)이 아니라 표시된 크기로 커밋된다
+    expect(String(baseCtx.font)).toContain("16.5px");
+  });
+
   it("absorbs shortcuts via editingRef even when the event target is not an editable element", () => {
     const { container } = render(<Harness initialTextMode />);
     const [baseCtx] = contexts;
