@@ -52,7 +52,8 @@ disable-model-invocation: true
 - push 직후 Actions의 release 워크플로 실행 링크를 안내한다
   (https://github.com/toy-crane/arrowly/actions/workflows/release.yml).
 - 빌드(~10–20분) 완료 후 Releases 탭에 draft가 생긴다: DMG 에셋 + 자동 생성 노트.
-- **Publish는 사용자가 직접 누른다** — 스킬이 draft를 자동 공개하지 않는다.
+- **이 스킬은 draft를 자동 공개하지 않는다** — 검증·게시는 `/publish` 스킬
+  (`.claude/skills/publish`)로 진행한다. 게시 실행 전 사용자 확인은 그쪽에서 받는다.
 
 ## 원격(웹) 세션 제약
 
