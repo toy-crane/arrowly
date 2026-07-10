@@ -189,7 +189,6 @@ fn autostart_enabled(app: &AppHandle) -> bool {
     app.autolaunch().is_enabled().unwrap_or(false)
 }
 
-
 fn load_marker_hidden(app: &AppHandle) -> bool {
     app.store("settings.json")
         .ok()

@@ -47,7 +47,9 @@ bun install
 bun tauri dev
 # 기존 설정을 보존한 채 온보딩만 다시 시작
 bun run tauri:fresh
+# 테스트·커버리지·빌드 전체 검증
+bun run test:all
 ```
 
 Tauri v2 + React/TypeScript + Bun.
-요구사항 [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md) · 릴리스 절차 [docs/RELEASE.md](docs/RELEASE.md)
+요구사항 [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md) · 테스트 [docs/TESTING.md](docs/TESTING.md) · 릴리스 절차 [docs/RELEASE.md](docs/RELEASE.md)
