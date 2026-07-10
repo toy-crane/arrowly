@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { createCanvasContext } from "../../test/canvas";
-import { drawMark, fontString, Mark, StrokeStore, TEXT_FONT_FAMILY, TextMark } from "./strokes";
+import { createCanvasContext, installCanvasMock } from "../../test/canvas";
+import { drawMark, fontString, Mark, measureTextWidth, StrokeStore, TEXT_FONT_FAMILY, TextMark } from "./strokes";
 
 const textMark: TextMark = { kind: "text", x: 40, y: 60, text: "재시도", color: "#FFD400", size: 29 };
 const rectMark: Mark = {
@@ -107,6 +107,21 @@ describe("StrokeStore", () => {
 describe("fontString", () => {
   it("builds the shared font string for both canvas marks and the DOM editor", () => {
     expect(fontString(29)).toBe(`29px ${TEXT_FONT_FAMILY}`);
+  });
+});
+
+describe("measureTextWidth", () => {
+  it("measures with the mark font and falls back to a caret-wide space for empty text", () => {
+    const contexts = installCanvasMock();
+    expect(measureTextWidth("재시도", 29)).toBe(10); // mock measureText 폭
+
+    const ctx = contexts[contexts.length - 1];
+    expect(ctx.font).toBe(fontString(29));
+    expect(ctx.measureText).toHaveBeenCalledWith("재시도");
+
+    measureTextWidth("", 29);
+    const emptyCtx = contexts[contexts.length - 1];
+    expect(emptyCtx.measureText).toHaveBeenCalledWith(" ");
   });
 });
 

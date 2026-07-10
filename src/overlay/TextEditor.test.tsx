@@ -1,5 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { installCanvasMock } from "../../test/canvas";
+import { fontString } from "./strokes";
 import { TextEditor } from "./TextEditor";
 
 function renderEditor(overrides: Partial<Parameters<typeof TextEditor>[0]> = {}) {
@@ -13,6 +15,12 @@ function renderEditor(overrides: Partial<Parameters<typeof TextEditor>[0]> = {})
 }
 
 describe("TextEditor", () => {
+  let contexts: CanvasRenderingContext2D[];
+
+  beforeEach(() => {
+    contexts = installCanvasMock(); // 폭 측정(measureTextWidth)이 캔버스를 쓴다
+  });
+
   it("mounts focused with the ink color and mark font", () => {
     const { input } = renderEditor();
     expect(input).toHaveFocus();
@@ -20,6 +28,16 @@ describe("TextEditor", () => {
     expect(input.style.font).toContain("29px");
     expect(input.style.left).toBe("40px");
     expect(input.style.top).toBe("60px");
+  });
+
+  it("sizes the input from measured pixel width, not character count", () => {
+    const { input } = renderEditor();
+    fireEvent.change(input, { target: { value: "서버 캐시" } });
+
+    const latest = contexts[contexts.length - 1];
+    expect(latest.measureText).toHaveBeenCalledWith("서버 캐시");
+    expect(latest.font).toBe(fontString(29));
+    expect(input.style.width).toBe("18px"); // mock 측정 폭 10 + 여유 8
   });
 
   it("commits trimmed text on Enter and only once", () => {

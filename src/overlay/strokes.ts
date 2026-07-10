@@ -91,6 +91,15 @@ export function fontString(size: number): string {
   return `${size}px ${TEXT_FONT_FAMILY}`;
 }
 
+/** size 크기의 마크 서체로 text의 렌더 폭(px)을 잰다. 빈 문자열은 캐럿 한 칸 폭으로 최소화한다.
+ * 측정용 캔버스는 매 호출 생성(cursor.ts와 같은 패턴) — 모듈 캐시는 테스트별
+ * installCanvasMock() 격리를 깨뜨리고, 타이핑 속도에서는 생성 비용이 무시할 수준이다. */
+export function measureTextWidth(text: string, size: number): number {
+  const ctx = document.createElement("canvas").getContext("2d")!;
+  ctx.font = fontString(size);
+  return ctx.measureText(text || " ").width;
+}
+
 /** 공통 잉크 스타일: 둥근 캡·조인, 외곽선·그림자 금지. */
 function inkStyle(ctx: CanvasRenderingContext2D, color: string, width: number) {
   ctx.strokeStyle = color;

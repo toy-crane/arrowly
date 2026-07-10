@@ -1,5 +1,10 @@
 import { CSSProperties, useEffect, useRef, useState } from "react";
-import { fontString } from "./strokes";
+import { fontString, measureTextWidth } from "./strokes";
+
+/** 빈 입력에서도 캐럿이 보이는 최소 폭. */
+const MIN_WIDTH_PX = 10;
+/** 마지막 글자와 캐럿이 붙지 않게 하는 여유. */
+const WIDTH_PADDING_PX = 8;
 
 type Props = {
   x: number;
@@ -67,11 +72,14 @@ export function TextEditor({ x, y, color, size, onCommit, onCancel }: Props) {
     }
   };
 
+  // ch 단위는 숫자 "0" 폭 기준이라 전각 한글을 절반으로 과소 측정한다 — 실제 렌더 폭을 잰다
+  const measuredWidth = measureTextWidth(value, size);
+
   const style: CSSProperties = {
     position: "fixed",
     left: x,
     top: y,
-    width: `${Math.max(2, value.length + 2)}ch`,
+    width: `${Math.max(MIN_WIDTH_PX, measuredWidth + WIDTH_PADDING_PX)}px`,
     margin: 0,
     padding: 0,
     border: "none",
