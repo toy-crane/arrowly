@@ -399,6 +399,21 @@ describe("DrawingCanvas", () => {
     });
   });
 
+  it("absorbs shortcuts via editingRef even when the event target is not an editable element", () => {
+    const { container } = render(<Harness initialTextMode />);
+    const [baseCtx] = contexts;
+    const live = container.querySelectorAll("canvas")[1];
+    fireEvent.pointerDown(live, { button: 0, clientX: 10, clientY: 10, pointerId: 1 });
+    screen.getByRole("textbox");
+
+    const clears = (baseCtx.clearRect as Mock).mock.calls.length;
+    // window를 타깃으로 발화 — isEditableTarget만으로는 못 거른다 (패널 포커스 유실 시나리오)
+    fireEvent.keyDown(window, { code: "Backspace", altKey: true });
+    fireEvent.keyDown(window, { code: "KeyZ", metaKey: true });
+    expect((baseCtx.clearRect as Mock).mock.calls.length).toBe(clears);
+    expect(screen.getByRole("textbox")).toBeInTheDocument();
+  });
+
   it("discards the editing session when text mode turns off without committing", () => {
     const { container } = render(<Harness initialTextMode />);
     const [baseCtx] = contexts;

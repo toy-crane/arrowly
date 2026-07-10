@@ -294,7 +294,9 @@ export function DrawingCanvas({ color, widthKey, clearAccel, textAccel, textMode
     };
 
     const onKeyDown = (e: KeyboardEvent) => {
-      if (isEditableTarget(e)) return; // 입력 중에는 모든 오버레이 단축키를 흡수
+      // 입력 중에는 모든 오버레이 단축키를 흡수. editingRef는 DOM 포커스와 무관한
+      // 2차 방어 — non-activating panel에서 포커스가 유실돼도 획 버퍼를 오발화로 지키지 않는다
+      if (isEditableTarget(e) || editingRef.current) return;
       // e.code 기준: 한글 입력 소스에서도 물리 키로 판정
       if (e.metaKey && !e.altKey && !e.ctrlKey && e.code === "KeyZ") {
         e.preventDefault();
