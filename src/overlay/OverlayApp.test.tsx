@@ -53,14 +53,17 @@ vi.mock("./Marker", () => ({
     color: string;
     widthKey: string;
     board: boolean;
+    textMode: boolean;
     onColorChange: (value: "#00AEEF") => void;
     onWidthChange: (value: "thick") => void;
     onBoardToggle: () => void;
+    onTextToggle: () => void;
   }) => (
-    <div data-testid="marker" data-board={String(props.board)}>
+    <div data-testid="marker" data-board={String(props.board)} data-textmode={String(props.textMode)}>
       <button onClick={() => props.onColorChange("#00AEEF")}>color</button>
       <button onClick={() => props.onWidthChange("thick")}>width</button>
       <button onClick={props.onBoardToggle}>board</button>
+      <button onClick={props.onTextToggle}>marker-text</button>
       <span>{props.color}:{props.widthKey}</span>
     </div>
   ),
@@ -129,8 +132,17 @@ describe("OverlayApp", () => {
     expect(screen.getByTestId("canvas")).toHaveAttribute("data-textmode", "true");
     expect(mocks.applyTextCursor).toHaveBeenCalledOnce();
 
-    // 텍스트 모드 해제 → 펜 커서 복귀
+    // 마커 T 셀도 같은 토글을 움직인다
+    fireEvent.click(screen.getByRole("button", { name: "marker-text" }));
+    expect(screen.getByTestId("marker")).toHaveAttribute("data-textmode", "false");
+    fireEvent.click(screen.getByRole("button", { name: "marker-text" }));
+    expect(screen.getByTestId("marker")).toHaveAttribute("data-textmode", "true");
+    fireEvent.click(screen.getByRole("button", { name: "marker-text" }));
+
+    // 텍스트 모드 해제 후 → 펜 커서 복귀 (직전 클릭으로 이미 해제 상태)
     mocks.applyPenCursor.mockClear();
+    fireEvent.click(screen.getByRole("button", { name: "text-toggle" }));
+    expect(mocks.applyTextCursor.mock.calls.length).toBeGreaterThanOrEqual(1);
     fireEvent.click(screen.getByRole("button", { name: "text-toggle" }));
     expect(mocks.applyPenCursor).toHaveBeenCalledOnce();
 

@@ -77,6 +77,7 @@ export function OverlayApp() {
           color={color}
           widthKey={widthKey}
           board={board}
+          textMode={textMode}
           onColorChange={(c) => {
             setColor(c);
             void saveColor(c);
@@ -86,6 +87,7 @@ export function OverlayApp() {
             void saveWidth(w);
           }}
           onBoardToggle={() => void invoke("toggle_board")}
+          onTextToggle={() => setTextMode((v) => !v)}
         />
       )}
     </>

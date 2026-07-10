@@ -2,7 +2,7 @@ import { useState } from "react";
 import { emit } from "@tauri-apps/api/event";
 import { mockIPC } from "@tauri-apps/api/mocks";
 import { act, fireEvent, render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi, Mock } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi, Mock } from "vitest";
 import { installCanvasMock } from "../../test/canvas";
 import { DrawingCanvas } from "./DrawingCanvas";
 
@@ -166,6 +166,57 @@ describe("DrawingCanvas", () => {
     } finally {
       stray.remove();
     }
+  });
+
+  describe("double-click text entry", () => {
+    beforeEach(() => {
+      // 동기 rAF 스텁과 충돌하지 않게 필요한 프리미티브만 fake로 제한한다 (TESTING.md 컨벤션)
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "Date"] });
+    });
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("retracts the first click's dot and opens the editor", () => {
+      const onChange = vi.fn();
+      const { container } = render(<Harness onChange={onChange} />);
+      const [baseCtx] = contexts;
+      const live = container.querySelectorAll("canvas")[1];
+
+      // 첫 클릭 = 점 커밋 (base에 증분 stroke 1회)
+      fireEvent.pointerDown(live, { button: 0, clientX: 50, clientY: 50, pointerId: 1 });
+      fireEvent.pointerUp(live, { clientX: 50, clientY: 50, pointerId: 1 });
+      expect(baseCtx.stroke).toHaveBeenCalledTimes(1);
+
+      vi.advanceTimersByTime(100);
+      fireEvent.pointerDown(live, { button: 0, clientX: 52, clientY: 51, pointerId: 2 });
+      fireEvent.pointerUp(live, { clientX: 52, clientY: 51, pointerId: 2 });
+
+      expect(screen.getByRole("textbox")).toBeInTheDocument();
+      expect(onChange).toHaveBeenLastCalledWith(true);
+      // 점이 회수됐으므로 renderBase 재실행에서 stroke가 다시 그려지지 않는다
+      expect(baseCtx.stroke).toHaveBeenCalledTimes(1);
+    });
+
+    it("keeps two separate dots when the second click is too late or too far", () => {
+      const { container } = render(<Harness />);
+      const [baseCtx] = contexts;
+      const live = container.querySelectorAll("canvas")[1];
+
+      fireEvent.pointerDown(live, { button: 0, clientX: 50, clientY: 50, pointerId: 1 });
+      fireEvent.pointerUp(live, { clientX: 50, clientY: 50, pointerId: 1 });
+      vi.advanceTimersByTime(400); // DBLCLICK_MS 초과
+      fireEvent.pointerDown(live, { button: 0, clientX: 50, clientY: 50, pointerId: 2 });
+      fireEvent.pointerUp(live, { clientX: 50, clientY: 50, pointerId: 2 });
+      expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+      expect(baseCtx.stroke).toHaveBeenCalledTimes(2);
+
+      vi.advanceTimersByTime(100);
+      fireEvent.pointerDown(live, { button: 0, clientX: 200, clientY: 200, pointerId: 3 }); // 거리 초과
+      fireEvent.pointerUp(live, { clientX: 200, clientY: 200, pointerId: 3 });
+      expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+      expect(baseCtx.stroke).toHaveBeenCalledTimes(3);
+    });
   });
 
   it("discards the editing session when text mode turns off without committing", () => {

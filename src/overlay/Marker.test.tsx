@@ -26,6 +26,7 @@ describe("Marker", () => {
     const onColorChange = vi.fn();
     const onWidthChange = vi.fn();
     const onBoardToggle = vi.fn();
+    const onTextToggle = vi.fn();
     let popoverSide: "left" | "right" = "left";
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
       if (this.style.position === "absolute") {
@@ -49,9 +50,11 @@ describe("Marker", () => {
         color="#FF2D95"
         widthKey="medium"
         board={false}
+        textMode={false}
         onColorChange={onColorChange}
         onWidthChange={onWidthChange}
         onBoardToggle={onBoardToggle}
+        onTextToggle={onTextToggle}
       />,
     );
     await waitFor(() => expect(settings.loadMarkerPos).toHaveBeenCalledOnce());
@@ -79,6 +82,30 @@ describe("Marker", () => {
 
     await user.click(screen.getByRole("button", { name: "Toggle blackboard" }));
     expect(onBoardToggle).toHaveBeenCalledOnce();
+
+    // T 셀: 팝오버를 접으며 토글한다
+    await user.click(color);
+    await user.click(screen.getByRole("button", { name: "Type text" }));
+    expect(onTextToggle).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("button", { name: "Color #FFD400" })).not.toBeInTheDocument();
+  });
+
+  it("highlights the text cell with the shared mode-on style", () => {
+    const props = {
+      color: "#FF2D95" as const,
+      widthKey: "medium" as const,
+      board: false,
+      onColorChange: vi.fn(),
+      onWidthChange: vi.fn(),
+      onBoardToggle: vi.fn(),
+      onTextToggle: vi.fn(),
+    };
+    const { rerender } = render(<Marker {...props} textMode={false} />);
+    const cell = screen.getByRole("button", { name: "Type text" });
+    expect(cell.style.background).toBe("none");
+
+    rerender(<Marker {...props} textMode={true} />);
+    expect(cell.style.background).toBe("rgba(255, 255, 255, 0.16)");
   });
 
   it("distinguishes taps from drags, clamps both edges, saves ratios and restores session position", async () => {
@@ -100,9 +127,11 @@ describe("Marker", () => {
       color: "#FFD400" as const,
       widthKey: "xthin" as const,
       board: true,
+      textMode: false,
       onColorChange: vi.fn(),
       onWidthChange: vi.fn(),
       onBoardToggle: vi.fn(),
+      onTextToggle: vi.fn(),
     };
     const { container, rerender } = render(<Marker {...props} />);
     const root = container.firstElementChild as HTMLElement;

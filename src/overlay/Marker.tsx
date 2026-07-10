@@ -9,9 +9,11 @@ type Props = {
   color: Color;
   widthKey: WidthKey;
   board: boolean;
+  textMode: boolean;
   onColorChange: (c: Color) => void;
   onWidthChange: (w: WidthKey) => void;
   onBoardToggle: () => void;
+  onTextToggle: () => void;
 };
 
 // 기본 위치 좌하단(시안 확정). 드래그하면 settings.json(markerPos)에 저장된다.
@@ -22,7 +24,16 @@ const NEUTRAL = "#E8EAF0";
 // 마커는 모드 토글마다 언마운트되므로, 세션 내 위치는 모듈 레벨로 기억한다
 let sessionPos: MarkerPos | null = null;
 
-export function Marker({ color, widthKey, board, onColorChange, onWidthChange, onBoardToggle }: Props) {
+export function Marker({
+  color,
+  widthKey,
+  board,
+  textMode,
+  onColorChange,
+  onWidthChange,
+  onBoardToggle,
+  onTextToggle,
+}: Props) {
   const [panel, setPanel] = useState<Panel>("collapsed");
   const [pos, setPosState] = useState<MarkerPos>(sessionPos ?? DEFAULT_POS);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -154,7 +165,30 @@ export function Marker({ color, widthKey, board, onColorChange, onWidthChange, o
       </button>
       <span style={divider} />
       <button
-        style={{ ...btn, ...(board ? boardOn : undefined) }}
+        style={{ ...btn, ...(textMode ? modeOn : undefined) }}
+        aria-label={t("marker.textMode")}
+        onClick={() => {
+          setPanel("collapsed");
+          onTextToggle();
+        }}
+      >
+        <svg
+          width="20"
+          height="20"
+          viewBox="0 0 20 20"
+          fill="none"
+          stroke={NEUTRAL}
+          strokeWidth="1.8"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M4 5.5 H16" />
+          <path d="M10 5.5 V16" />
+        </svg>
+      </button>
+      <span style={divider} />
+      <button
+        style={{ ...btn, ...(board ? modeOn : undefined) }}
         aria-label={t("marker.toggleBoard")}
         onClick={() => {
           setPanel("collapsed");
@@ -254,8 +288,9 @@ const activeCell: CSSProperties = {
   borderRadius: 8,
 };
 
-// 보드 ON 표시 — 팝오버 열림(activeCell)보다 한 단계 진한 중립 하이라이트. 색은 색 차원 전용.
-const boardOn: CSSProperties = {
+// 모드 ON 표시(보드·텍스트 공용) — 팝오버 열림(activeCell)보다 한 단계 진한 중립 하이라이트.
+// 색은 색 차원 전용.
+const modeOn: CSSProperties = {
   background: "rgba(255,255,255,0.16)",
   borderRadius: 8,
 };

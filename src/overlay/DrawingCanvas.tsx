@@ -94,6 +94,16 @@ export function DrawingCanvas({ color, widthKey, clearAccel, textAccel, textMode
 
     const toPoint = (e: PointerEvent): Point => ({ x: e.clientX, y: e.clientY });
 
+    // 더블클릭 = 텍스트 진입. 첫 클릭의 점은 두 번째 클릭에서 사후 회수한다(≤350ms 노출 트레이드오프).
+    const DBLCLICK_MS = 350;
+    const DBLCLICK_SLOP_PX = 6;
+    const CLICK_SLOP_PX = 4;
+    let lastClick: { p: Point; t: number } | null = null;
+    let dblPending: Point | null = null;
+
+    const isClick = (points: Point[], origin: Point) =>
+      points.every((q) => Math.hypot(q.x - origin.x, q.y - origin.y) <= CLICK_SLOP_PX);
+
     const onPointerDown = (e: PointerEvent) => {
       if (e.button !== 0) return;
       if (textModeRef.current) {
@@ -102,9 +112,19 @@ export function DrawingCanvas({ color, widthKey, clearAccel, textAccel, textMode
         if (!editingRef.current) setEditorPos(toPoint(e));
         return;
       }
+      const p = toPoint(e);
+      if (
+        lastClick &&
+        Date.now() - lastClick.t <= DBLCLICK_MS &&
+        Math.hypot(p.x - lastClick.p.x, p.y - lastClick.p.y) <= DBLCLICK_SLOP_PX
+      ) {
+        dblPending = lastClick.p;
+        lastClick = null;
+        return; // 두 번째 클릭은 획을 시작하지 않는다
+      }
       const { color, widthKey } = toolRef.current;
       const width = strokeWidthPx(widthKey, Math.min(window.innerWidth, window.innerHeight));
-      store.beginLive(color, width, toPoint(e));
+      store.beginLive(color, width, p);
       live.setPointerCapture(e.pointerId);
       scheduleLive();
     };
@@ -117,14 +137,33 @@ export function DrawingCanvas({ color, widthKey, clearAccel, textAccel, textMode
     };
 
     const onPointerUp = (e: PointerEvent) => {
+      if (dblPending) {
+        const at = dblPending;
+        dblPending = null;
+        // 첫 클릭이 남긴 점 마크를 회수한다 — 그 자리의 클릭 크기 펜 마크일 때만
+        const last = store.marks[store.marks.length - 1];
+        if (last?.kind === "pen" && isClick(last.points, at)) {
+          store.retractLast();
+          renderBase();
+        }
+        setEditorPos(at);
+        onTextModeChangeRef.current(true);
+        return;
+      }
       if (!store.live) return;
       store.extendLive([toPoint(e)]);
       const stroke = store.commitLive();
-      if (stroke) drawMark(baseCtx, stroke); // 확정 획만 base에 증분 렌더
+      if (stroke) {
+        drawMark(baseCtx, stroke); // 확정 획만 base에 증분 렌더
+        lastClick = isClick(stroke.points, stroke.points[0])
+          ? { p: stroke.points[0], t: Date.now() }
+          : null;
+      }
       renderLive();
     };
 
     const onPointerCancel = () => {
+      dblPending = null;
       store.cancelLive();
       renderLive();
     };
@@ -180,6 +219,8 @@ export function DrawingCanvas({ color, widthKey, clearAccel, textAccel, textMode
         setupBacking(); // 모니터·해상도가 바뀌었을 수 있음 (기존 획은 재렌더로 복원)
       } else {
         // 숨김≠삭제: 진행 중이던 live 획만 취소하고 그림 버퍼는 유지한다 (커서는 OverlayApp 담당)
+        lastClick = null;
+        dblPending = null;
         store.cancelLive();
         renderLive();
       }
