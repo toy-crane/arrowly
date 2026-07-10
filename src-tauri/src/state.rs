@@ -1,5 +1,11 @@
 use std::sync::Mutex;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BlackboardAction {
+    SetBoard(bool),
+    EnterDrawing,
+}
+
 /// 앱 전역 상태. 상태 전이의 단일 소스는 Rust다.
 #[derive(Debug)]
 pub struct AppState {
@@ -33,4 +39,64 @@ impl Default for AppState {
     }
 }
 
+impl AppState {
+    /// 모니터 원점을 갱신하고, 기존 좌표계가 무효가 됐는지 반환한다.
+    pub fn update_monitor(&mut self, origin: (i32, i32)) -> bool {
+        let changed = self
+            .last_monitor_pos
+            .is_some_and(|previous| previous != origin);
+        self.last_monitor_pos = Some(origin);
+        changed
+    }
+
+    /// 현재 블랙보드 단축키가 요청해야 할 상태 전이를 계산한다.
+    pub fn blackboard_action(&self) -> BlackboardAction {
+        if self.drawing {
+            BlackboardAction::SetBoard(!self.board)
+        } else if self.board {
+            BlackboardAction::EnterDrawing
+        } else {
+            BlackboardAction::SetBoard(true)
+        }
+    }
+}
+
 pub type SharedState = Mutex<AppState>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn defaults_are_safe_and_transient() {
+        let state = AppState::default();
+        assert!(!state.drawing);
+        assert!(!state.board);
+        assert!(!state.marker_hidden);
+        assert_eq!(state.last_monitor_pos, None);
+        assert_eq!(state.toggle_accel, "Alt+Tab");
+        assert_eq!(state.board_accel, "Shift+Alt+Tab");
+        assert_eq!(state.clear_accel, "Alt+Backspace");
+    }
+
+    #[test]
+    fn monitor_change_only_clears_after_a_real_origin_change() {
+        let mut state = AppState::default();
+        assert!(!state.update_monitor((0, 0)));
+        assert!(!state.update_monitor((0, 0)));
+        assert!(state.update_monitor((1920, 0)));
+        assert_eq!(state.last_monitor_pos, Some((1920, 0)));
+    }
+
+    #[test]
+    fn blackboard_action_covers_the_complete_state_table() {
+        let mut state = AppState::default();
+        assert_eq!(state.blackboard_action(), BlackboardAction::SetBoard(true));
+        state.board = true;
+        assert_eq!(state.blackboard_action(), BlackboardAction::EnterDrawing);
+        state.drawing = true;
+        assert_eq!(state.blackboard_action(), BlackboardAction::SetBoard(false));
+        state.board = false;
+        assert_eq!(state.blackboard_action(), BlackboardAction::SetBoard(true));
+    }
+}

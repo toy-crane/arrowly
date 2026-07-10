@@ -48,9 +48,41 @@ pub fn tray() -> &'static TrayText {
             .map(|l| l.to_lowercase().starts_with("ko"))
             .unwrap_or(false)
     });
-    if ko {
+    select(if ko { Some("ko") } else { Some("en") })
+}
+
+fn select(locale: Option<&str>) -> &'static TrayText {
+    if locale.is_some_and(|value| value.to_lowercase().starts_with("ko")) {
         &KO
     } else {
         &EN
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn locale_selection_is_korean_only_for_ko_prefix() {
+        assert_eq!(select(Some("ko-KR")).start_drawing, "그리기 시작");
+        assert_eq!(select(Some("KO_kr")).quit, "Arrowly 종료");
+        assert_eq!(select(Some("en-US")).start_drawing, "Start Drawing");
+        assert_eq!(select(None).quit, "Quit Arrowly");
+    }
+
+    #[test]
+    fn both_dictionaries_define_every_tray_label() {
+        for text in [&EN, &KO] {
+            assert!(!text.start_drawing.is_empty());
+            assert!(!text.stop_drawing.is_empty());
+            assert!(!text.blackboard.is_empty());
+            assert!(!text.clear_all.is_empty());
+            assert!(!text.hide_marker.is_empty());
+            assert!(!text.launch_at_login.is_empty());
+            assert!(!text.shortcut_settings.is_empty());
+            assert!(!text.replay_tutorial.is_empty());
+            assert!(!text.quit.is_empty());
+        }
     }
 }
