@@ -169,8 +169,24 @@ export function DrawingCanvas({ color, widthKey, clearAccel, textAccel, textMode
     const isClick = (points: Point[], origin: Point) =>
       points.every((q) => Math.hypot(q.x - origin.x, q.y - origin.y) <= CLICK_SLOP_PX);
 
+    // 포인터 격리: 제스처를 소유한 포인터 하나만 이어지는 move/up/cancel에 반응한다
+    // (두 번째 입력 장치·멀티터치가 첫 포인터의 홀드·스냅 상태를 덮어쓰지 못하게 한다)
+    let activePointerId: number | null = null;
+
+    /** 제스처 상태 전체를 취소한다 — pointercancel·모드 전환·전체 지우기·텍스트 모드 진입의 공유 경로.
+     * 렌더는 호출자가 상황에 맞게 따로 한다(clearAll은 renderBase도 함께 불러야 하므로). */
+    const resetGestureState = () => {
+      lastClick = null;
+      dblPending = null;
+      stopHold();
+      snapped = null;
+      store.cancelLive();
+      activePointerId = null;
+    };
+
     const onPointerDown = (e: PointerEvent) => {
       if (e.button !== 0) return;
+      if (activePointerId !== null && e.pointerId !== activePointerId) return;
       if (textModeRef.current) {
         // 텍스트 모드: 클릭 = 캐럿 배치, 드래그는 그리지 않는다. 편집 중의 바깥 클릭은
         // TextEditor의 캡처 리스너가 먼저 확정 처리하므로 여기서는 삼킨다.
@@ -185,12 +201,15 @@ export function DrawingCanvas({ color, widthKey, clearAccel, textAccel, textMode
       ) {
         dblPending = lastClick.p;
         lastClick = null;
+        // 두 번째 클릭도 자신의 pointerup까지 제스처를 소유한다 — 그 사이 다른 포인터를 차단
+        activePointerId = e.pointerId;
         return; // 두 번째 클릭은 획을 시작하지 않는다
       }
       const { color, widthKey } = toolRef.current;
       const width = strokeWidthPx(widthKey, Math.min(window.innerWidth, window.innerHeight));
       store.beginLive(color, width, p);
       live.setPointerCapture(e.pointerId);
+      activePointerId = e.pointerId;
       snapped = null;
       holdAnchor = p;
       holdStart = Date.now();
@@ -199,6 +218,7 @@ export function DrawingCanvas({ color, widthKey, clearAccel, textAccel, textMode
     };
 
     const onPointerMove = (e: PointerEvent) => {
+      if (activePointerId !== null && e.pointerId !== activePointerId) return;
       if (snapped) return; // 스냅 후에는 떼기 전까지 도형이 고정된다
       if (!store.live) return;
       const coalesced = e.getCoalescedEvents?.() ?? [];
@@ -215,9 +235,11 @@ export function DrawingCanvas({ color, widthKey, clearAccel, textAccel, textMode
     };
 
     const onPointerUp = (e: PointerEvent) => {
+      if (activePointerId !== null && e.pointerId !== activePointerId) return;
       if (dblPending) {
         const at = dblPending;
         dblPending = null;
+        activePointerId = null;
         // 첫 클릭이 남긴 점 마크를 회수한다 — 그 자리의 클릭 크기 펜 마크일 때만
         const last = store.marks[store.marks.length - 1];
         if (last?.kind === "pen" && isClick(last.points, at)) {
@@ -233,13 +255,17 @@ export function DrawingCanvas({ color, widthKey, clearAccel, textAccel, textMode
         // 스냅 확정: 손그림 live를 버리고 도형 마크를 커밋한다 (undo 1단위)
         const mark = snapped;
         snapped = null;
+        activePointerId = null;
         store.cancelLive();
         store.push(mark);
         drawMark(baseCtx, mark);
         renderLive();
         return;
       }
-      if (!store.live) return;
+      if (!store.live) {
+        activePointerId = null;
+        return;
+      }
       store.extendLive([toPoint(e)]);
       const stroke = store.commitLive();
       if (stroke) {
@@ -248,21 +274,23 @@ export function DrawingCanvas({ color, widthKey, clearAccel, textAccel, textMode
           ? { p: stroke.points[0], t: Date.now() }
           : null;
       }
+      activePointerId = null;
       renderLive();
     };
 
-    const onPointerCancel = () => {
-      dblPending = null;
-      stopHold();
-      snapped = null;
-      store.cancelLive();
+    const onPointerCancel = (e: PointerEvent) => {
+      if (activePointerId !== null && e.pointerId !== activePointerId) return;
+      resetGestureState();
       renderLive();
     };
 
     const clearAll = () => {
+      resetGestureState();
       store.clear();
       renderBase();
       renderLive();
+      // 트레이 경유 전체 지우기도 열려 있던 텍스트 초안을 폐기한다 (초안은 마크가 아니라 언마운트로 폐기)
+      if (editingRef.current) onTextModeChangeRef.current(false);
     };
 
     const onKeyDown = (e: KeyboardEvent) => {
@@ -270,12 +298,17 @@ export function DrawingCanvas({ color, widthKey, clearAccel, textAccel, textMode
       // e.code 기준: 한글 입력 소스에서도 물리 키로 판정
       if (e.metaKey && !e.altKey && !e.ctrlKey && e.code === "KeyZ") {
         e.preventDefault();
+        // 버퍼가 바뀌면 더블클릭 추적은 무효 — 무관한 마크를 회수하는 오동작 방지
+        lastClick = null;
+        dblPending = null;
         if (e.shiftKey ? store.redo() : store.undo()) renderBase();
       } else if (matchesAccelerator(e, clearAccelRef.current)) {
         e.preventDefault();
         clearAll();
       } else if (matchesAccelerator(e, textAccelRef.current)) {
         e.preventDefault();
+        resetGestureState(); // 그리던 획·홀드·더블클릭 대기를 끊고 모드를 바꾼다
+        renderLive();
         onTextModeChangeRef.current(!textModeRef.current);
       }
     };
@@ -310,11 +343,7 @@ export function DrawingCanvas({ color, widthKey, clearAccel, textAccel, textMode
         setupBacking(); // 모니터·해상도가 바뀌었을 수 있음 (기존 획은 재렌더로 복원)
       } else {
         // 숨김≠삭제: 진행 중이던 live 획만 취소하고 그림 버퍼는 유지한다 (커서는 OverlayApp 담당)
-        lastClick = null;
-        dblPending = null;
-        stopHold();
-        snapped = null;
-        store.cancelLive();
+        resetGestureState();
         renderLive();
       }
     });

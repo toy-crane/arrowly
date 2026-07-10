@@ -64,6 +64,7 @@ describe("DrawingCanvas", () => {
     Object.defineProperties(move, {
       clientX: { value: 20 },
       clientY: { value: 30 },
+      pointerId: { value: 2 }, // 포인터 격리 가드를 통과해야 coalesced 경로가 실행된다
       getCoalescedEvents: {
         value: () => [
           { clientX: 15, clientY: 25 },
@@ -146,6 +147,55 @@ describe("DrawingCanvas", () => {
     expect(baseCtx.fillText).toHaveBeenCalledOnce();
   });
 
+  it("discards an open TextEditor draft when Clear All arrives via the Tauri event", async () => {
+    const { container } = render(<Harness initialTextMode />);
+    const [baseCtx] = contexts;
+    const live = container.querySelectorAll("canvas")[1];
+    fireEvent.pointerDown(live, { button: 0, clientX: 10, clientY: 10, pointerId: 1 });
+    const input = screen.getByRole("textbox");
+    fireEvent.change(input, { target: { value: "폐기될 초안" } });
+
+    // 트레이 메뉴 경로 — DOM keydown을 거치지 않으므로 editable 가드가 못 막는다
+    await act(async () => {
+      await emit("clear-all");
+    });
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    expect(baseCtx.fillText).not.toHaveBeenCalled();
+  });
+
+  it("cancels an in-progress stroke when the text key is pressed mid-drag", () => {
+    const onChange = vi.fn();
+    const { container } = render(<Harness onChange={onChange} />);
+    const [baseCtx] = contexts;
+    const live = container.querySelectorAll("canvas")[1];
+    fireEvent.pointerDown(live, { button: 0, clientX: 10, clientY: 10, pointerId: 1 });
+    fireEvent.pointerMove(live, { clientX: 60, clientY: 60, pointerId: 1 });
+
+    fireEvent.keyDown(window, { code: "KeyT" }); // 그리던 획을 끊고 텍스트 모드로
+    expect(onChange).toHaveBeenLastCalledWith(true);
+
+    fireEvent.pointerUp(live, { clientX: 80, clientY: 80, pointerId: 1 });
+    expect(baseCtx.stroke).not.toHaveBeenCalled(); // 끊긴 획은 커밋되지 않는다
+  });
+
+  it("isolates concurrent pointers so a second pointer cannot hijack the gesture", () => {
+    const { container } = render(<Harness />);
+    const [baseCtx] = contexts;
+    const live = container.querySelectorAll("canvas")[1];
+    fireEvent.pointerDown(live, { button: 0, clientX: 0, clientY: 0, pointerId: 1 });
+    fireEvent.pointerDown(live, { button: 0, clientX: 500, clientY: 500, pointerId: 2 }); // 무시
+    fireEvent.pointerMove(live, { clientX: 50, clientY: 50, pointerId: 1 });
+    fireEvent.pointerMove(live, { clientX: 999, clientY: 999, pointerId: 2 }); // 무시
+    fireEvent.pointerUp(live, { clientX: 999, clientY: 999, pointerId: 2 }); // 무시 — 조기 커밋 없음
+    expect(baseCtx.stroke).not.toHaveBeenCalled();
+
+    fireEvent.pointerUp(live, { clientX: 50, clientY: 50, pointerId: 1 });
+    expect(baseCtx.stroke).toHaveBeenCalledTimes(1);
+    expect(baseCtx.moveTo).toHaveBeenCalledWith(0, 0);
+    expect(baseCtx.lineTo).not.toHaveBeenCalledWith(500, 500);
+    expect(baseCtx.lineTo).not.toHaveBeenCalledWith(999, 999);
+  });
+
   it("absorbs window shortcuts while an editable element is focused", () => {
     const { container } = render(<Harness initialTextMode />);
     const [baseCtx] = contexts;
@@ -196,6 +246,25 @@ describe("DrawingCanvas", () => {
       expect(onChange).toHaveBeenLastCalledWith(true);
       // 점이 회수됐으므로 renderBase 재실행에서 stroke가 다시 그려지지 않는다
       expect(baseCtx.stroke).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not mistake a click after undo for the second half of a double-click", () => {
+      const { container } = render(<Harness />);
+      const [baseCtx] = contexts;
+      const live = container.querySelectorAll("canvas")[1];
+
+      fireEvent.pointerDown(live, { button: 0, clientX: 50, clientY: 50, pointerId: 1 });
+      fireEvent.pointerUp(live, { clientX: 50, clientY: 50, pointerId: 1 });
+      expect(baseCtx.stroke).toHaveBeenCalledTimes(1);
+
+      vi.advanceTimersByTime(100);
+      fireEvent.keyDown(window, { code: "KeyZ", metaKey: true }); // undo가 더블클릭 추적을 무효화한다
+      vi.advanceTimersByTime(100);
+      fireEvent.pointerDown(live, { button: 0, clientX: 51, clientY: 51, pointerId: 2 });
+      fireEvent.pointerUp(live, { clientX: 51, clientY: 51, pointerId: 2 });
+
+      expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+      expect(baseCtx.stroke).toHaveBeenCalledTimes(2); // 독립된 새 점으로 커밋된다
     });
 
     it("keeps two separate dots when the second click is too late or too far", () => {
@@ -303,6 +372,17 @@ describe("DrawingCanvas", () => {
       expect(baseCtx.rect).not.toHaveBeenCalled();
       expect(baseCtx.ellipse).not.toHaveBeenCalled();
       expect(baseCtx.stroke).toHaveBeenCalledTimes(1);
+    });
+
+    it("discards a pending snapped shape on Clear All instead of committing it on release", () => {
+      const { live, baseCtx, liveCtx } = renderCanvas();
+      traceSquare(live, 100, 100, 120);
+      vi.advanceTimersByTime(700);
+      expect(liveCtx.rect).toHaveBeenCalled(); // 스냅 미리보기 상태
+
+      fireEvent.keyDown(window, { code: "Backspace", altKey: true }); // 전체 지우기
+      fireEvent.pointerUp(live, { clientX: 100, clientY: 100, pointerId: 1 });
+      expect(baseCtx.rect).not.toHaveBeenCalled(); // 지운 판에 도형이 커밋되지 않는다
     });
 
     it("clears pending snap state on mode-changed without committing", async () => {
