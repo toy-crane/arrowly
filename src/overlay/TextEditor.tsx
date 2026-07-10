@@ -1,5 +1,5 @@
 import { CSSProperties, useEffect, useRef, useState } from "react";
-import { TEXT_FONT_FAMILY } from "./strokes";
+import { fontString } from "./strokes";
 
 type Props = {
   x: number;
@@ -79,7 +79,7 @@ export function TextEditor({ x, y, color, size, onCommit, onCancel }: Props) {
     background: "transparent",
     color,
     caretColor: color,
-    font: `${size}px ${TEXT_FONT_FAMILY}`,
+    font: fontString(size),
     lineHeight: 1,
   };
 

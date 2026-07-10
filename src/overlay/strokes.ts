@@ -86,6 +86,11 @@ export class StrokeStore {
 /** 텍스트 마크와 DOM 에디터가 공유하는 서체 — 시스템 산세리프(확정). */
 export const TEXT_FONT_FAMILY = '-apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", sans-serif';
 
+/** 캔버스 마크와 DOM 에디터가 공유하는 완성된 font 문자열 — 조립 중복을 막는 단일 진입점. */
+export function fontString(size: number): string {
+  return `${size}px ${TEXT_FONT_FAMILY}`;
+}
+
 /** 공통 잉크 스타일: 둥근 캡·조인, 외곽선·그림자 금지. */
 function inkStyle(ctx: CanvasRenderingContext2D, color: string, width: number) {
   ctx.strokeStyle = color;
@@ -106,7 +111,7 @@ export function drawMark(ctx: CanvasRenderingContext2D, m: Mark) {
   if (m.kind === "text") {
     ctx.globalAlpha = 1;
     ctx.fillStyle = m.color;
-    ctx.font = `${m.size}px ${TEXT_FONT_FAMILY}`;
+    ctx.font = fontString(m.size);
     ctx.textBaseline = "top";
     ctx.fillText(m.text, m.x, m.y);
     return;

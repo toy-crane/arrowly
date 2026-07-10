@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createCanvasContext } from "../../test/canvas";
-import { drawMark, Mark, StrokeStore, TEXT_FONT_FAMILY, TextMark } from "./strokes";
+import { drawMark, fontString, Mark, StrokeStore, TEXT_FONT_FAMILY, TextMark } from "./strokes";
 
 const textMark: TextMark = { kind: "text", x: 40, y: 60, text: "재시도", color: "#FFD400", size: 29 };
 const rectMark: Mark = {
@@ -101,6 +101,12 @@ describe("StrokeStore", () => {
     expect(store.marks).toEqual([textMark]);
     expect(store.redoStack).toEqual([]);
     expect(store.redo()).toBe(false);
+  });
+});
+
+describe("fontString", () => {
+  it("builds the shared font string for both canvas marks and the DOM editor", () => {
+    expect(fontString(29)).toBe(`29px ${TEXT_FONT_FAMILY}`);
   });
 });
 
