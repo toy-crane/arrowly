@@ -2,7 +2,7 @@ import { CSSProperties, useEffect, useRef } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { matchesAccelerator } from "../shared/accelerator";
 import { strokeWidthPx, WidthKey } from "../shared/constants";
-import { drawStroke, Point, StrokeStore } from "./strokes";
+import { drawStroke, Point, StrokeStore } from "../shared/drawing";
 
 type Props = {
   color: string;

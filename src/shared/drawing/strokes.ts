@@ -1,7 +1,5 @@
 import { strokePath } from "./smoothing";
-
-export type Point = { x: number; y: number }; // CSS(logical) px
-export type Stroke = { points: Point[]; color: string; width: number };
+import type { Point, Stroke } from "./types";
 
 /** 획 상태의 단일 소스. append-only, 개별 편집 없음. */
 export class StrokeStore {

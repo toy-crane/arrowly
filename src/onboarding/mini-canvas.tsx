@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { matchesAccelerator } from "../shared/accelerator";
 import { DEFAULT_COLOR } from "../shared/constants";
 import { DEFAULT_SHORTCUTS } from "../shared/settings";
-import { drawStroke, Point, StrokeStore } from "../overlay/strokes";
+import { drawStroke, Point, StrokeStore } from "../shared/drawing";
 
 type Props = {
   onFirstStroke?: () => void;
