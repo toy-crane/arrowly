@@ -1,3 +1,4 @@
+mod hotkey;
 mod i18n;
 mod overlay;
 mod shortcut_policy;

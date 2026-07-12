@@ -4,8 +4,9 @@
 use std::str::FromStr;
 
 use tauri::{plugin::TauriPlugin, AppHandle, Emitter, Manager, Wry};
-use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Shortcut, ShortcutState};
+use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
+use crate::hotkey::escape_shortcut;
 use crate::shortcut_policy::parse_valid;
 use crate::state::SharedState;
 
@@ -29,10 +30,6 @@ fn current_board(app: &AppHandle) -> Option<Shortcut> {
         .board_accel
         .clone();
     Shortcut::from_str(&accel).ok()
-}
-
-fn escape_shortcut() -> Shortcut {
-    Shortcut::new(None, Code::Escape)
 }
 
 pub fn init() -> TauriPlugin<Wry> {
@@ -79,14 +76,6 @@ pub fn register_shortcuts(app: &AppHandle) -> Result<(), String> {
         eprintln!("[arrowly] 블랙보드 전역 등록 실패: {e}");
     }
     Ok(())
-}
-
-pub fn register_escape(app: &AppHandle) -> Result<(), tauri_plugin_global_shortcut::Error> {
-    app.global_shortcut().register(escape_shortcut())
-}
-
-pub fn unregister_escape(app: &AppHandle) {
-    let _ = app.global_shortcut().unregister(escape_shortcut());
 }
 
 fn unregister_persistent(app: &AppHandle) {

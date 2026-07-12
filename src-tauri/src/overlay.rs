@@ -94,7 +94,7 @@ fn enter_drawing(app: &AppHandle) -> bool {
         }
     }
 
-    if let Err(e) = crate::shortcuts::register_escape(app) {
+    if let Err(e) = crate::hotkey::register_escape(app) {
         eprintln!("[arrowly] Esc 전역 등록 실패 — 그리기 진입 중단: {e}");
         return false;
     }
@@ -109,7 +109,7 @@ fn enter_drawing(app: &AppHandle) -> bool {
 
 /// 통과 모드 시퀀스: Esc 해제 → 이벤트 무시 → 숨김. 그림 버퍼는 웹뷰가 유지한다(숨김≠삭제).
 fn exit_drawing(app: &AppHandle) {
-    crate::shortcuts::unregister_escape(app);
+    crate::hotkey::unregister_escape(app);
     if let Ok(panel) = app.get_webview_panel(OVERLAY_LABEL) {
         panel.set_ignores_mouse_events(true);
         panel.resign_key_window();
