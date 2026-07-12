@@ -1,8 +1,8 @@
 import { CSSProperties, useEffect, useRef, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
-import { acceleratorSymbols, buildAccelerator } from "./accelerator";
 import { shortcutErrorMessage, t } from "../i18n";
+import { applyShortcuts, resumeShortcuts, suspendShortcuts, tryRegisterShortcut } from "../ipc";
 import { DEFAULT_SHORTCUTS, loadShortcuts, saveShortcuts, Shortcuts } from "../settings";
+import { acceleratorSymbols, buildAccelerator } from "./accelerator";
 
 type FieldId = keyof Shortcuts;
 
@@ -43,7 +43,7 @@ export function ShortcutEditor({ showReset = true }: { showReset?: boolean }) {
 
   const stopRecording = async (opts?: { keepSuspended?: boolean }) => {
     setRecording(null);
-    if (!opts?.keepSuspended) await invoke("resume_shortcuts");
+    if (!opts?.keepSuspended) await resumeShortcuts();
   };
 
   const startRecording = async (id: FieldId) => {
@@ -54,7 +54,7 @@ export function ShortcutEditor({ showReset = true }: { showReset?: boolean }) {
     setError(null);
     setRecording(id);
     // 두 전역 키가 현재 조합을 웹뷰보다 먼저 가로채므로 레코딩 동안 함께 해제한다.
-    await invoke("suspend_shortcuts");
+    await suspendShortcuts();
   };
 
   useEffect(() => {
@@ -82,9 +82,9 @@ export function ShortcutEditor({ showReset = true }: { showReset?: boolean }) {
 
       try {
         if (id === "toggle" || id === "board") {
-          await invoke("try_register_shortcut", { id, accelerator: accel });
+          await tryRegisterShortcut(id, accel);
         }
-        await invoke("apply_shortcuts", next);
+        await applyShortcuts(next);
       } catch (err) {
         setError({ id, msg: shortcutErrorMessage(err) });
         await stopRecording();
@@ -100,14 +100,14 @@ export function ShortcutEditor({ showReset = true }: { showReset?: boolean }) {
     window.addEventListener("keydown", onKeyDown, true);
     return () => {
       window.removeEventListener("keydown", onKeyDown, true);
-      if (recordingRef.current) void invoke("resume_shortcuts");
+      if (recordingRef.current) void resumeShortcuts();
     };
   }, []);
 
   const resetOne = async (id: FieldId) => {
     const next: Shortcuts = { ...shortcuts, [id]: DEFAULT_SHORTCUTS[id] };
     try {
-      await invoke("apply_shortcuts", next);
+      await applyShortcuts(next);
     } catch (err) {
       setError({ id, msg: shortcutErrorMessage(err) });
       return;

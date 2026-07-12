@@ -1,8 +1,8 @@
 import { CSSProperties, useEffect, useRef } from "react";
-import { listen } from "@tauri-apps/api/event";
-import { matchesAccelerator } from "../shared/shortcuts";
 import { strokeWidthPx, WidthKey } from "../shared/constants";
 import { drawStroke, Point, StrokeStore } from "../shared/drawing";
+import { onClearAll, onModeChanged } from "../shared/ipc";
+import { matchesAccelerator } from "../shared/shortcuts";
 
 type Props = {
   color: string;
@@ -121,8 +121,8 @@ export function DrawingCanvas({ color, widthKey, clearAccel }: Props) {
     live.addEventListener("pointerup", onPointerUp);
     live.addEventListener("pointercancel", onPointerCancel);
 
-    const unlistenMode = listen<{ drawing: boolean }>("mode-changed", (ev) => {
-      if (ev.payload.drawing) {
+    const unlistenMode = onModeChanged((p) => {
+      if (p.drawing) {
         setupBacking(); // 모니터·해상도가 바뀌었을 수 있음 (기존 획은 재렌더로 복원)
       } else {
         // 숨김≠삭제: 진행 중이던 live 획만 취소하고 그림 버퍼는 유지한다 (커서는 OverlayApp 담당)
@@ -130,7 +130,7 @@ export function DrawingCanvas({ color, widthKey, clearAccel }: Props) {
         renderLive();
       }
     });
-    const unlistenClear = listen("clear-all", clearAll);
+    const unlistenClear = onClearAll(clearAll);
 
     return () => {
       window.removeEventListener("resize", setupBacking);

@@ -1,7 +1,12 @@
 import { CSSProperties, useEffect, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
 import { Color, DEFAULT_COLOR, DEFAULT_WIDTH, strokeWidthPx, WidthKey } from "../shared/constants";
+import {
+  onBoardChanged,
+  onMarkerHiddenChanged,
+  onModeChanged,
+  onShortcutsChanged,
+  toggleBoard,
+} from "../shared/ipc";
 import { DEFAULT_SHORTCUTS, loadShortcuts, loadTool, saveColor, saveWidth } from "../shared/settings";
 import { applyPenCursor, resetCursor } from "./cursor";
 import { DrawingCanvas } from "./drawing-canvas";
@@ -22,17 +27,13 @@ export function OverlayApp() {
       setWidthKey(width);
     });
     // mode-changed에 board가 동봉된다 — 웹뷰가 리로드돼도 모드 전환에서 보드 상태가 재동기화된다
-    const unMode = listen<{ drawing: boolean; board: boolean }>("mode-changed", (e) => {
-      setDrawing(e.payload.drawing);
-      setBoard(e.payload.board);
+    const unMode = onModeChanged((p) => {
+      setDrawing(p.drawing);
+      setBoard(p.board);
     });
-    const unBoard = listen<{ on: boolean }>("board-changed", (e) => setBoard(e.payload.on));
-    const unMarker = listen<{ hidden: boolean }>("marker-hidden-changed", (e) =>
-      setMarkerHidden(e.payload.hidden),
-    );
-    const unShortcuts = listen<{ clear: string }>("shortcuts-changed", (e) =>
-      setClearAccel(e.payload.clear),
-    );
+    const unBoard = onBoardChanged((p) => setBoard(p.on));
+    const unMarker = onMarkerHiddenChanged((p) => setMarkerHidden(p.hidden));
+    const unShortcuts = onShortcutsChanged((p) => setClearAccel(p.clear));
     return () => {
       unMode.then((f) => f());
       unBoard.then((f) => f());
@@ -67,7 +68,7 @@ export function OverlayApp() {
             setWidthKey(w);
             void saveWidth(w);
           }}
-          onBoardToggle={() => void invoke("toggle_board")}
+          onBoardToggle={() => void toggleBoard()}
         />
       )}
     </>
