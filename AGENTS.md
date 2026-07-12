@@ -6,6 +6,13 @@ macOS 화면 주석 오버레이 앱. 요구사항은 `docs/REQUIREMENTS.md` 참
 
 Tauri v2 + Vite/React/TypeScript + Bun. 타깃 macOS.
 
+## 프로젝트 구조와 경계
+
+- 파일 배치·레이어 모델·네이밍의 단일 소스는 `docs/ARCHITECTURE.md`다. 새 파일을 만들기 전에 반드시 확인한다.
+- 핵심 규칙: 도메인 단위 구성, 의존은 한 방향(역참조·교차 도메인 import 금지), FE 파일명은 kebab-case.
+- 프런트 경계는 dependency-cruiser가 강제한다 — 구조를 바꾸면 `bun run depcruise`를 실행한다(위반 = CI 실패).
+- Rust↔웹뷰 계약(커맨드·이벤트)은 `src/shared/ipc/`가, settings.json 스키마는 `src/shared/settings.ts` ↔ `src-tauri/src/store.rs` lockstep이 단일 소스다.
+
 ## Tauri v2
 
 - 이 프로젝트는 Tauri v2를 쓴다. v1 API를 생성하지 않는다.
