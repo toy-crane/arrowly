@@ -2,7 +2,7 @@ import { mockIPC, mockWindows } from "@tauri-apps/api/mocks";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { OnboardingApp } from "./OnboardingApp";
+import { OnboardingApp } from "./onboarding-app";
 
 const mocks = vi.hoisted(() => ({
   loadShortcuts: vi.fn(),
@@ -17,8 +17,8 @@ vi.mock("../shared/settings", async (importOriginal) => {
     saveOnboardingDone: mocks.saveOnboardingDone,
   };
 });
-vi.mock("../shared/ShortcutEditor", () => ({ ShortcutEditor: () => <div>shortcut editor</div> }));
-vi.mock("./MiniCanvas", () => ({
+vi.mock("../shared/shortcut-editor", () => ({ ShortcutEditor: () => <div>shortcut editor</div> }));
+vi.mock("./mini-canvas", () => ({
   MiniCanvas: ({ onFirstStroke, boardable }: { onFirstStroke?: () => void; boardable?: boolean }) => (
     <button onClick={onFirstStroke}>{boardable ? "board canvas" : "draw canvas"}</button>
   ),

@@ -3,7 +3,7 @@ import { mockIPC } from "@tauri-apps/api/mocks";
 import { act, fireEvent, render } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { installCanvasMock } from "../../test/canvas";
-import { DrawingCanvas } from "./DrawingCanvas";
+import { DrawingCanvas } from "./drawing-canvas";
 
 describe("DrawingCanvas", () => {
   beforeEach(() => {

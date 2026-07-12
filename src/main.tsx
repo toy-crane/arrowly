@@ -1,9 +1,9 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import "./styles.css";
-import { OverlayApp } from "./overlay/OverlayApp";
-import { OnboardingApp } from "./onboarding/OnboardingApp";
-import { SettingsApp } from "./settings/SettingsApp";
+import { OverlayApp } from "./overlay/overlay-app";
+import { OnboardingApp } from "./onboarding/onboarding-app";
+import { SettingsApp } from "./settings/settings-app";
 import { lang } from "./shared/i18n";
 
 function pickRoot() {

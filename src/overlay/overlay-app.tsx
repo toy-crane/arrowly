@@ -4,8 +4,8 @@ import { listen } from "@tauri-apps/api/event";
 import { Color, DEFAULT_COLOR, DEFAULT_WIDTH, strokeWidthPx, WidthKey } from "../shared/constants";
 import { DEFAULT_SHORTCUTS, loadShortcuts, loadTool, saveColor, saveWidth } from "../shared/settings";
 import { applyPenCursor, resetCursor } from "./cursor";
-import { DrawingCanvas } from "./DrawingCanvas";
-import { Marker } from "./Marker";
+import { DrawingCanvas } from "./drawing-canvas";
+import { Marker } from "./marker";
 
 export function OverlayApp() {
   const [drawing, setDrawing] = useState(false);

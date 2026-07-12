@@ -3,8 +3,8 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { acceleratorSymbols } from "../shared/accelerator";
 import { t, tx } from "../shared/i18n";
 import { DEFAULT_SHORTCUTS, loadShortcuts, saveOnboardingDone } from "../shared/settings";
-import { ShortcutEditor } from "../shared/ShortcutEditor";
-import { MiniCanvas } from "./MiniCanvas";
+import { ShortcutEditor } from "../shared/shortcut-editor";
+import { MiniCanvas } from "./mini-canvas";
 
 const TOTAL = 3;
 

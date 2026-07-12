@@ -2,7 +2,7 @@ import { emit } from "@tauri-apps/api/event";
 import { mockIPC } from "@tauri-apps/api/mocks";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { OverlayApp } from "./OverlayApp";
+import { OverlayApp } from "./overlay-app";
 
 const mocks = vi.hoisted(() => ({
   loadShortcuts: vi.fn(),
@@ -25,10 +25,10 @@ vi.mock("../shared/settings", async (importOriginal) => {
 });
 
 vi.mock("./cursor", () => ({ applyPenCursor: mocks.applyPenCursor, resetCursor: mocks.resetCursor }));
-vi.mock("./DrawingCanvas", () => ({
+vi.mock("./drawing-canvas", () => ({
   DrawingCanvas: ({ clearAccel }: { clearAccel: string }) => <div data-testid="canvas">{clearAccel}</div>,
 }));
-vi.mock("./Marker", () => ({
+vi.mock("./marker", () => ({
   Marker: (props: {
     color: string;
     widthKey: string;

@@ -2,7 +2,7 @@ import { mockIPC } from "@tauri-apps/api/mocks";
 import { fireEvent, render, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { installCanvasMock, installResizeObserver } from "../../test/canvas";
-import { MiniCanvas } from "./MiniCanvas";
+import { MiniCanvas } from "./mini-canvas";
 
 describe("MiniCanvas", () => {
   const commands: string[] = [];

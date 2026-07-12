@@ -2,8 +2,8 @@ import { mockIPC } from "@tauri-apps/api/mocks";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { SettingsApp } from "../settings/SettingsApp";
-import { ShortcutEditor } from "./ShortcutEditor";
+import { SettingsApp } from "../settings/settings-app";
+import { ShortcutEditor } from "./shortcut-editor";
 
 const settings = vi.hoisted(() => ({
   loadShortcuts: vi.fn(),
