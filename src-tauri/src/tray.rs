@@ -5,7 +5,6 @@ use tauri::{
     AppHandle, Emitter, Manager, Wry,
 };
 use tauri_plugin_autostart::ManagerExt as _;
-use tauri_plugin_store::StoreExt;
 
 use crate::state::SharedState;
 
@@ -17,7 +16,7 @@ pub fn create(app: &tauri::App) -> tauri::Result<()> {
     let handle = app.handle();
 
     // 저장된 markerHidden 복원
-    let marker_hidden = load_marker_hidden(handle);
+    let marker_hidden = crate::store::read_marker_hidden(handle);
     {
         let state = handle.state::<SharedState>();
         state.lock().unwrap().marker_hidden = marker_hidden;
@@ -157,10 +156,7 @@ fn toggle_marker_hidden(app: &AppHandle) {
         s.marker_hidden = !s.marker_hidden;
         s.marker_hidden
     };
-    if let Ok(store) = app.store("settings.json") {
-        store.set("markerHidden", serde_json::json!(hidden));
-        let _ = store.save();
-    }
+    crate::store::write_marker_hidden(app, hidden);
     let _ = app.emit(
         "marker-hidden-changed",
         serde_json::json!({ "hidden": hidden }),
@@ -187,12 +183,4 @@ fn set_autostart(app: &AppHandle, enabled: bool) {
 
 fn autostart_enabled(app: &AppHandle) -> bool {
     app.autolaunch().is_enabled().unwrap_or(false)
-}
-
-fn load_marker_hidden(app: &AppHandle) -> bool {
-    app.store("settings.json")
-        .ok()
-        .and_then(|s| s.get("markerHidden"))
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false)
 }

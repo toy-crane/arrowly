@@ -10,8 +10,6 @@ use crate::hotkey::escape_shortcut;
 use crate::shortcut_policy::parse_valid;
 use crate::state::SharedState;
 
-pub use crate::shortcut_policy::{migrated_board_default, DEFAULT_CLEAR, DEFAULT_TOGGLE};
-
 fn current_toggle(app: &AppHandle) -> Option<Shortcut> {
     let accel = app
         .state::<SharedState>()
@@ -261,7 +259,11 @@ mod tests {
             .build()
             .unwrap();
 
-        tauri::test::assert_ipc_response(&webview, ipc_request(DEFAULT_TOGGLE), Ok(()));
+        tauri::test::assert_ipc_response(
+            &webview,
+            ipc_request(crate::shortcut_policy::DEFAULT_TOGGLE),
+            Ok(()),
+        );
         tauri::test::assert_ipc_response(
             &webview,
             ipc_request("Cmd+KeyZ"),

@@ -12,7 +12,7 @@ fi
 cargo llvm-cov \
   --manifest-path src-tauri/Cargo.toml \
   --summary-only \
-  --ignore-filename-regex '(hotkey|i18n|lib|main|overlay|shortcuts|tray)\.rs$' \
+  --ignore-filename-regex '(hotkey|i18n|lib|main|overlay|shortcuts|store|tray)\.rs$' \
   --fail-under-lines 90 \
   --fail-under-functions 90 \
   --fail-under-regions 90 \
