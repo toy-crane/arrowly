@@ -17,7 +17,10 @@ vi.mock("../shared/settings", async (importOriginal) => {
     saveOnboardingDone: mocks.saveOnboardingDone,
   };
 });
-vi.mock("../shared/shortcut-editor", () => ({ ShortcutEditor: () => <div>shortcut editor</div> }));
+vi.mock("../shared/shortcuts", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../shared/shortcuts")>();
+  return { ...actual, ShortcutEditor: () => <div>shortcut editor</div> };
+});
 vi.mock("./mini-canvas", () => ({
   MiniCanvas: ({ onFirstStroke, boardable }: { onFirstStroke?: () => void; boardable?: boolean }) => (
     <button onClick={onFirstStroke}>{boardable ? "board canvas" : "draw canvas"}</button>

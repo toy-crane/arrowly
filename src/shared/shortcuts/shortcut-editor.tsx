@@ -1,8 +1,8 @@
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { acceleratorSymbols, buildAccelerator } from "./accelerator";
-import { shortcutErrorMessage, t } from "./i18n";
-import { DEFAULT_SHORTCUTS, loadShortcuts, saveShortcuts, Shortcuts } from "./settings";
+import { shortcutErrorMessage, t } from "../i18n";
+import { DEFAULT_SHORTCUTS, loadShortcuts, saveShortcuts, Shortcuts } from "../settings";
 
 type FieldId = keyof Shortcuts;
 

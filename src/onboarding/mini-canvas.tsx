@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { matchesAccelerator } from "../shared/accelerator";
+import { matchesAccelerator } from "../shared/shortcuts";
 import { DEFAULT_COLOR } from "../shared/constants";
 import { DEFAULT_SHORTCUTS } from "../shared/settings";
 import { drawStroke, Point, StrokeStore } from "../shared/drawing";

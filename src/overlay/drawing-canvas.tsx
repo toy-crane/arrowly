@@ -1,6 +1,6 @@
 import { CSSProperties, useEffect, useRef } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { matchesAccelerator } from "../shared/accelerator";
+import { matchesAccelerator } from "../shared/shortcuts";
 import { strokeWidthPx, WidthKey } from "../shared/constants";
 import { drawStroke, Point, StrokeStore } from "../shared/drawing";
 
