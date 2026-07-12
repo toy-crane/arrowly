@@ -2,7 +2,7 @@ use tauri::{
     image::Image,
     menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem},
     tray::TrayIconBuilder,
-    AppHandle, Emitter, Manager, Wry,
+    AppHandle, Emitter, Listener, Manager, Wry,
 };
 use tauri_plugin_autostart::ManagerExt as _;
 
@@ -38,12 +38,24 @@ pub fn create(app: &tauri::App) -> tauri::Result<()> {
         .on_menu_event(|app, event| handle_menu(app, event.id.as_ref()))
         .build(app)?;
 
+    // 상태 전이 이벤트를 구독해 메뉴를 재구성한다 — overlay/shortcuts는 tray를 모른다.
+    // 리스너 콜백은 메인 스레드 밖에서 올 수 있어 메뉴 조작은 main thread로 넘긴다.
+    // 불변식: sync는 이벤트 페이로드가 아닌 SharedState 현재값을 읽는다. 그래서 비동기
+    // 갱신이라도 연쇄 전이(board→drawing)의 마지막 리스너가 최종 상태로 수렴한다.
+    for event in ["mode-changed", "board-changed", "shortcuts-changed"] {
+        let handle = handle.clone();
+        app.listen(event, move |_| {
+            let app = handle.clone();
+            let _ = handle.run_on_main_thread(move || sync(&app));
+        });
+    }
+
     Ok(())
 }
 
 /// 상태(그리기·블랙보드·마커·단축키·자동 실행)가 바뀔 때마다 메뉴를 다시 그린다.
 /// 아이콘은 고정이라 건드리지 않는다.
-pub fn sync(app: &AppHandle) {
+fn sync(app: &AppHandle) {
     let (drawing, board, marker_hidden) = {
         let state = app.state::<SharedState>();
         let s = state.lock().unwrap();

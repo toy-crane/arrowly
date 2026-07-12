@@ -173,7 +173,6 @@ pub fn apply_shortcuts(
         "shortcuts-changed",
         serde_json::json!({ "board": board, "clear": clear }),
     );
-    crate::tray::sync(&app);
     Ok(())
 }
 
