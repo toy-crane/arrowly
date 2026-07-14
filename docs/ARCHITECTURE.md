@@ -31,8 +31,8 @@ src/
 | 규칙 | 내용 |
 |---|---|
 | `no-circular` | 순환 금지. `import type` 순환도 잡는다(`tsPreCompilationDeps`). |
-| `no-cross-feature` | `overlay/`·`onboarding/`·`settings/`는 서로 import 금지. 공용 코드는 `shared/`로 내린다. |
-| `shared-no-upward` | `shared/`는 feature·`main.tsx`를 import 금지(역참조 금지). |
+| `no-cross-feature` | feature 도메인끼리는 서로 import 금지. 공용 코드는 `shared/`로 내린다(`src/` 하위 새 feature 폴더 자동 적용 — 폴더 열거 없음). |
+| `shared-no-upward` | `shared/`는 feature·`main.tsx`를 import 금지(역참조 금지, 새 feature 폴더 자동 적용). |
 | `no-barrel-bypass` | `shared/drawing`·`shared/shortcuts`·`shared/ipc`는 `index.ts` 공개 API로만 import. 내부 경로 침투 금지. |
 
 테스트 파일(`*.test.tsx?`)은 통합 렌더 목적의 상향 import가 허용된다(순환 금지는 동일 적용).
@@ -103,3 +103,5 @@ src-tauri/src/
 4. 순수 정책 로직(Rust) → `shortcut_policy.rs`·`state.rs`처럼 런타임 무관 모듈로 두고 단위 테스트를
    붙인다(커버리지 게이트 대상). 네이티브 어댑터 코드는 `scripts/rust-coverage.sh`의 ignore 목록에
    추가하고 macOS 수동 체크리스트(docs/TESTING.md)로 검증한다.
+5. 새 feature 폴더(창)를 추가하면 `no-cross-feature`/`shared-no-upward`는 자동 적용된다 —
+   별도 등록 불필요. 단 `shared/` 하위 도메인 추가 시에는 2번의 `no-barrel-bypass` 등록이 여전히 필요하다.

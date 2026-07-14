@@ -5,6 +5,8 @@
  * 레이어: app(main.tsx) → features(overlay|onboarding|settings) → shared
  * 역방향·교차 참조 금지. 테스트 파일은 통합 렌더 목적의 상향 import를 허용한다.
  */
+const TEST_FILES = "\\.(test|spec)\\.[jt]sx?$";
+
 module.exports = {
   forbidden: [
     {
@@ -17,26 +19,28 @@ module.exports = {
     {
       name: "no-cross-feature",
       severity: "error",
-      comment: "feature 도메인끼리는 서로 import할 수 없다 — 공용 코드는 shared로 내린다",
+      comment:
+        "feature 도메인끼리는 서로 import할 수 없다 — 공용 코드는 shared로 내린다 (src/ 하위 새 feature 폴더에 자동 적용)",
       from: {
-        path: "^src/(overlay|onboarding|settings)/",
-        pathNot: "\\.(test|spec)\\.[jt]sx?$",
+        path: "^src/([^/]+)/",
+        pathNot: `^src/shared/|${TEST_FILES}`,
       },
       to: {
-        path: "^src/(overlay|onboarding|settings)/",
-        pathNot: "^src/$1/",
+        path: "^src/[^/]+/",
+        pathNot: "^src/($1|shared)/",
       },
     },
     {
       name: "shared-no-upward",
       severity: "error",
-      comment: "shared는 feature/app을 모른다 — 역참조 금지",
+      comment: "shared는 feature/app을 모른다 — 역참조 금지 (새 feature 폴더에 자동 적용)",
       from: {
         path: "^src/shared/",
-        pathNot: "\\.(test|spec)\\.[jt]sx?$",
+        pathNot: TEST_FILES,
       },
       to: {
-        path: "^src/(overlay|onboarding|settings)/|^src/main\\.tsx$",
+        path: "^src/[^/]+/|^src/main\\.tsx$",
+        pathNot: "^src/shared/",
       },
     },
     {
