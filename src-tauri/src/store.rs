@@ -14,6 +14,8 @@ pub struct StoredShortcuts {
     pub toggle: Option<String>,
     pub board: Option<String>,
     pub clear: Option<String>,
+    /// 없으면 AppState 기본값(KeyT) 유지 — 웹뷰 merge와 동일 규칙
+    pub text: Option<String>,
 }
 
 /// shortcuts를 읽되, board가 없는 기존 설정은 기존 사용자 키와 충돌하지 않는
@@ -27,6 +29,7 @@ pub fn load_shortcuts_with_migration(app: &AppHandle) -> Option<StoredShortcuts>
     let field = |k: &str| values.get(k).and_then(|v| v.as_str()).map(String::from);
     let toggle = field("toggle");
     let clear = field("clear");
+    let text = field("text");
     let board = if let Some(board) = field("board") {
         Some(board)
     } else {
@@ -39,7 +42,7 @@ pub fn load_shortcuts_with_migration(app: &AppHandle) -> Option<StoredShortcuts>
         let _ = store.save();
         Some(migrated)
     };
-    Some(StoredShortcuts { toggle, board, clear })
+    Some(StoredShortcuts { toggle, board, clear, text })
 }
 
 pub fn read_marker_hidden(app: &AppHandle) -> bool {

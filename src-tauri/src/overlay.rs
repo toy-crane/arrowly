@@ -184,6 +184,18 @@ pub fn toggle_board(app: AppHandle) {
     set_board(&app, !on);
 }
 
+/// 트레이 "텍스트 입력" 경로. 통과 모드면 그리기에 먼저 진입하고,
+/// 진입이 거부되면(Esc 등록 실패 등) 텍스트 모드도 시작하지 않는다.
+pub fn enter_text_mode(app: &AppHandle) {
+    if !app.state::<SharedState>().lock().unwrap().drawing {
+        set_drawing(app, true);
+        if !app.state::<SharedState>().lock().unwrap().drawing {
+            return;
+        }
+    }
+    let _ = app.emit(crate::events::ENTER_TEXT_MODE, ());
+}
+
 /// 전역 블랙보드 단축키 동작. 통과 모드에서는 숨겨진 board 상태와 무관하게
 /// 블랙보드로 진입하고, 그리기 중에는 배경만 토글한다.
 pub fn activate_or_toggle_board(app: &AppHandle) {
@@ -260,7 +272,8 @@ pub fn open_onboarding(app: &AppHandle) {
 
 /// 단축키 설정 창
 pub fn open_settings(app: &AppHandle) {
-    open_util_window(app, "settings", "#/settings", 380.0, 400.0);
+    // 재설정 4행 + 고정 2행(≈56px/행) + 타이틀·패딩 크롬 ≈ 410px — 여유 포함 460
+    open_util_window(app, "settings", "#/settings", 380.0, 460.0);
 }
 
 pub fn toggle(app: &AppHandle) {

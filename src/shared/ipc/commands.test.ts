@@ -26,7 +26,7 @@ describe("ipc commands", () => {
   });
 
   it("spreads shortcuts as top-level keys for apply_shortcuts", async () => {
-    const next = { toggle: "Alt+Tab", board: "Shift+Alt+Tab", clear: "Alt+Backspace" };
+    const next = { toggle: "Alt+Tab", board: "Shift+Alt+Tab", clear: "Alt+Backspace", text: "KeyT" };
     await applyShortcuts(next);
     // Rust 파라미터는 top-level 키 — 중첩 래핑되면 조용히 깨진다
     expect(calls[0]).toEqual({ cmd: "apply_shortcuts", args: next });

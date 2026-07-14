@@ -47,7 +47,13 @@ pub fn run() {
             // settings.json의 저장된 단축키를 state에 반영한다. board가 없는 기존
             // 설정은 store 모듈이 충돌하지 않는 기본값으로 마이그레이션한다.
             if let Some(stored) = store::load_shortcuts_with_migration(app.handle()) {
-                shortcuts::load_from_settings(app.handle(), stored.toggle, stored.board, stored.clear);
+                shortcuts::load_from_settings(
+                    app.handle(),
+                    stored.toggle,
+                    stored.board,
+                    stored.clear,
+                    stored.text,
+                );
             }
 
             overlay::create(app)?;

@@ -80,13 +80,14 @@ fn build_menu(
     marker_hidden: bool,
     autostart_on: bool,
 ) -> tauri::Result<Menu<Wry>> {
-    let (toggle_accel, board_accel, clear_accel) = {
+    let (toggle_accel, board_accel, clear_accel, text_accel) = {
         let state = app.state::<SharedState>();
         let s = state.lock().unwrap();
         (
             s.toggle_accel.clone(),
             s.board_accel.clone(),
             s.clear_accel.clone(),
+            s.text_accel.clone(),
         )
     };
     let tr = crate::i18n::tray();
@@ -110,6 +111,8 @@ fn build_menu(
         Some(board_accel.as_str()),
     )?;
     let clear = MenuItem::with_id(app, "clear", tr.clear_all, true, Some(clear_accel.as_str()))?;
+    // clear처럼 웹뷰 처리 키의 치트시트 표기 — 전역 등록과 무관하다
+    let text = MenuItem::with_id(app, "text", tr.text_input, true, Some(text_accel.as_str()))?;
     let marker = CheckMenuItem::with_id(
         app,
         "marker",
@@ -137,6 +140,7 @@ fn build_menu(
         &[
             &toggle,
             &board_item,
+            &text,
             &clear,
             &sep1,
             &marker,
@@ -153,6 +157,7 @@ fn handle_menu(app: &AppHandle, id: &str) {
     match id {
         "toggle" => crate::overlay::toggle(app),
         "board" => crate::overlay::toggle_board(app.clone()),
+        "text" => crate::overlay::enter_text_mode(app),
         "clear" => {
             let _ = app.emit(crate::events::CLEAR_ALL, ());
         }

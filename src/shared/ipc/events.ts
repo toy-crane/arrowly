@@ -6,7 +6,7 @@ import { listen, UnlistenFn } from "@tauri-apps/api/event";
 export type ModeChangedPayload = { drawing: boolean; board: boolean };
 export type BoardChangedPayload = { on: boolean };
 export type MarkerHiddenChangedPayload = { hidden: boolean };
-export type ShortcutsChangedPayload = { board: string; clear: string };
+export type ShortcutsChangedPayload = { board: string; clear: string; text: string };
 
 export function onModeChanged(handler: (p: ModeChangedPayload) => void): Promise<UnlistenFn> {
   return listen<ModeChangedPayload>("mode-changed", (e) => handler(e.payload));
@@ -30,4 +30,9 @@ export function onShortcutsChanged(
 
 export function onClearAll(handler: () => void): Promise<UnlistenFn> {
   return listen("clear-all", () => handler());
+}
+
+/** 트레이 "텍스트 입력" — Rust가 그리기 진입을 보장한 뒤 emit한다 */
+export function onEnterTextMode(handler: () => void): Promise<UnlistenFn> {
+  return listen("enter-text-mode", () => handler());
 }

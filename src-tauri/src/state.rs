@@ -23,6 +23,8 @@ pub struct AppState {
     pub board_accel: String,
     /// 현재 전체 지우기 accelerator (웹뷰 처리, 메뉴 라벨 표시용)
     pub clear_accel: String,
+    /// 현재 텍스트 입력 accelerator (웹뷰 처리, 전역 미등록, 메뉴 라벨 표시용)
+    pub text_accel: String,
 }
 
 impl Default for AppState {
@@ -36,6 +38,7 @@ impl Default for AppState {
             toggle_accel: crate::shortcut_policy::DEFAULT_TOGGLE.into(),
             board_accel: crate::shortcut_policy::DEFAULT_BOARD.into(),
             clear_accel: crate::shortcut_policy::DEFAULT_CLEAR.into(),
+            text_accel: crate::shortcut_policy::DEFAULT_TEXT.into(),
         }
     }
 }
@@ -78,6 +81,7 @@ mod tests {
         assert_eq!(state.toggle_accel, "Alt+Tab");
         assert_eq!(state.board_accel, "Shift+Alt+Tab");
         assert_eq!(state.clear_accel, "Alt+Backspace");
+        assert_eq!(state.text_accel, "KeyT");
     }
 
     #[test]

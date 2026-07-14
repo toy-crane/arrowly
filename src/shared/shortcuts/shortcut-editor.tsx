@@ -10,6 +10,7 @@ const ROWS: { id: FieldId; label: string }[] = [
   { id: "toggle", label: t("shortcut.toggle") },
   { id: "board", label: t("shortcut.board") },
   { id: "clear", label: t("shortcut.clear") },
+  { id: "text", label: t("shortcut.text") },
 ];
 
 // 어느 동작도 실행 취소(⌘Z/⇧⌘Z)를 덮으면 안 된다.
@@ -19,7 +20,8 @@ function localValidationError(id: FieldId, accel: string, shortcuts: Shortcuts):
   const parts = accel.split("+");
   const code = parts[parts.length - 1];
   if (code === "Escape") return t("shortcut.error.reservedEsc");
-  if (parts.length < 2) return t("shortcut.error.modifierRequired");
+  // text는 전역 미등록 로컬 키라 수식키 없는 단독 키를 허용한다 (REQUIREMENTS 확정)
+  if (parts.length < 2 && id !== "text") return t("shortcut.error.modifierRequired");
   if (UNDO_ACCELS.has(accel)) return t("shortcut.error.undo");
   if (Object.entries(shortcuts).some(([other, value]) => other !== id && value === accel)) {
     return t("shortcut.error.duplicate");
@@ -27,7 +29,7 @@ function localValidationError(id: FieldId, accel: string, shortcuts: Shortcuts):
   return null;
 }
 
-/** 단축키 레코더 3행(그리기·블랙보드·전체 지우기). 설정 창과 온보딩에서 공용. */
+/** 단축키 레코더 4행(그리기·블랙보드·전체 지우기·텍스트). 설정 창과 온보딩에서 공용. */
 export function ShortcutEditor({ showReset = true }: { showReset?: boolean }) {
   const [shortcuts, setShortcuts] = useState<Shortcuts>(DEFAULT_SHORTCUTS);
   const [recording, setRecording] = useState<FieldId | null>(null);
@@ -81,7 +83,8 @@ export function ShortcutEditor({ showReset = true }: { showReset?: boolean }) {
       const next: Shortcuts = { ...shortcutsRef.current, [id]: accel };
 
       try {
-        if (id !== "clear") {
+        // clear·text는 전역 미등록 로컬 키 — OS 등록 검증은 toggle·board만 (GlobalShortcutId와 lockstep)
+        if (id !== "clear" && id !== "text") {
           await tryRegisterShortcut(id, accel);
         }
         await applyShortcuts(next);

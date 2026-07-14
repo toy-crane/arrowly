@@ -2,13 +2,14 @@ import { CSSProperties, useEffect, useState } from "react";
 import { Color, DEFAULT_COLOR, DEFAULT_WIDTH, strokeWidthPx, WidthKey } from "../shared/constants";
 import {
   onBoardChanged,
+  onEnterTextMode,
   onMarkerHiddenChanged,
   onModeChanged,
   onShortcutsChanged,
   toggleBoard,
 } from "../shared/ipc";
 import { DEFAULT_SHORTCUTS, loadShortcuts, loadTool, saveColor, saveWidth } from "../shared/settings";
-import { applyPenCursor, resetCursor } from "./cursor";
+import { applyPenCursor, applyTextCursor, resetCursor } from "./cursor";
 import { DrawingCanvas } from "./drawing-canvas";
 import { Marker } from "./marker";
 
@@ -19,9 +20,14 @@ export function OverlayApp() {
   const [color, setColor] = useState<Color>(DEFAULT_COLOR);
   const [widthKey, setWidthKey] = useState<WidthKey>(DEFAULT_WIDTH);
   const [clearAccel, setClearAccel] = useState(DEFAULT_SHORTCUTS.clear);
+  const [textAccel, setTextAccel] = useState(DEFAULT_SHORTCUTS.text);
+  const [textMode, setTextMode] = useState(false);
 
   useEffect(() => {
-    loadShortcuts().then((s) => setClearAccel(s.clear));
+    loadShortcuts().then((s) => {
+      setClearAccel(s.clear);
+      setTextAccel(s.text);
+    });
     loadTool().then(({ color, width }) => {
       setColor(color);
       setWidthKey(width);
@@ -30,36 +36,55 @@ export function OverlayApp() {
     const unMode = onModeChanged((p) => {
       setDrawing(p.drawing);
       setBoard(p.board);
+      if (!p.drawing) setTextMode(false); // Esc·토글로 나가면 텍스트 모드도 폐기
     });
     const unBoard = onBoardChanged((p) => setBoard(p.on));
     const unMarker = onMarkerHiddenChanged((p) => setMarkerHidden(p.hidden));
-    const unShortcuts = onShortcutsChanged((p) => setClearAccel(p.clear));
+    const unShortcuts = onShortcutsChanged((p) => {
+      setClearAccel(p.clear);
+      setTextAccel(p.text);
+    });
+    // 트레이 "텍스트 입력" — Rust가 그리기 진입을 보장한 뒤 emit한다
+    const unEnterText = onEnterTextMode(() => setTextMode(true));
     return () => {
       unMode.then((f) => f());
       unBoard.then((f) => f());
       unMarker.then((f) => f());
       unShortcuts.then((f) => f());
+      unEnterText.then((f) => f());
     };
   }, []);
 
-  // 색·굵기가 바뀌면 커서도 즉시 갱신
+  // 색·굵기·모드가 바뀌면 커서도 즉시 갱신
   useEffect(() => {
     if (!drawing) {
       resetCursor();
       return;
     }
+    if (textMode) {
+      applyTextCursor();
+      return;
+    }
     applyPenCursor(color, strokeWidthPx(widthKey, Math.min(window.innerWidth, window.innerHeight)));
-  }, [drawing, color, widthKey]);
+  }, [drawing, textMode, color, widthKey]);
 
   return (
     <>
       <div style={boardBackdrop(board)} />
-      <DrawingCanvas color={color} widthKey={widthKey} clearAccel={clearAccel} />
+      <DrawingCanvas
+        color={color}
+        widthKey={widthKey}
+        clearAccel={clearAccel}
+        textAccel={textAccel}
+        textMode={textMode}
+        onTextModeChange={setTextMode}
+      />
       {drawing && !markerHidden && (
         <Marker
           color={color}
           widthKey={widthKey}
           board={board}
+          textMode={textMode}
           onColorChange={(c) => {
             setColor(c);
             void saveColor(c);
@@ -69,6 +94,7 @@ export function OverlayApp() {
             void saveWidth(w);
           }}
           onBoardToggle={() => void toggleBoard()}
+          onTextToggle={() => setTextMode((v) => !v)}
         />
       )}
     </>

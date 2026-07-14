@@ -18,3 +18,11 @@ export const MIN_STROKE_PX = 2;
 export function strokeWidthPx(key: WidthKey, screenShortSide: number): number {
   return Math.max(MIN_STROKE_PX, screenShortSide * WIDTHS[key]);
 }
+
+/** 텍스트 크기 = 굵기 5단계 연동 (전용 크기 UI 없음, REQUIREMENTS 확정) */
+export const TEXT_SIZE_FACTOR = 5;
+export const MIN_TEXT_PX = 14;
+
+export function textSizePx(key: WidthKey, screenShortSide: number): number {
+  return Math.max(MIN_TEXT_PX, strokeWidthPx(key, screenShortSide) * TEXT_SIZE_FACTOR);
+}
