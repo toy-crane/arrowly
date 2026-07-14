@@ -1,5 +1,6 @@
-//! 전역 키 등록 primitive. 도메인 로직 없이 OS 등록/해제만 담당하는 leaf 모듈 —
-//! overlay(core)가 shortcuts(adapter)를 역참조하지 않도록 Esc 수명주기를 여기서 소유한다.
+//! 전역 키 등록 primitive. 도메인 로직 없이 OS 등록/해제만 담당하는 leaf 모듈.
+//! Esc를 언제 등록/해제할지는 overlay(core)가, 눌림 인식·디스패치는 shortcuts(adapter)가
+//! 결정한다 — 이 모듈은 둘이 공유하는 OS 조작만 소유한다(overlay↔shortcuts 순환 절단 목적).
 
 use tauri::AppHandle;
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Shortcut};

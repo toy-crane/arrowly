@@ -153,6 +153,8 @@ pub fn set_drawing(app: &AppHandle, drawing: bool) {
 
 /// 블랙보드 전이의 단일 소스. 보드를 먼저 켜고 emit한 뒤 그리기에 진입해야
 /// 패널이 뜰 때 이미 검정이라 투명 플래시가 없다.
+/// 불변식: 모든 분기에서 상태 쓰기가 해당 emit보다 먼저 온다 — tray의 비동기 sync가
+/// SharedState 현재값으로 수렴하는 근거이므로 이 순서를 바꾸지 않는다.
 pub fn set_board(app: &AppHandle, on: bool) {
     {
         let state = app.state::<SharedState>();

@@ -71,7 +71,10 @@ src-tauri/src/
   읽는다. 그래서 비동기 갱신이라도 연쇄 전이의 마지막 리스너가 최종 상태로 수렴한다.
   리스너 콜백은 메인 스레드 밖에서 오므로 메뉴 조작은 `run_on_main_thread`로 넘긴다.
 - 기본 accelerator·검증 규칙의 단일 소스는 `shortcut_policy.rs`다. 다른 모듈에 복제하지 않는다.
-- settings.json 파일명·키 문자열은 `store.rs`에만 둔다.
+- settings.json 파일명·키 문자열은 `store.rs`에만 둔다. `store.rs`는 스키마와 그 마이그레이션
+  (예: `board` 기본값 backfill)을 소유한다 — 단순 getter 모음이 아니라 스키마 진화의 단일 지점이다.
+- Rust 측 이벤트명은 `src-tauri/src/events.rs` 상수만 사용한다(리터럴 금지). 웹뷰 측
+  `shared/ipc/events.ts`와 lockstep.
 
 ### Tauri v2 컨벤션
 
