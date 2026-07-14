@@ -1,3 +1,4 @@
+mod events;
 mod hotkey;
 mod i18n;
 mod overlay;

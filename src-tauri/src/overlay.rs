@@ -88,7 +88,7 @@ fn enter_drawing(app: &AppHandle) -> bool {
                 let _ = win.set_position(*m.position());
                 let _ = win.set_size(*m.size());
                 if monitor_changed {
-                    let _ = app.emit("clear-all", ());
+                    let _ = app.emit(crate::events::CLEAR_ALL, ());
                 }
             }
         }
@@ -146,7 +146,7 @@ pub fn set_drawing(app: &AppHandle, drawing: bool) {
     // board 동봉 — 웹뷰가 리로드돼도 다음 모드 전환에서 보드 상태가 재동기화된다
     // (트레이 메뉴는 이 이벤트를 구독해 스스로 갱신한다 — core는 tray를 모른다)
     let _ = app.emit(
-        "mode-changed",
+        crate::events::MODE_CHANGED,
         serde_json::json!({ "drawing": drawing, "board": board }),
     );
 }
@@ -162,7 +162,7 @@ pub fn set_board(app: &AppHandle, on: bool) {
         }
         s.board = on;
     }
-    let _ = app.emit("board-changed", serde_json::json!({ "on": on }));
+    let _ = app.emit(crate::events::BOARD_CHANGED, serde_json::json!({ "on": on }));
 
     // 통과 모드에서 켜면 그리기 모드로 함께 진입한다. 진입이 거부되면(Esc 등록 실패)
     // 보드를 되돌려 트레이 체크가 유령으로 남지 않게 한다.
@@ -170,7 +170,7 @@ pub fn set_board(app: &AppHandle, on: bool) {
         set_drawing(app, true);
         if !app.state::<SharedState>().lock().unwrap().drawing {
             app.state::<SharedState>().lock().unwrap().board = false;
-            let _ = app.emit("board-changed", serde_json::json!({ "on": false }));
+            let _ = app.emit(crate::events::BOARD_CHANGED, serde_json::json!({ "on": false }));
         }
     }
 }

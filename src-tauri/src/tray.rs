@@ -42,7 +42,11 @@ pub fn create(app: &tauri::App) -> tauri::Result<()> {
     // 리스너 콜백은 메인 스레드 밖에서 올 수 있어 메뉴 조작은 main thread로 넘긴다.
     // 불변식: sync는 이벤트 페이로드가 아닌 SharedState 현재값을 읽는다. 그래서 비동기
     // 갱신이라도 연쇄 전이(board→drawing)의 마지막 리스너가 최종 상태로 수렴한다.
-    for event in ["mode-changed", "board-changed", "shortcuts-changed"] {
+    for event in [
+        crate::events::MODE_CHANGED,
+        crate::events::BOARD_CHANGED,
+        crate::events::SHORTCUTS_CHANGED,
+    ] {
         let handle = handle.clone();
         app.listen(event, move |_| {
             let app = handle.clone();
@@ -150,7 +154,7 @@ fn handle_menu(app: &AppHandle, id: &str) {
         "toggle" => crate::overlay::toggle(app),
         "board" => crate::overlay::toggle_board(app.clone()),
         "clear" => {
-            let _ = app.emit("clear-all", ());
+            let _ = app.emit(crate::events::CLEAR_ALL, ());
         }
         "marker" => toggle_marker_hidden(app),
         "autostart" => toggle_autostart(app),
@@ -170,7 +174,7 @@ fn toggle_marker_hidden(app: &AppHandle) {
     };
     crate::store::write_marker_hidden(app, hidden);
     let _ = app.emit(
-        "marker-hidden-changed",
+        crate::events::MARKER_HIDDEN_CHANGED,
         serde_json::json!({ "hidden": hidden }),
     );
     sync(app);

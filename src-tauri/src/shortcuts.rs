@@ -170,7 +170,7 @@ pub fn apply_shortcuts(
         s.clear_accel = clear.clone();
     }
     let _ = app.emit(
-        "shortcuts-changed",
+        crate::events::SHORTCUTS_CHANGED,
         serde_json::json!({ "board": board, "clear": clear }),
     );
     Ok(())
