@@ -1,5 +1,5 @@
 import { CSSProperties, useEffect, useRef, useState } from "react";
-import { fontString, measureTextWidth } from "./strokes";
+import { fontString, measureTextWidth } from "../shared/drawing";
 
 /** 빈 입력에서도 캐럿이 보이는 최소 폭. */
 const MIN_WIDTH_PX = 10;

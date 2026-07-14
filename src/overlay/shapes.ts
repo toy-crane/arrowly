@@ -1,4 +1,4 @@
-import type { ArrowGeometry, EllipseGeometry, Point, RectGeometry } from "./strokes";
+import type { ArrowGeometry, EllipseGeometry, Point, RectGeometry } from "../shared/drawing";
 
 // 홀드 스냅 파라미터 — 감도 튜닝은 이 상수들로만 한다 (Mac 수동 체크리스트가 게이트).
 /** 이 시간 동안 버튼을 누른 채 멈추면 스냅한다. */

@@ -4,7 +4,7 @@ import { mockIPC } from "@tauri-apps/api/mocks";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi, Mock } from "vitest";
 import { installCanvasMock } from "../../test/canvas";
-import { DrawingCanvas } from "./DrawingCanvas";
+import { DrawingCanvas } from "./drawing-canvas";
 
 let contexts: CanvasRenderingContext2D[];
 

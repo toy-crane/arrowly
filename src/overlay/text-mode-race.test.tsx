@@ -3,8 +3,8 @@ import { mockIPC } from "@tauri-apps/api/mocks";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { installCanvasMock } from "../../test/canvas";
-import { DrawingCanvas } from "./DrawingCanvas";
-import { Marker } from "./Marker";
+import { DrawingCanvas } from "./drawing-canvas";
+import { Marker } from "./marker";
 
 const settings = vi.hoisted(() => ({
   loadMarkerPos: vi.fn(),

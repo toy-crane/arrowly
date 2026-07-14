@@ -2,10 +2,9 @@ use tauri::{
     image::Image,
     menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem},
     tray::TrayIconBuilder,
-    AppHandle, Emitter, Manager, Wry,
+    AppHandle, Emitter, Listener, Manager, Wry,
 };
 use tauri_plugin_autostart::ManagerExt as _;
-use tauri_plugin_store::StoreExt;
 
 use crate::state::SharedState;
 
@@ -17,7 +16,7 @@ pub fn create(app: &tauri::App) -> tauri::Result<()> {
     let handle = app.handle();
 
     // 저장된 markerHidden 복원
-    let marker_hidden = load_marker_hidden(handle);
+    let marker_hidden = crate::store::read_marker_hidden(handle);
     {
         let state = handle.state::<SharedState>();
         state.lock().unwrap().marker_hidden = marker_hidden;
@@ -39,12 +38,28 @@ pub fn create(app: &tauri::App) -> tauri::Result<()> {
         .on_menu_event(|app, event| handle_menu(app, event.id.as_ref()))
         .build(app)?;
 
+    // 상태 전이 이벤트를 구독해 메뉴를 재구성한다 — overlay/shortcuts는 tray를 모른다.
+    // 리스너 콜백은 메인 스레드 밖에서 올 수 있어 메뉴 조작은 main thread로 넘긴다.
+    // 불변식: sync는 이벤트 페이로드가 아닌 SharedState 현재값을 읽는다. 그래서 비동기
+    // 갱신이라도 연쇄 전이(board→drawing)의 마지막 리스너가 최종 상태로 수렴한다.
+    for event in [
+        crate::events::MODE_CHANGED,
+        crate::events::BOARD_CHANGED,
+        crate::events::SHORTCUTS_CHANGED,
+    ] {
+        let handle = handle.clone();
+        app.listen(event, move |_| {
+            let app = handle.clone();
+            let _ = handle.run_on_main_thread(move || sync(&app));
+        });
+    }
+
     Ok(())
 }
 
 /// 상태(그리기·블랙보드·마커·단축키·자동 실행)가 바뀔 때마다 메뉴를 다시 그린다.
 /// 아이콘은 고정이라 건드리지 않는다.
-pub fn sync(app: &AppHandle) {
+fn sync(app: &AppHandle) {
     let (drawing, board, marker_hidden) = {
         let state = app.state::<SharedState>();
         let s = state.lock().unwrap();
@@ -144,7 +159,7 @@ fn handle_menu(app: &AppHandle, id: &str) {
         "board" => crate::overlay::toggle_board(app.clone()),
         "text" => crate::overlay::enter_text_mode(app),
         "clear" => {
-            let _ = app.emit("clear-all", ());
+            let _ = app.emit(crate::events::CLEAR_ALL, ());
         }
         "marker" => toggle_marker_hidden(app),
         "autostart" => toggle_autostart(app),
@@ -162,12 +177,9 @@ fn toggle_marker_hidden(app: &AppHandle) {
         s.marker_hidden = !s.marker_hidden;
         s.marker_hidden
     };
-    if let Ok(store) = app.store("settings.json") {
-        store.set("markerHidden", serde_json::json!(hidden));
-        let _ = store.save();
-    }
+    crate::store::write_marker_hidden(app, hidden);
     let _ = app.emit(
-        "marker-hidden-changed",
+        crate::events::MARKER_HIDDEN_CHANGED,
         serde_json::json!({ "hidden": hidden }),
     );
     sync(app);
@@ -192,12 +204,4 @@ fn set_autostart(app: &AppHandle, enabled: bool) {
 
 fn autostart_enabled(app: &AppHandle) -> bool {
     app.autolaunch().is_enabled().unwrap_or(false)
-}
-
-fn load_marker_hidden(app: &AppHandle) -> bool {
-    app.store("settings.json")
-        .ok()
-        .and_then(|s| s.get("markerHidden"))
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false)
 }

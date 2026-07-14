@@ -1,10 +1,9 @@
 import { CSSProperties, useEffect, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { acceleratorSymbols } from "../shared/accelerator";
 import { t, tx } from "../shared/i18n";
 import { DEFAULT_SHORTCUTS, loadShortcuts, saveOnboardingDone } from "../shared/settings";
-import { ShortcutEditor } from "../shared/ShortcutEditor";
-import { MiniCanvas } from "./MiniCanvas";
+import { acceleratorSymbols, ShortcutEditor } from "../shared/shortcuts";
+import { MiniCanvas } from "./mini-canvas";
 
 const TOTAL = 3;
 

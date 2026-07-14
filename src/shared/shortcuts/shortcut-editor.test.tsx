@@ -2,16 +2,16 @@ import { mockIPC } from "@tauri-apps/api/mocks";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { SettingsApp } from "../settings/SettingsApp";
-import { ShortcutEditor } from "./ShortcutEditor";
+import { SettingsApp } from "../../settings/settings-app";
+import { ShortcutEditor } from "./shortcut-editor";
 
 const settings = vi.hoisted(() => ({
   loadShortcuts: vi.fn(),
   saveShortcuts: vi.fn(),
 }));
 
-vi.mock("./settings", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("./settings")>();
+vi.mock("../settings", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../settings")>();
   return { ...actual, loadShortcuts: settings.loadShortcuts, saveShortcuts: settings.saveShortcuts };
 });
 

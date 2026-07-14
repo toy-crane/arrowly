@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
-import { matchesAccelerator } from "../shared/accelerator";
 import { DEFAULT_COLOR } from "../shared/constants";
+import { drawMark, Point, StrokeStore } from "../shared/drawing";
+import { resumeShortcuts, suspendShortcuts } from "../shared/ipc";
 import { DEFAULT_SHORTCUTS } from "../shared/settings";
-import { drawMark, Point, StrokeStore } from "../overlay/strokes";
+import { matchesAccelerator } from "../shared/shortcuts";
 
 type Props = {
   onFirstStroke?: () => void;
@@ -119,7 +119,7 @@ export function MiniCanvas({
     canvas.addEventListener("pointerup", onPointerUp);
     canvas.addEventListener("pointercancel", onPointerCancel);
     window.addEventListener("keydown", onKeyDown);
-    if (boardableRef.current) void invoke("suspend_shortcuts");
+    if (boardableRef.current) void suspendShortcuts();
     return () => {
       ro.disconnect();
       canvas.removeEventListener("pointerdown", onPointerDown);
@@ -127,7 +127,7 @@ export function MiniCanvas({
       canvas.removeEventListener("pointerup", onPointerUp);
       canvas.removeEventListener("pointercancel", onPointerCancel);
       window.removeEventListener("keydown", onKeyDown);
-      if (boardableRef.current) void invoke("resume_shortcuts");
+      if (boardableRef.current) void resumeShortcuts();
     };
   }, []);
 

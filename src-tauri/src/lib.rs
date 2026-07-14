@@ -1,13 +1,15 @@
+mod events;
+mod hotkey;
 mod i18n;
 mod overlay;
 mod shortcut_policy;
 mod shortcuts;
 mod state;
+mod store;
 mod tray;
 
 use tauri::Manager;
 use tauri_plugin_autostart::MacosLauncher;
-use tauri_plugin_store::StoreExt;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -43,29 +45,15 @@ pub fn run() {
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
 
             // settings.json의 저장된 단축키를 state에 반영한다. board가 없는 기존
-            // 설정은 기존 사용자 키를 보존하면서 충돌하지 않는 기본값으로 마이그레이션한다.
-            if let Ok(store) = app.store("settings.json") {
-                let mut values = store
-                    .get("shortcuts")
-                    .and_then(|value| value.as_object().cloned())
-                    .unwrap_or_default();
-                let field = |k: &str| values.get(k).and_then(|v| v.as_str()).map(String::from);
-                let toggle = field("toggle");
-                let clear = field("clear");
-                let text = field("text"); // 없으면 AppState 기본값(KeyT) 유지 — 웹뷰 merge와 동일 규칙
-                let board = if let Some(board) = field("board") {
-                    Some(board)
-                } else {
-                    let migrated = shortcuts::migrated_board_default(
-                        toggle.as_deref().unwrap_or(shortcuts::DEFAULT_TOGGLE),
-                        clear.as_deref().unwrap_or(shortcuts::DEFAULT_CLEAR),
-                    );
-                    values.insert("board".into(), serde_json::json!(migrated));
-                    store.set("shortcuts", serde_json::Value::Object(values));
-                    let _ = store.save();
-                    Some(migrated)
-                };
-                shortcuts::load_from_settings(app.handle(), toggle, board, clear, text);
+            // 설정은 store 모듈이 충돌하지 않는 기본값으로 마이그레이션한다.
+            if let Some(stored) = store::load_shortcuts_with_migration(app.handle()) {
+                shortcuts::load_from_settings(
+                    app.handle(),
+                    stored.toggle,
+                    stored.board,
+                    stored.clear,
+                    stored.text,
+                );
             }
 
             overlay::create(app)?;
@@ -76,13 +64,7 @@ pub fn run() {
             }
 
             // 첫 실행이면 온보딩을 띄운다
-            let onboarding_done = app
-                .store("settings.json")
-                .ok()
-                .and_then(|s| s.get("onboardingDone"))
-                .and_then(|v| v.as_bool())
-                .unwrap_or(false);
-            if !onboarding_done {
+            if !store::read_onboarding_done(app.handle()) {
                 overlay::open_onboarding(app.handle());
             }
             Ok(())

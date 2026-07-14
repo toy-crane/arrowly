@@ -47,6 +47,9 @@ export async function saveMarkerPos(pos: MarkerPos): Promise<void> {
 export type Shortcuts = { toggle: string; board: string; clear: string; text: string };
 // text는 전역 미등록 로컬 키라 수식키 없는 단독 키를 기본값으로 쓴다.
 // 레거시 3키 스토어는 loadShortcuts의 기본값 merge가 자동 보완한다.
+
+/** OS 전역 등록 검증이 필요한 단축키 필드 — clear·text는 웹뷰 keydown 처리라 제외 */
+export type GlobalShortcutId = Exclude<keyof Shortcuts, "clear" | "text">;
 export const DEFAULT_SHORTCUTS: Shortcuts = {
   toggle: "Alt+Tab",
   board: "Shift+Alt+Tab",

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Point } from "./strokes";
+import type { Point } from "../shared/drawing";
 import {
   classifyStroke,
   CLOSED_GAP_RATIO,

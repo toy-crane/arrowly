@@ -88,13 +88,13 @@ fn enter_drawing(app: &AppHandle) -> bool {
                 let _ = win.set_position(*m.position());
                 let _ = win.set_size(*m.size());
                 if monitor_changed {
-                    let _ = app.emit("clear-all", ());
+                    let _ = app.emit(crate::events::CLEAR_ALL, ());
                 }
             }
         }
     }
 
-    if let Err(e) = crate::shortcuts::register_escape(app) {
+    if let Err(e) = crate::hotkey::register_escape(app) {
         eprintln!("[arrowly] Esc 전역 등록 실패 — 그리기 진입 중단: {e}");
         return false;
     }
@@ -109,7 +109,7 @@ fn enter_drawing(app: &AppHandle) -> bool {
 
 /// 통과 모드 시퀀스: Esc 해제 → 이벤트 무시 → 숨김. 그림 버퍼는 웹뷰가 유지한다(숨김≠삭제).
 fn exit_drawing(app: &AppHandle) {
-    crate::shortcuts::unregister_escape(app);
+    crate::hotkey::unregister_escape(app);
     if let Ok(panel) = app.get_webview_panel(OVERLAY_LABEL) {
         panel.set_ignores_mouse_events(true);
         panel.resign_key_window();
@@ -144,15 +144,17 @@ pub fn set_drawing(app: &AppHandle, drawing: bool) {
         s.board
     };
     // board 동봉 — 웹뷰가 리로드돼도 다음 모드 전환에서 보드 상태가 재동기화된다
+    // (트레이 메뉴는 이 이벤트를 구독해 스스로 갱신한다 — core는 tray를 모른다)
     let _ = app.emit(
-        "mode-changed",
+        crate::events::MODE_CHANGED,
         serde_json::json!({ "drawing": drawing, "board": board }),
     );
-    crate::tray::sync(app);
 }
 
 /// 블랙보드 전이의 단일 소스. 보드를 먼저 켜고 emit한 뒤 그리기에 진입해야
 /// 패널이 뜰 때 이미 검정이라 투명 플래시가 없다.
+/// 불변식: 모든 분기에서 상태 쓰기가 해당 emit보다 먼저 온다 — tray의 비동기 sync가
+/// SharedState 현재값으로 수렴하는 근거이므로 이 순서를 바꾸지 않는다.
 pub fn set_board(app: &AppHandle, on: bool) {
     {
         let state = app.state::<SharedState>();
@@ -162,8 +164,7 @@ pub fn set_board(app: &AppHandle, on: bool) {
         }
         s.board = on;
     }
-    let _ = app.emit("board-changed", serde_json::json!({ "on": on }));
-    crate::tray::sync(app);
+    let _ = app.emit(crate::events::BOARD_CHANGED, serde_json::json!({ "on": on }));
 
     // 통과 모드에서 켜면 그리기 모드로 함께 진입한다. 진입이 거부되면(Esc 등록 실패)
     // 보드를 되돌려 트레이 체크가 유령으로 남지 않게 한다.
@@ -171,8 +172,7 @@ pub fn set_board(app: &AppHandle, on: bool) {
         set_drawing(app, true);
         if !app.state::<SharedState>().lock().unwrap().drawing {
             app.state::<SharedState>().lock().unwrap().board = false;
-            let _ = app.emit("board-changed", serde_json::json!({ "on": false }));
-            crate::tray::sync(app);
+            let _ = app.emit(crate::events::BOARD_CHANGED, serde_json::json!({ "on": false }));
         }
     }
 }
@@ -193,7 +193,7 @@ pub fn enter_text_mode(app: &AppHandle) {
             return;
         }
     }
-    let _ = app.emit("enter-text-mode", ());
+    let _ = app.emit(crate::events::ENTER_TEXT_MODE, ());
 }
 
 /// 전역 블랙보드 단축키 동작. 통과 모드에서는 숨겨진 board 상태와 무관하게

@@ -1,6 +1,5 @@
 import { strokePath } from "./smoothing";
-
-export type Point = { x: number; y: number }; // CSS(logical) px
+import type { Point } from "./types";
 
 /** 자유곡선 획 — 펜으로 그린 마크. */
 export type PenMark = { kind: "pen"; points: Point[]; color: string; width: number };

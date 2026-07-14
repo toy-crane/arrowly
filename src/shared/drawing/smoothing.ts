@@ -1,4 +1,4 @@
-import type { Point } from "./strokes";
+import type { Point } from "./types";
 
 /**
  * 점열을 경로로 변환. 4개 미만이면 polyline,

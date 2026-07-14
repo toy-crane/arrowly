@@ -1,11 +1,17 @@
 import { CSSProperties, useEffect, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
 import { Color, DEFAULT_COLOR, DEFAULT_WIDTH, strokeWidthPx, WidthKey } from "../shared/constants";
+import {
+  onBoardChanged,
+  onEnterTextMode,
+  onMarkerHiddenChanged,
+  onModeChanged,
+  onShortcutsChanged,
+  toggleBoard,
+} from "../shared/ipc";
 import { DEFAULT_SHORTCUTS, loadShortcuts, loadTool, saveColor, saveWidth } from "../shared/settings";
 import { applyPenCursor, applyTextCursor, resetCursor } from "./cursor";
-import { DrawingCanvas } from "./DrawingCanvas";
-import { Marker } from "./Marker";
+import { DrawingCanvas } from "./drawing-canvas";
+import { Marker } from "./marker";
 
 export function OverlayApp() {
   const [drawing, setDrawing] = useState(false);
@@ -27,21 +33,19 @@ export function OverlayApp() {
       setWidthKey(width);
     });
     // mode-changed에 board가 동봉된다 — 웹뷰가 리로드돼도 모드 전환에서 보드 상태가 재동기화된다
-    const unMode = listen<{ drawing: boolean; board: boolean }>("mode-changed", (e) => {
-      setDrawing(e.payload.drawing);
-      setBoard(e.payload.board);
-      if (!e.payload.drawing) setTextMode(false); // Esc·토글로 나가면 텍스트 모드도 폐기
+    const unMode = onModeChanged((p) => {
+      setDrawing(p.drawing);
+      setBoard(p.board);
+      if (!p.drawing) setTextMode(false); // Esc·토글로 나가면 텍스트 모드도 폐기
     });
-    const unBoard = listen<{ on: boolean }>("board-changed", (e) => setBoard(e.payload.on));
-    const unMarker = listen<{ hidden: boolean }>("marker-hidden-changed", (e) =>
-      setMarkerHidden(e.payload.hidden),
-    );
-    const unShortcuts = listen<{ clear: string; text: string }>("shortcuts-changed", (e) => {
-      setClearAccel(e.payload.clear);
-      setTextAccel(e.payload.text);
+    const unBoard = onBoardChanged((p) => setBoard(p.on));
+    const unMarker = onMarkerHiddenChanged((p) => setMarkerHidden(p.hidden));
+    const unShortcuts = onShortcutsChanged((p) => {
+      setClearAccel(p.clear);
+      setTextAccel(p.text);
     });
     // 트레이 "텍스트 입력" — Rust가 그리기 진입을 보장한 뒤 emit한다
-    const unEnterText = listen("enter-text-mode", () => setTextMode(true));
+    const unEnterText = onEnterTextMode(() => setTextMode(true));
     return () => {
       unMode.then((f) => f());
       unBoard.then((f) => f());
@@ -89,7 +93,7 @@ export function OverlayApp() {
             setWidthKey(w);
             void saveWidth(w);
           }}
-          onBoardToggle={() => void invoke("toggle_board")}
+          onBoardToggle={() => void toggleBoard()}
           onTextToggle={() => setTextMode((v) => !v)}
         />
       )}

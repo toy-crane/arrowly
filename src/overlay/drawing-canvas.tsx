@@ -1,10 +1,10 @@
 import { CSSProperties, useEffect, useRef, useState } from "react";
-import { listen } from "@tauri-apps/api/event";
-import { matchesAccelerator } from "../shared/accelerator";
 import { strokeWidthPx, textSizePx, WidthKey } from "../shared/constants";
+import { drawMark, Point, ShapeMark, StrokeStore, TextMark } from "../shared/drawing";
+import { onClearAll, onModeChanged } from "../shared/ipc";
+import { matchesAccelerator } from "../shared/shortcuts";
 import { classifyStroke, HOLD_MS, RING_DELAY_MS, STILL_RADIUS_PX } from "./shapes";
-import { drawMark, Point, ShapeMark, StrokeStore, TextMark } from "./strokes";
-import { TextEditor } from "./TextEditor";
+import { TextEditor } from "./text-editor";
 
 type Props = {
   color: string;
@@ -194,6 +194,9 @@ export function DrawingCanvas({ color, widthKey, clearAccel, textAccel, textMode
       if (textModeRef.current) {
         // 텍스트 모드: 클릭 = 캐럿 배치, 드래그는 그리지 않는다. 편집 중의 바깥 클릭은
         // TextEditor의 캡처 리스너가 먼저 확정 처리하므로 여기서는 삼킨다.
+        // preventDefault: 이 pointerdown에 딸린 mousedown의 기본 동작(포커스 이동)이
+        // 방금 마운트된 에디터 input의 포커스를 body로 뺏는다 — 첫 타이핑 유실 버그.
+        e.preventDefault();
         if (!editingRef.current) setEditorPos(toPoint(e));
         return;
       }
@@ -337,8 +340,8 @@ export function DrawingCanvas({ color, widthKey, clearAccel, textAccel, textMode
     live.addEventListener("pointerup", onPointerUp);
     live.addEventListener("pointercancel", onPointerCancel);
 
-    const unlistenMode = listen<{ drawing: boolean }>("mode-changed", (ev) => {
-      if (ev.payload.drawing) {
+    const unlistenMode = onModeChanged((p) => {
+      if (p.drawing) {
         setupBacking(); // 모니터·해상도가 바뀌었을 수 있음 (기존 획은 재렌더로 복원)
       } else {
         // 숨김≠삭제: 진행 중이던 live 획만 취소하고 그림 버퍼는 유지한다 (커서는 OverlayApp 담당)
@@ -346,7 +349,7 @@ export function DrawingCanvas({ color, widthKey, clearAccel, textAccel, textMode
         renderLive();
       }
     });
-    const unlistenClear = listen("clear-all", clearAll);
+    const unlistenClear = onClearAll(clearAll);
 
     return () => {
       window.removeEventListener("resize", setupBacking);

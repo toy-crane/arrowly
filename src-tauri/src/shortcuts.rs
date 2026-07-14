@@ -4,12 +4,11 @@
 use std::str::FromStr;
 
 use tauri::{plugin::TauriPlugin, AppHandle, Emitter, Manager, Wry};
-use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Shortcut, ShortcutState};
+use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
+use crate::hotkey::escape_shortcut;
 use crate::shortcut_policy::{parse_valid, parse_valid_local};
 use crate::state::SharedState;
-
-pub use crate::shortcut_policy::{migrated_board_default, DEFAULT_CLEAR, DEFAULT_TEXT, DEFAULT_TOGGLE};
 
 fn current_toggle(app: &AppHandle) -> Option<Shortcut> {
     let accel = app
@@ -29,10 +28,6 @@ fn current_board(app: &AppHandle) -> Option<Shortcut> {
         .board_accel
         .clone();
     Shortcut::from_str(&accel).ok()
-}
-
-fn escape_shortcut() -> Shortcut {
-    Shortcut::new(None, Code::Escape)
 }
 
 pub fn init() -> TauriPlugin<Wry> {
@@ -79,14 +74,6 @@ pub fn register_shortcuts(app: &AppHandle) -> Result<(), String> {
         eprintln!("[arrowly] 블랙보드 전역 등록 실패: {e}");
     }
     Ok(())
-}
-
-pub fn register_escape(app: &AppHandle) -> Result<(), tauri_plugin_global_shortcut::Error> {
-    app.global_shortcut().register(escape_shortcut())
-}
-
-pub fn unregister_escape(app: &AppHandle) {
-    let _ = app.global_shortcut().unregister(escape_shortcut());
 }
 
 fn unregister_persistent(app: &AppHandle) {
@@ -192,10 +179,9 @@ pub fn apply_shortcuts(
         s.text_accel = text.clone();
     }
     let _ = app.emit(
-        "shortcuts-changed",
+        crate::events::SHORTCUTS_CHANGED,
         serde_json::json!({ "board": board, "clear": clear, "text": text }),
     );
-    crate::tray::sync(&app);
     Ok(())
 }
 
@@ -297,7 +283,11 @@ mod tests {
             .build()
             .unwrap();
 
-        tauri::test::assert_ipc_response(&webview, ipc_request(DEFAULT_TOGGLE), Ok(()));
+        tauri::test::assert_ipc_response(
+            &webview,
+            ipc_request(crate::shortcut_policy::DEFAULT_TOGGLE),
+            Ok(()),
+        );
         tauri::test::assert_ipc_response(
             &webview,
             ipc_request("Cmd+KeyZ"),
@@ -306,7 +296,7 @@ mod tests {
         // 로컬(텍스트) 규칙: 단독 키 허용, 예약 키는 여전히 거부
         tauri::test::assert_ipc_response(
             &webview,
-            ipc_request_for("validate_local_shortcut_command", DEFAULT_TEXT),
+            ipc_request_for("validate_local_shortcut_command", crate::shortcut_policy::DEFAULT_TEXT),
             Ok(()),
         );
         tauri::test::assert_ipc_response(

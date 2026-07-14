@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createCanvasContext, installCanvasMock } from "../../test/canvas";
+import { createCanvasContext, installCanvasMock } from "../../../test/canvas";
 import { drawMark, fontString, Mark, measureTextWidth, StrokeStore, TEXT_FONT_FAMILY, TextMark } from "./strokes";
 
 const textMark: TextMark = { kind: "text", x: 40, y: 60, text: "재시도", color: "#FFD400", size: 29 };

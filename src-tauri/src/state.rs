@@ -34,10 +34,11 @@ impl Default for AppState {
             board: false,
             last_monitor_pos: None,
             marker_hidden: false,
-            toggle_accel: "Alt+Tab".into(),
-            board_accel: "Shift+Alt+Tab".into(),
-            clear_accel: "Alt+Backspace".into(),
-            text_accel: "KeyT".into(),
+            // 기본 accelerator의 단일 소스는 shortcut_policy — 여기서 복제하지 않는다.
+            toggle_accel: crate::shortcut_policy::DEFAULT_TOGGLE.into(),
+            board_accel: crate::shortcut_policy::DEFAULT_BOARD.into(),
+            clear_accel: crate::shortcut_policy::DEFAULT_CLEAR.into(),
+            text_accel: crate::shortcut_policy::DEFAULT_TEXT.into(),
         }
     }
 }

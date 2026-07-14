@@ -1,7 +1,6 @@
 import { CSSProperties } from "react";
-import { acceleratorSymbols } from "../shared/accelerator";
 import { t } from "../shared/i18n";
-import { ShortcutEditor, styles as ed } from "../shared/ShortcutEditor";
+import { acceleratorSymbols, ShortcutEditor, styles as ed } from "../shared/shortcuts";
 
 // 재설정 불가 — OS 표준·예약 키라 참고용으로 보여준다
 const FIXED_ROWS: { label: string; accel: string }[] = [
