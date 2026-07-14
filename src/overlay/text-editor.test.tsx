@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { installCanvasMock } from "../../test/canvas";
 import { fontString } from "../shared/drawing";
-import { TextEditor } from "./TextEditor";
+import { TextEditor } from "./text-editor";
 
 function renderEditor(overrides: Partial<Parameters<typeof TextEditor>[0]> = {}) {
   const onCommit = vi.fn();

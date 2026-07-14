@@ -4,7 +4,7 @@ import { drawMark, Point, ShapeMark, StrokeStore, TextMark } from "../shared/dra
 import { onClearAll, onModeChanged } from "../shared/ipc";
 import { matchesAccelerator } from "../shared/shortcuts";
 import { classifyStroke, HOLD_MS, RING_DELAY_MS, STILL_RADIUS_PX } from "./shapes";
-import { TextEditor } from "./TextEditor";
+import { TextEditor } from "./text-editor";
 
 type Props = {
   color: string;
