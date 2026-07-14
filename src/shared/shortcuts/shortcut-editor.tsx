@@ -81,7 +81,7 @@ export function ShortcutEditor({ showReset = true }: { showReset?: boolean }) {
       const next: Shortcuts = { ...shortcutsRef.current, [id]: accel };
 
       try {
-        if (id === "toggle" || id === "board") {
+        if (id !== "clear") {
           await tryRegisterShortcut(id, accel);
         }
         await applyShortcuts(next);

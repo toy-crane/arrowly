@@ -45,6 +45,10 @@ export async function saveMarkerPos(pos: MarkerPos): Promise<void> {
 }
 
 export type Shortcuts = { toggle: string; board: string; clear: string };
+
+/** OS 전역 등록 검증이 필요한 단축키 필드 — clear는 웹뷰 keydown 처리라 제외 */
+export type GlobalShortcutId = Exclude<keyof Shortcuts, "clear">;
+
 export const DEFAULT_SHORTCUTS: Shortcuts = {
   toggle: "Alt+Tab",
   board: "Shift+Alt+Tab",
