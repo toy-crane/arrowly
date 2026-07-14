@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   saveColor: vi.fn(),
   saveWidth: vi.fn(),
   applyPenCursor: vi.fn(),
+  applyTextCursor: vi.fn(),
   resetCursor: vi.fn(),
 }));
 
@@ -24,23 +25,45 @@ vi.mock("../shared/settings", async (importOriginal) => {
   };
 });
 
-vi.mock("./cursor", () => ({ applyPenCursor: mocks.applyPenCursor, resetCursor: mocks.resetCursor }));
+vi.mock("./cursor", () => ({
+  applyPenCursor: mocks.applyPenCursor,
+  applyTextCursor: mocks.applyTextCursor,
+  resetCursor: mocks.resetCursor,
+}));
 vi.mock("./DrawingCanvas", () => ({
-  DrawingCanvas: ({ clearAccel }: { clearAccel: string }) => <div data-testid="canvas">{clearAccel}</div>,
+  DrawingCanvas: ({
+    clearAccel,
+    textAccel,
+    textMode,
+    onTextModeChange,
+  }: {
+    clearAccel: string;
+    textAccel: string;
+    textMode: boolean;
+    onTextModeChange: (on: boolean) => void;
+  }) => (
+    <div data-testid="canvas" data-textmode={String(textMode)} data-textaccel={textAccel}>
+      <button onClick={() => onTextModeChange(!textMode)}>text-toggle</button>
+      {clearAccel}
+    </div>
+  ),
 }));
 vi.mock("./Marker", () => ({
   Marker: (props: {
     color: string;
     widthKey: string;
     board: boolean;
+    textMode: boolean;
     onColorChange: (value: "#00AEEF") => void;
     onWidthChange: (value: "thick") => void;
     onBoardToggle: () => void;
+    onTextToggle: () => void;
   }) => (
-    <div data-testid="marker" data-board={String(props.board)}>
+    <div data-testid="marker" data-board={String(props.board)} data-textmode={String(props.textMode)}>
       <button onClick={() => props.onColorChange("#00AEEF")}>color</button>
       <button onClick={() => props.onWidthChange("thick")}>width</button>
       <button onClick={props.onBoardToggle}>board</button>
+      <button onClick={props.onTextToggle}>marker-text</button>
       <span>{props.color}:{props.widthKey}</span>
     </div>
   ),
@@ -51,11 +74,12 @@ describe("OverlayApp", () => {
 
   beforeEach(() => {
     commands.length = 0;
-    mocks.loadShortcuts.mockReset().mockResolvedValue({ toggle: "Alt+Tab", board: "Shift+Alt+Tab", clear: "Control+KeyK" });
+    mocks.loadShortcuts.mockReset().mockResolvedValue({ toggle: "Alt+Tab", board: "Shift+Alt+Tab", clear: "Control+KeyK", text: "KeyT" });
     mocks.loadTool.mockReset().mockResolvedValue({ color: "#2ED573", width: "thin" });
     mocks.saveColor.mockReset().mockResolvedValue(undefined);
     mocks.saveWidth.mockReset().mockResolvedValue(undefined);
     mocks.applyPenCursor.mockReset();
+    mocks.applyTextCursor.mockReset();
     mocks.resetCursor.mockReset();
     mockIPC((cmd) => void commands.push(cmd), { shouldMockEvents: true });
     Object.defineProperty(window, "innerWidth", { configurable: true, value: 1200 });
@@ -83,10 +107,11 @@ describe("OverlayApp", () => {
 
     await act(async () => {
       await emit("board-changed", { on: false });
-      await emit("shortcuts-changed", { clear: "Alt+KeyC" });
+      await emit("shortcuts-changed", { clear: "Alt+KeyC", text: "KeyY" });
       await emit("marker-hidden-changed", { hidden: true });
     });
     expect(screen.getByTestId("canvas")).toHaveTextContent("Alt+KeyC");
+    expect(screen.getByTestId("canvas")).toHaveAttribute("data-textaccel", "KeyY");
     expect(screen.queryByTestId("marker")).not.toBeInTheDocument();
 
     await act(async () => {
@@ -94,5 +119,43 @@ describe("OverlayApp", () => {
       await emit("mode-changed", { drawing: false, board: false });
     });
     expect(mocks.resetCursor.mock.calls.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("switches to the I-beam cursor in text mode and resets it when drawing ends", async () => {
+    render(<OverlayApp />);
+    await act(async () => {
+      await emit("mode-changed", { drawing: true, board: false });
+    });
+    expect(mocks.applyTextCursor).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "text-toggle" }));
+    expect(screen.getByTestId("canvas")).toHaveAttribute("data-textmode", "true");
+    expect(mocks.applyTextCursor).toHaveBeenCalledOnce();
+
+    // 마커 T 셀도 같은 토글을 움직인다
+    fireEvent.click(screen.getByRole("button", { name: "marker-text" }));
+    expect(screen.getByTestId("marker")).toHaveAttribute("data-textmode", "false");
+    fireEvent.click(screen.getByRole("button", { name: "marker-text" }));
+    expect(screen.getByTestId("marker")).toHaveAttribute("data-textmode", "true");
+    fireEvent.click(screen.getByRole("button", { name: "marker-text" }));
+
+    // 텍스트 모드 해제 후 → 펜 커서 복귀 (직전 클릭으로 이미 해제 상태)
+    mocks.applyPenCursor.mockClear();
+    fireEvent.click(screen.getByRole("button", { name: "text-toggle" }));
+    expect(mocks.applyTextCursor.mock.calls.length).toBeGreaterThanOrEqual(1);
+    fireEvent.click(screen.getByRole("button", { name: "text-toggle" }));
+    expect(mocks.applyPenCursor).toHaveBeenCalledOnce();
+
+    // 트레이 "텍스트 입력" 이벤트도 같은 토글을 켠다
+    await act(async () => {
+      await emit("enter-text-mode");
+    });
+    expect(screen.getByTestId("canvas")).toHaveAttribute("data-textmode", "true");
+
+    // 그리기 종료는 텍스트 모드도 함께 폐기한다
+    await act(async () => {
+      await emit("mode-changed", { drawing: false, board: false });
+    });
+    expect(screen.getByTestId("canvas")).toHaveAttribute("data-textmode", "false");
   });
 });

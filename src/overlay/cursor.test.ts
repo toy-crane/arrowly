@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { applyPenCursor, resetCursor } from "./cursor";
+import { applyPenCursor, applyTextCursor, resetCursor } from "./cursor";
 
 function fakeCanvas() {
   const ctx = {
@@ -49,6 +49,9 @@ describe("pen cursor", () => {
 
     resetCursor();
     expect(style.cursor).toBe("default");
+
+    applyTextCursor();
+    expect(style.cursor).toBe("text");
   });
 
   it("uses the 1x PNG fallback when image-set is rejected", () => {

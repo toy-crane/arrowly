@@ -9,6 +9,7 @@ pub struct TrayText {
     pub stop_drawing: &'static str,
     pub blackboard: &'static str,
     pub clear_all: &'static str,
+    pub text_input: &'static str,
     pub hide_marker: &'static str,
     pub launch_at_login: &'static str,
     pub shortcut_settings: &'static str,
@@ -21,6 +22,7 @@ static EN: TrayText = TrayText {
     stop_drawing: "Stop Drawing",
     blackboard: "Blackboard",
     clear_all: "Clear All",
+    text_input: "Typing Text",
     hide_marker: "Hide Marker",
     launch_at_login: "Launch at Login",
     shortcut_settings: "Shortcut Settings…",
@@ -33,6 +35,7 @@ static KO: TrayText = TrayText {
     stop_drawing: "그리기 중지",
     blackboard: "블랙보드",
     clear_all: "전체 지우기",
+    text_input: "텍스트 입력",
     hide_marker: "마커 숨기기",
     launch_at_login: "로그인 시 실행",
     shortcut_settings: "단축키 설정…",
@@ -78,6 +81,7 @@ mod tests {
             assert!(!text.stop_drawing.is_empty());
             assert!(!text.blackboard.is_empty());
             assert!(!text.clear_all.is_empty());
+            assert!(!text.text_input.is_empty());
             assert!(!text.hide_marker.is_empty());
             assert!(!text.launch_at_login.is_empty());
             assert!(!text.shortcut_settings.is_empty());

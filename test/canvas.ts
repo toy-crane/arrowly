@@ -10,14 +10,21 @@ export function createCanvasContext() {
     lineTo: vi.fn(),
     bezierCurveTo: vi.fn(),
     arc: vi.fn(),
+    rect: vi.fn(),
+    ellipse: vi.fn(),
+    closePath: vi.fn(),
     stroke: vi.fn(),
     fill: vi.fn(),
+    fillText: vi.fn(),
+    measureText: vi.fn(() => ({ width: 10 })),
     strokeStyle: "",
     fillStyle: "",
     lineWidth: 0,
     lineCap: "butt",
     lineJoin: "miter",
     globalAlpha: 0,
+    font: "",
+    textBaseline: "alphabetic",
   } as unknown as CanvasRenderingContext2D;
 }
 

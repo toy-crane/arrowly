@@ -52,6 +52,7 @@ pub fn run() {
                 let field = |k: &str| values.get(k).and_then(|v| v.as_str()).map(String::from);
                 let toggle = field("toggle");
                 let clear = field("clear");
+                let text = field("text"); // 없으면 AppState 기본값(KeyT) 유지 — 웹뷰 merge와 동일 규칙
                 let board = if let Some(board) = field("board") {
                     Some(board)
                 } else {
@@ -64,7 +65,7 @@ pub fn run() {
                     let _ = store.save();
                     Some(migrated)
                 };
-                shortcuts::load_from_settings(app.handle(), toggle, board, clear);
+                shortcuts::load_from_settings(app.handle(), toggle, board, clear, text);
             }
 
             overlay::create(app)?;

@@ -64,9 +64,20 @@ describe("settings", () => {
   it("merges shortcut defaults and persists updates", async () => {
     mocks.values.set("shortcuts", { toggle: "Control+KeyD" });
     await expect(loadShortcuts()).resolves.toEqual({ ...DEFAULT_SHORTCUTS, toggle: "Control+KeyD" });
-    const next = { toggle: "Alt+KeyD", board: "Alt+KeyB", clear: "Alt+KeyC" };
+    const next = { toggle: "Alt+KeyD", board: "Alt+KeyB", clear: "Alt+KeyC", text: "KeyY" };
     await saveShortcuts(next);
     expect(mocks.values.get("shortcuts")).toEqual(next);
+  });
+
+  it("fills the text default for legacy three-key stores", async () => {
+    // text 키 도입 전 스토어 — merge가 자동으로 기본값(KeyT)을 보완한다
+    mocks.values.set("shortcuts", { toggle: "Alt+Tab", board: "Shift+Alt+Tab", clear: "Alt+Backspace" });
+    await expect(loadShortcuts()).resolves.toEqual({
+      toggle: "Alt+Tab",
+      board: "Shift+Alt+Tab",
+      clear: "Alt+Backspace",
+      text: "KeyT",
+    });
   });
 
   it("marks onboarding complete", async () => {

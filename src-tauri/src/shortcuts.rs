@@ -6,10 +6,10 @@ use std::str::FromStr;
 use tauri::{plugin::TauriPlugin, AppHandle, Emitter, Manager, Wry};
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Shortcut, ShortcutState};
 
-use crate::shortcut_policy::parse_valid;
+use crate::shortcut_policy::{parse_valid, parse_valid_local};
 use crate::state::SharedState;
 
-pub use crate::shortcut_policy::{migrated_board_default, DEFAULT_CLEAR, DEFAULT_TOGGLE};
+pub use crate::shortcut_policy::{migrated_board_default, DEFAULT_CLEAR, DEFAULT_TEXT, DEFAULT_TOGGLE};
 
 fn current_toggle(app: &AppHandle) -> Option<Shortcut> {
     let accel = app
@@ -141,19 +141,27 @@ pub fn try_register_shortcut(
     Ok(())
 }
 
-/// 세 단축키를 하나의 설정으로 적용한다. 새 전역 키 중 하나라도 실패하면
+/// 네 단축키를 하나의 설정으로 적용한다. 새 전역 키 중 하나라도 실패하면
 /// 두 기존 전역 키를 복구하고 state/store 갱신은 호출자까지 진행되지 않는다.
+/// clear·text는 전역 미등록 — 검증·보관·표시만 한다(text는 로컬 규칙으로 검증).
 #[tauri::command]
 pub fn apply_shortcuts(
     app: AppHandle,
     toggle: String,
     board: String,
     clear: String,
+    text: String,
 ) -> Result<(), String> {
     let new_toggle = parse_valid(&toggle)?;
     let new_board = parse_valid(&board)?;
     let new_clear = parse_valid(&clear)?;
-    if new_toggle == new_board || new_toggle == new_clear || new_board == new_clear {
+    let new_text = parse_valid_local(&text)?;
+    let parsed = [new_toggle, new_board, new_clear, new_text];
+    let has_duplicate = parsed
+        .iter()
+        .enumerate()
+        .any(|(i, a)| parsed.iter().skip(i + 1).any(|b| a == b));
+    if has_duplicate {
         return Err("error:duplicate_shortcut".into());
     }
 
@@ -181,10 +189,11 @@ pub fn apply_shortcuts(
         s.toggle_accel = toggle;
         s.board_accel = board.clone();
         s.clear_accel = clear.clone();
+        s.text_accel = text.clone();
     }
     let _ = app.emit(
         "shortcuts-changed",
-        serde_json::json!({ "board": board, "clear": clear }),
+        serde_json::json!({ "board": board, "clear": clear, "text": text }),
     );
     crate::tray::sync(&app);
     Ok(())
@@ -224,6 +233,7 @@ pub fn load_from_settings(
     toggle: Option<String>,
     board: Option<String>,
     clear: Option<String>,
+    text: Option<String>,
 ) {
     let state = app.state::<SharedState>();
     let mut s = state.lock().unwrap();
@@ -235,6 +245,9 @@ pub fn load_from_settings(
     }
     if let Some(value) = clear {
         s.clear_accel = value;
+    }
+    if let Some(value) = text {
+        s.text_accel = value;
     }
 }
 
@@ -248,9 +261,14 @@ mod tests {
         parse_valid(&accelerator).map(|_| ())
     }
 
-    fn ipc_request(accelerator: &str) -> InvokeRequest {
+    #[tauri::command]
+    fn validate_local_shortcut_command(accelerator: String) -> Result<(), String> {
+        parse_valid_local(&accelerator).map(|_| ())
+    }
+
+    fn ipc_request_for(cmd: &str, accelerator: &str) -> InvokeRequest {
         InvokeRequest {
-            cmd: "validate_shortcut_command".into(),
+            cmd: cmd.into(),
             callback: tauri::ipc::CallbackFn(0),
             error: tauri::ipc::CallbackFn(1),
             url: "tauri://localhost".parse().unwrap(),
@@ -262,10 +280,17 @@ mod tests {
         }
     }
 
+    fn ipc_request(accelerator: &str) -> InvokeRequest {
+        ipc_request_for("validate_shortcut_command", accelerator)
+    }
+
     #[test]
     fn mock_runtime_exercises_shortcut_policy_through_tauri_ipc() {
         let app = tauri::test::mock_builder()
-            .invoke_handler(tauri::generate_handler![validate_shortcut_command])
+            .invoke_handler(tauri::generate_handler![
+                validate_shortcut_command,
+                validate_local_shortcut_command
+            ])
             .build(tauri::test::mock_context(tauri::test::noop_assets()))
             .unwrap();
         let webview = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
@@ -277,6 +302,17 @@ mod tests {
             &webview,
             ipc_request("Cmd+KeyZ"),
             Err("error:reserved_undo"),
+        );
+        // 로컬(텍스트) 규칙: 단독 키 허용, 예약 키는 여전히 거부
+        tauri::test::assert_ipc_response(
+            &webview,
+            ipc_request_for("validate_local_shortcut_command", DEFAULT_TEXT),
+            Ok(()),
+        );
+        tauri::test::assert_ipc_response(
+            &webview,
+            ipc_request_for("validate_local_shortcut_command", "Escape"),
+            Err("error:reserved_escape"),
         );
     }
 }
