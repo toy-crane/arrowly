@@ -9,6 +9,11 @@ export function toggleBoard(): Promise<void> {
   return invoke("toggle_board");
 }
 
+/** 텍스트 편집 세션과 Rust 전역 Esc의 1차 동작을 동기화한다 (overlay.rs). */
+export function setTextEditing(editing: boolean): Promise<void> {
+  return invoke("set_text_editing", { editing });
+}
+
 /** 레코딩·온보딩 체험 동안 상시 전역 키 해제 (shortcuts.rs) */
 export function suspendShortcuts(): Promise<void> {
   return invoke("suspend_shortcuts");

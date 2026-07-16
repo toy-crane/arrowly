@@ -8,7 +8,7 @@ use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
 use crate::hotkey::escape_shortcut;
 use crate::shortcut_policy::{parse_valid, parse_valid_local};
-use crate::state::SharedState;
+use crate::state::{EscapeAction, SharedState};
 
 fn current_toggle(app: &AppHandle) -> Option<Shortcut> {
     let accel = app
@@ -52,7 +52,15 @@ pub fn init() -> TauriPlugin<Wry> {
                     } else if boarded {
                         crate::overlay::activate_or_toggle_board(&app);
                     } else {
-                        crate::overlay::set_drawing(&app, false);
+                        let action = app.state::<SharedState>().lock().unwrap().escape_action();
+                        match action {
+                            EscapeAction::FinishTextEditing => {
+                                let _ = app.emit(crate::events::FINISH_TEXT_EDITING, ());
+                            }
+                            EscapeAction::ExitDrawing => {
+                                crate::overlay::set_drawing(&app, false);
+                            }
+                        }
                     }
                 });
             });
@@ -296,7 +304,10 @@ mod tests {
         // 로컬(텍스트) 규칙: 단독 키 허용, 예약 키는 여전히 거부
         tauri::test::assert_ipc_response(
             &webview,
-            ipc_request_for("validate_local_shortcut_command", crate::shortcut_policy::DEFAULT_TEXT),
+            ipc_request_for(
+                "validate_local_shortcut_command",
+                crate::shortcut_policy::DEFAULT_TEXT,
+            ),
             Ok(()),
         );
         tauri::test::assert_ipc_response(

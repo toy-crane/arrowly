@@ -88,7 +88,7 @@ fn enter_drawing(app: &AppHandle) -> bool {
                 let _ = win.set_position(*m.position());
                 let _ = win.set_size(*m.size());
                 if monitor_changed {
-                    let _ = app.emit(crate::events::CLEAR_ALL, ());
+                    clear_all(app);
                 }
             }
         }
@@ -141,6 +141,9 @@ pub fn set_drawing(app: &AppHandle, drawing: bool) {
         let state = app.state::<SharedState>();
         let mut s = state.lock().unwrap();
         s.drawing = drawing;
+        if !drawing {
+            s.text_editing = false;
+        }
         s.board
     };
     // board 동봉 — 웹뷰가 리로드돼도 다음 모드 전환에서 보드 상태가 재동기화된다
@@ -164,7 +167,10 @@ pub fn set_board(app: &AppHandle, on: bool) {
         }
         s.board = on;
     }
-    let _ = app.emit(crate::events::BOARD_CHANGED, serde_json::json!({ "on": on }));
+    let _ = app.emit(
+        crate::events::BOARD_CHANGED,
+        serde_json::json!({ "on": on }),
+    );
 
     // 통과 모드에서 켜면 그리기 모드로 함께 진입한다. 진입이 거부되면(Esc 등록 실패)
     // 보드를 되돌려 트레이 체크가 유령으로 남지 않게 한다.
@@ -172,7 +178,10 @@ pub fn set_board(app: &AppHandle, on: bool) {
         set_drawing(app, true);
         if !app.state::<SharedState>().lock().unwrap().drawing {
             app.state::<SharedState>().lock().unwrap().board = false;
-            let _ = app.emit(crate::events::BOARD_CHANGED, serde_json::json!({ "on": false }));
+            let _ = app.emit(
+                crate::events::BOARD_CHANGED,
+                serde_json::json!({ "on": false }),
+            );
         }
     }
 }
@@ -182,6 +191,23 @@ pub fn set_board(app: &AppHandle, on: bool) {
 pub fn toggle_board(app: AppHandle) {
     let on = app.state::<SharedState>().lock().unwrap().board;
     set_board(&app, !on);
+}
+
+/// 웹뷰 텍스트 편집 세션과 Rust 전역 Esc 상태를 동기화한다.
+#[tauri::command]
+pub fn set_text_editing(state: tauri::State<'_, SharedState>, editing: bool) -> Result<(), String> {
+    let mut s = state.lock().unwrap();
+    if editing && !s.drawing {
+        return Err("error:not_drawing".into());
+    }
+    s.text_editing = editing;
+    Ok(())
+}
+
+/// 전체 지우기 이벤트 전에 편집 상태를 내려 첫 Esc가 유령 세션에 소비되지 않게 한다.
+pub fn clear_all(app: &AppHandle) {
+    app.state::<SharedState>().lock().unwrap().text_editing = false;
+    let _ = app.emit(crate::events::CLEAR_ALL, ());
 }
 
 /// 트레이 "텍스트 입력" 경로. 통과 모드면 그리기에 먼저 진입하고,
@@ -279,4 +305,41 @@ pub fn open_settings(app: &AppHandle) {
 pub fn toggle(app: &AppHandle) {
     let drawing = app.state::<SharedState>().lock().unwrap().drawing;
     set_drawing(app, !drawing);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tauri::webview::InvokeRequest;
+
+    fn request(editing: bool) -> InvokeRequest {
+        InvokeRequest {
+            cmd: "set_text_editing".into(),
+            callback: tauri::ipc::CallbackFn(0),
+            error: tauri::ipc::CallbackFn(1),
+            url: "tauri://localhost".parse().unwrap(),
+            body: tauri::ipc::InvokeBody::Json(serde_json::json!({ "editing": editing })),
+            headers: Default::default(),
+            invoke_key: tauri::test::INVOKE_KEY.to_string(),
+        }
+    }
+
+    #[test]
+    fn text_editing_ipc_requires_drawing_and_updates_shared_state() {
+        let app = tauri::test::mock_builder()
+            .manage(SharedState::default())
+            .invoke_handler(tauri::generate_handler![set_text_editing])
+            .build(tauri::test::mock_context(tauri::test::noop_assets()))
+            .unwrap();
+        let webview = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+
+        tauri::test::assert_ipc_response(&webview, request(true), Err("error:not_drawing"));
+        app.state::<SharedState>().lock().unwrap().drawing = true;
+        tauri::test::assert_ipc_response(&webview, request(true), Ok(()));
+        assert!(app.state::<SharedState>().lock().unwrap().text_editing);
+        tauri::test::assert_ipc_response(&webview, request(false), Ok(()));
+        assert!(!app.state::<SharedState>().lock().unwrap().text_editing);
+    }
 }

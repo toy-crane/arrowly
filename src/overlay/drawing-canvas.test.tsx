@@ -8,6 +8,12 @@ import { DrawingCanvas } from "./drawing-canvas";
 
 let contexts: CanvasRenderingContext2D[];
 
+async function flushTextEditingStart() {
+  await act(async () => {
+    await Promise.resolve();
+  });
+}
+
 const baseProps = {
   color: "#FF2D95",
   widthKey: "medium" as const,
@@ -138,13 +144,14 @@ describe("DrawingCanvas", () => {
     expect(onChange).toHaveBeenCalledTimes(2);
   });
 
-  it("places the editor on click in text mode instead of drawing, then commits one text mark", () => {
+  it("places the editor on click in text mode instead of drawing, then commits one text mark", async () => {
     const onChange = vi.fn();
     const { container } = render(<Harness initialTextMode onChange={onChange} />);
     const [baseCtx, liveCtx] = contexts;
     const live = container.querySelectorAll("canvas")[1];
 
     fireEvent.pointerDown(live, { button: 0, clientX: 120, clientY: 90, pointerId: 1 });
+    await flushTextEditingStart();
     const input = screen.getByRole("textbox") as HTMLInputElement;
     expect(liveCtx.stroke).not.toHaveBeenCalled(); // 텍스트 모드 클릭은 획을 시작하지 않는다
 
@@ -165,6 +172,7 @@ describe("DrawingCanvas", () => {
     const [baseCtx] = contexts;
     const live = container.querySelectorAll("canvas")[1];
     fireEvent.pointerDown(live, { button: 0, clientX: 10, clientY: 10, pointerId: 1 });
+    await flushTextEditingStart();
     const input = screen.getByRole("textbox");
     fireEvent.change(input, { target: { value: "폐기될 초안" } });
 
@@ -174,6 +182,38 @@ describe("DrawingCanvas", () => {
     });
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
     expect(baseCtx.fillText).not.toHaveBeenCalled();
+  });
+
+  it("commits the current text when Rust emits the first-Escape finish event", async () => {
+    const onChange = vi.fn();
+    const { container } = render(<Harness initialTextMode onChange={onChange} />);
+    const [baseCtx] = contexts;
+    const live = container.querySelectorAll("canvas")[1];
+    fireEvent.pointerDown(live, { button: 0, clientX: 30, clientY: 40, pointerId: 1 });
+    await flushTextEditingStart();
+    fireEvent.change(screen.getByRole("textbox"), { target: { value: "Esc 확정" } });
+
+    await act(async () => {
+      await emit("finish-text-editing");
+    });
+
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    expect(onChange).toHaveBeenLastCalledWith(false);
+    expect(baseCtx.fillText).toHaveBeenCalledWith("Esc 확정", 30, 40);
+  });
+
+  it("does not open an editor when Rust rejects text editing outside drawing mode", async () => {
+    mockIPC((cmd) => {
+      if (cmd === "set_text_editing") throw new Error("error:not_drawing");
+    }, { shouldMockEvents: true });
+    const onChange = vi.fn();
+    const { container } = render(<Harness initialTextMode onChange={onChange} />);
+    const live = container.querySelectorAll("canvas")[1];
+    fireEvent.pointerDown(live, { button: 0, clientX: 30, clientY: 40, pointerId: 1 });
+    await flushTextEditingStart();
+
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    expect(onChange).toHaveBeenLastCalledWith(false);
   });
 
   it("cancels an in-progress stroke when the text key is pressed mid-drag", () => {
@@ -209,11 +249,12 @@ describe("DrawingCanvas", () => {
     expect(baseCtx.lineTo).not.toHaveBeenCalledWith(999, 999);
   });
 
-  it("absorbs window shortcuts while an editable element is focused", () => {
+  it("absorbs window shortcuts while an editable element is focused", async () => {
     const { container } = render(<Harness initialTextMode />);
     const [baseCtx] = contexts;
     const live = container.querySelectorAll("canvas")[1];
     fireEvent.pointerDown(live, { button: 0, clientX: 10, clientY: 10, pointerId: 1 });
+    await flushTextEditingStart();
     const editor = screen.getByRole("textbox");
 
     // TextEditor 밖의 편집 요소에서도 가드가 동작해야 한다 (1차 방어 자체 검증)
@@ -240,7 +281,7 @@ describe("DrawingCanvas", () => {
       vi.useRealTimers();
     });
 
-    it("retracts the first click's dot and opens the editor", () => {
+    it("retracts the first click's dot and opens the editor", async () => {
       const onChange = vi.fn();
       const { container } = render(<Harness onChange={onChange} />);
       const [baseCtx] = contexts;
@@ -254,6 +295,7 @@ describe("DrawingCanvas", () => {
       vi.advanceTimersByTime(100);
       fireEvent.pointerDown(live, { button: 0, clientX: 52, clientY: 51, pointerId: 2 });
       fireEvent.pointerUp(live, { clientX: 52, clientY: 51, pointerId: 2 });
+      await flushTextEditingStart();
 
       expect(screen.getByRole("textbox")).toBeInTheDocument();
       expect(onChange).toHaveBeenLastCalledWith(true);
@@ -309,15 +351,16 @@ describe("DrawingCanvas", () => {
       vi.useRealTimers();
     });
 
-    function createText(live: Element, x: number, y: number, value: string, pointerId: number) {
+    async function createText(live: Element, x: number, y: number, value: string, pointerId: number) {
       fireEvent.keyDown(window, { code: "KeyT" });
       fireEvent.pointerDown(live, { button: 0, clientX: x, clientY: y, pointerId });
+      await flushTextEditingStart();
       const input = screen.getByRole("textbox");
       fireEvent.change(input, { target: { value } });
       fireEvent.keyDown(input, { key: "Enter" });
     }
 
-    it("reopens existing text, edits content and size as one undoable change", () => {
+    it("reopens existing text, edits content and size as one undoable change", async () => {
       const onNewTextSizeCommit = vi.fn();
       const onEditingSize = vi.fn();
       const { container } = render(
@@ -328,7 +371,7 @@ describe("DrawingCanvas", () => {
       );
       const [baseCtx] = contexts;
       const live = container.querySelectorAll("canvas")[1];
-      createText(live, 100, 100, "원본", 1);
+      await createText(live, 100, 100, "원본", 1);
       expect(onNewTextSizeCommit).toHaveBeenCalledWith("medium");
 
       fireEvent.pointerDown(live, { button: 0, clientX: 100, clientY: 100, pointerId: 2 });
@@ -336,6 +379,7 @@ describe("DrawingCanvas", () => {
       vi.advanceTimersByTime(100);
       fireEvent.pointerDown(live, { button: 0, clientX: 101, clientY: 100, pointerId: 3 });
       fireEvent.pointerUp(live, { clientX: 101, clientY: 100, pointerId: 3 });
+      await flushTextEditingStart();
 
       const input = screen.getByRole("textbox") as HTMLInputElement;
       expect(input.value).toBe("원본");
@@ -352,14 +396,15 @@ describe("DrawingCanvas", () => {
       expect(baseCtx.fillText).toHaveBeenLastCalledWith("수정", 100, 100);
     });
 
-    it("deletes empty existing text and restores it with undo", () => {
+    it("deletes empty existing text and restores it with undo", async () => {
       const { container } = render(<Harness />);
       const [baseCtx] = contexts;
       const live = container.querySelectorAll("canvas")[1];
-      createText(live, 80, 70, "삭제 대상", 1);
+      await createText(live, 80, 70, "삭제 대상", 1);
 
       fireEvent.keyDown(window, { code: "KeyT" });
       fireEvent.pointerDown(live, { button: 0, clientX: 80, clientY: 70, pointerId: 2 });
+      await flushTextEditingStart();
       const input = screen.getByRole("textbox");
       fireEvent.change(input, { target: { value: "   " } });
       fireEvent.keyDown(input, { key: "Enter" });
@@ -370,15 +415,16 @@ describe("DrawingCanvas", () => {
       expect(baseCtx.fillText).toHaveBeenLastCalledWith("삭제 대상", 80, 70);
     });
 
-    it("commits A then immediately opens B on a double-click without drawing a dot", () => {
+    it("commits A then immediately opens B on a double-click without drawing a dot", async () => {
       const { container } = render(<Harness />);
       const [baseCtx] = contexts;
       const live = container.querySelectorAll("canvas")[1];
-      createText(live, 100, 100, "A", 1);
-      createText(live, 200, 100, "B", 2);
+      await createText(live, 100, 100, "A", 1);
+      await createText(live, 200, 100, "B", 2);
 
       fireEvent.keyDown(window, { code: "KeyT" });
       fireEvent.pointerDown(live, { button: 0, clientX: 100, clientY: 100, pointerId: 3 });
+      await flushTextEditingStart();
       const editorA = screen.getByRole("textbox");
       fireEvent.change(editorA, { target: { value: "A 수정" } });
 
@@ -388,6 +434,7 @@ describe("DrawingCanvas", () => {
       vi.advanceTimersByTime(100);
       fireEvent.pointerDown(live, { button: 0, clientX: 201, clientY: 100, pointerId: 5 });
       fireEvent.pointerUp(live, { clientX: 201, clientY: 100, pointerId: 5 });
+      await flushTextEditingStart();
 
       expect(baseCtx.stroke).toHaveBeenCalledTimes(strokesBefore);
       expect(baseCtx.fillText).toHaveBeenCalledWith("A 수정", 100, 100);
@@ -506,11 +553,12 @@ describe("DrawingCanvas", () => {
     });
   });
 
-  it("commits text at the size shown while typing even if the window resized mid-edit", () => {
+  it("commits text at the size shown while typing even if the window resized mid-edit", async () => {
     const { container } = render(<Harness initialTextMode />);
     const [baseCtx] = contexts;
     const live = container.querySelectorAll("canvas")[1];
     fireEvent.pointerDown(live, { button: 0, clientX: 10, clientY: 10, pointerId: 1 });
+    await flushTextEditingStart();
     const input = screen.getByRole("textbox");
     fireEvent.change(input, { target: { value: "크기 고정" } });
 
@@ -524,11 +572,12 @@ describe("DrawingCanvas", () => {
     expect(String(baseCtx.font)).toContain("30px");
   });
 
-  it("absorbs shortcuts via editingRef even when the event target is not an editable element", () => {
+  it("absorbs shortcuts via editingRef even when the event target is not an editable element", async () => {
     const { container } = render(<Harness initialTextMode />);
     const [baseCtx] = contexts;
     const live = container.querySelectorAll("canvas")[1];
     fireEvent.pointerDown(live, { button: 0, clientX: 10, clientY: 10, pointerId: 1 });
+    await flushTextEditingStart();
     screen.getByRole("textbox");
 
     const clears = (baseCtx.clearRect as Mock).mock.calls.length;
@@ -539,11 +588,12 @@ describe("DrawingCanvas", () => {
     expect(screen.getByRole("textbox")).toBeInTheDocument();
   });
 
-  it("commits the editing session when text mode turns off", () => {
+  it("commits the editing session when text mode turns off", async () => {
     const { container } = render(<Harness initialTextMode />);
     const [baseCtx] = contexts;
     const live = container.querySelectorAll("canvas")[1];
     fireEvent.pointerDown(live, { button: 0, clientX: 10, clientY: 10, pointerId: 1 });
+    await flushTextEditingStart();
     const input = screen.getByRole("textbox");
     fireEvent.change(input, { target: { value: "확정될 초안" } });
 

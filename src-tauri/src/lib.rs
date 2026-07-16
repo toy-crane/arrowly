@@ -28,6 +28,7 @@ pub fn run() {
             shortcuts::suspend_shortcuts,
             shortcuts::resume_shortcuts,
             overlay::toggle_board,
+            overlay::set_text_editing,
         ])
         .on_window_event(|window, event| {
             // 유틸 창(온보딩·설정)이 닫히면 Dock 표시를 원상 복구
