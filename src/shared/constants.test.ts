@@ -2,13 +2,14 @@ import { describe, expect, it } from "vitest";
 import {
   COLORS,
   DEFAULT_COLOR,
+  DEFAULT_TEXT_SIZE,
   DEFAULT_WIDTH,
   MIN_STROKE_PX,
-  MIN_TEXT_PX,
+  stepTextSize,
   strokeWidthPx,
-  TEXT_SIZE_FACTOR,
+  TEXT_SIZE_KEYS,
+  TEXT_SIZES,
   textSizePx,
-  WidthKey,
   WIDTHS,
 } from "./constants";
 
@@ -26,19 +27,18 @@ describe("drawing constants", () => {
     expect(strokeWidthPx("xthick", 2000)).toBe(22);
   });
 
-  it("derives text size from the five width steps with a readable floor", () => {
-    // 굵기 5단계 × TEXT_SIZE_FACTOR, 최소 MIN_TEXT_PX — 1080px 짧은 변 기준 테이블
-    const expected: Record<WidthKey, number> = {
-      xthin: Math.max(MIN_TEXT_PX, 1080 * 0.0025 * TEXT_SIZE_FACTOR),
-      thin: 1080 * 0.004 * TEXT_SIZE_FACTOR,
-      medium: 1080 * 0.0055 * TEXT_SIZE_FACTOR,
-      thick: 1080 * 0.0075 * TEXT_SIZE_FACTOR,
-      xthick: 1080 * 0.011 * TEXT_SIZE_FACTOR,
-    };
-    for (const key of Object.keys(WIDTHS) as WidthKey[]) {
-      expect(textSizePx(key, 1080)).toBeCloseTo(expected[key]);
-    }
-    // 아주 작은 화면에서도 강의 판서로 읽히는 최소 크기를 지킨다
-    expect(textSizePx("xthin", 100)).toBe(MIN_TEXT_PX);
+  it("keeps text size independent as five fixed pixel steps", () => {
+    expect(TEXT_SIZES).toEqual({ xsmall: 16, small: 22, medium: 30, large: 40, xlarge: 54 });
+    expect(TEXT_SIZE_KEYS).toEqual(["xsmall", "small", "medium", "large", "xlarge"]);
+    expect(DEFAULT_TEXT_SIZE).toBe("medium");
+    expect(textSizePx("xsmall")).toBe(16);
+    expect(textSizePx("xlarge")).toBe(54);
+  });
+
+  it("steps text size and clamps silently at both ends", () => {
+    expect(stepTextSize("medium", -1)).toBe("small");
+    expect(stepTextSize("medium", 1)).toBe("large");
+    expect(stepTextSize("xsmall", -1)).toBe("xsmall");
+    expect(stepTextSize("xlarge", 1)).toBe("xlarge");
   });
 });
