@@ -59,6 +59,8 @@ const CODE_SYMBOL: Record<string, string> = {
   Enter: "↩",
   Space: "␣",
   Escape: "Esc", // ⎋ 기호는 인지도가 낮아 글자로 표기 (⇥·⌫ 등은 기호 유지)
+  Equal: "+",
+  Minus: "−",
   ArrowUp: "↑",
   ArrowDown: "↓",
   ArrowLeft: "←",

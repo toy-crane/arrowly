@@ -5,6 +5,8 @@ import { acceleratorSymbols, ShortcutEditor, styles as ed } from "../shared/shor
 // 재설정 불가 — OS 표준·예약 키라 참고용으로 보여준다
 const FIXED_ROWS: { label: string; accel: string }[] = [
   { label: t("settings.undo"), accel: "Cmd+KeyZ" },
+  { label: t("settings.textLarger"), accel: "Cmd+Equal" },
+  { label: t("settings.textSmaller"), accel: "Cmd+Minus" },
   { label: t("settings.exit"), accel: "Escape" },
 ];
 

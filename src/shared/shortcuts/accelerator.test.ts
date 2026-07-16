@@ -32,6 +32,8 @@ describe("accelerator", () => {
     expect(acceleratorSymbols("KeyA")).toEqual(["A"]);
     expect(acceleratorSymbols("Digit7")).toEqual(["7"]);
     expect(acceleratorSymbols("Escape")).toEqual(["Esc"]);
+    expect(acceleratorSymbols("Cmd+Equal")).toEqual(["⌘", "+"]);
+    expect(acceleratorSymbols("Cmd+Minus")).toEqual(["⌘", "−"]);
     expect(acceleratorSymbols("Delete")).toEqual(["⌦"]);
     expect(acceleratorSymbols("Enter")).toEqual(["↩"]);
     expect(acceleratorSymbols("Space")).toEqual(["␣"]);
