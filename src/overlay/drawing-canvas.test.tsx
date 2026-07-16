@@ -17,7 +17,17 @@ const baseProps = {
 };
 
 /** 부모(OverlayApp)의 textMode 소유를 흉내 내는 하네스. */
-function Harness({ initialTextMode = false, onChange = vi.fn() as Mock }) {
+function Harness({
+  initialTextMode = false,
+  onChange = vi.fn() as Mock,
+  onEditingSize = vi.fn(),
+  onNewTextSizeCommit = vi.fn(),
+}: {
+  initialTextMode?: boolean;
+  onChange?: Mock;
+  onEditingSize?: (size: "xsmall" | "small" | "medium" | "large" | "xlarge" | null) => void;
+  onNewTextSizeCommit?: (size: "xsmall" | "small" | "medium" | "large" | "xlarge") => void;
+}) {
   const [textMode, setTextMode] = useState(initialTextMode);
   return (
     <>
@@ -25,6 +35,8 @@ function Harness({ initialTextMode = false, onChange = vi.fn() as Mock }) {
       <DrawingCanvas
         {...baseProps}
         textMode={textMode}
+        onEditingTextSizeChange={onEditingSize}
+        onNewTextSizeCommit={onNewTextSizeCommit}
         onTextModeChange={(on) => {
           onChange(on);
           setTextMode(on);
@@ -289,6 +301,100 @@ describe("DrawingCanvas", () => {
     });
   });
 
+  describe("text re-editing", () => {
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "Date"] });
+    });
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    function createText(live: Element, x: number, y: number, value: string, pointerId: number) {
+      fireEvent.keyDown(window, { code: "KeyT" });
+      fireEvent.pointerDown(live, { button: 0, clientX: x, clientY: y, pointerId });
+      const input = screen.getByRole("textbox");
+      fireEvent.change(input, { target: { value } });
+      fireEvent.keyDown(input, { key: "Enter" });
+    }
+
+    it("reopens existing text, edits content and size as one undoable change", () => {
+      const onNewTextSizeCommit = vi.fn();
+      const onEditingSize = vi.fn();
+      const { container } = render(
+        <Harness
+          onEditingSize={onEditingSize}
+          onNewTextSizeCommit={onNewTextSizeCommit}
+        />,
+      );
+      const [baseCtx] = contexts;
+      const live = container.querySelectorAll("canvas")[1];
+      createText(live, 100, 100, "원본", 1);
+      expect(onNewTextSizeCommit).toHaveBeenCalledWith("medium");
+
+      fireEvent.pointerDown(live, { button: 0, clientX: 100, clientY: 100, pointerId: 2 });
+      fireEvent.pointerUp(live, { clientX: 100, clientY: 100, pointerId: 2 });
+      vi.advanceTimersByTime(100);
+      fireEvent.pointerDown(live, { button: 0, clientX: 101, clientY: 100, pointerId: 3 });
+      fireEvent.pointerUp(live, { clientX: 101, clientY: 100, pointerId: 3 });
+
+      const input = screen.getByRole("textbox") as HTMLInputElement;
+      expect(input.value).toBe("원본");
+      fireEvent.change(input, { target: { value: "수정" } });
+      fireEvent.keyDown(input, { code: "Equal", metaKey: true });
+      expect(input).toHaveAttribute("data-text-size-px", "40");
+      fireEvent.keyDown(input, { key: "Enter" });
+      expect(onNewTextSizeCommit).toHaveBeenCalledTimes(1);
+      expect(baseCtx.fillText).toHaveBeenLastCalledWith("수정", 100, 100);
+
+      fireEvent.keyDown(window, { code: "KeyZ", metaKey: true });
+      expect(baseCtx.fillText).toHaveBeenLastCalledWith("원본", 100, 100);
+      fireEvent.keyDown(window, { code: "KeyZ", metaKey: true, shiftKey: true });
+      expect(baseCtx.fillText).toHaveBeenLastCalledWith("수정", 100, 100);
+    });
+
+    it("deletes empty existing text and restores it with undo", () => {
+      const { container } = render(<Harness />);
+      const [baseCtx] = contexts;
+      const live = container.querySelectorAll("canvas")[1];
+      createText(live, 80, 70, "삭제 대상", 1);
+
+      fireEvent.keyDown(window, { code: "KeyT" });
+      fireEvent.pointerDown(live, { button: 0, clientX: 80, clientY: 70, pointerId: 2 });
+      const input = screen.getByRole("textbox");
+      fireEvent.change(input, { target: { value: "   " } });
+      fireEvent.keyDown(input, { key: "Enter" });
+      const callsAfterDelete = (baseCtx.fillText as Mock).mock.calls.length;
+
+      fireEvent.keyDown(window, { code: "KeyZ", metaKey: true });
+      expect((baseCtx.fillText as Mock).mock.calls.length).toBe(callsAfterDelete + 1);
+      expect(baseCtx.fillText).toHaveBeenLastCalledWith("삭제 대상", 80, 70);
+    });
+
+    it("commits A then immediately opens B on a double-click without drawing a dot", () => {
+      const { container } = render(<Harness />);
+      const [baseCtx] = contexts;
+      const live = container.querySelectorAll("canvas")[1];
+      createText(live, 100, 100, "A", 1);
+      createText(live, 200, 100, "B", 2);
+
+      fireEvent.keyDown(window, { code: "KeyT" });
+      fireEvent.pointerDown(live, { button: 0, clientX: 100, clientY: 100, pointerId: 3 });
+      const editorA = screen.getByRole("textbox");
+      fireEvent.change(editorA, { target: { value: "A 수정" } });
+
+      const strokesBefore = (baseCtx.stroke as Mock).mock.calls.length;
+      fireEvent.pointerDown(live, { button: 0, clientX: 200, clientY: 100, pointerId: 4 });
+      fireEvent.pointerUp(live, { clientX: 200, clientY: 100, pointerId: 4 });
+      vi.advanceTimersByTime(100);
+      fireEvent.pointerDown(live, { button: 0, clientX: 201, clientY: 100, pointerId: 5 });
+      fireEvent.pointerUp(live, { clientX: 201, clientY: 100, pointerId: 5 });
+
+      expect(baseCtx.stroke).toHaveBeenCalledTimes(strokesBefore);
+      expect(baseCtx.fillText).toHaveBeenCalledWith("A 수정", 100, 100);
+      expect((screen.getByRole("textbox") as HTMLInputElement).value).toBe("B");
+    });
+  });
+
   describe("hold-to-snap", () => {
     beforeEach(() => {
       vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "Date"] });
@@ -433,16 +539,16 @@ describe("DrawingCanvas", () => {
     expect(screen.getByRole("textbox")).toBeInTheDocument();
   });
 
-  it("discards the editing session when text mode turns off without committing", () => {
+  it("commits the editing session when text mode turns off", () => {
     const { container } = render(<Harness initialTextMode />);
     const [baseCtx] = contexts;
     const live = container.querySelectorAll("canvas")[1];
     fireEvent.pointerDown(live, { button: 0, clientX: 10, clientY: 10, pointerId: 1 });
     const input = screen.getByRole("textbox");
-    fireEvent.change(input, { target: { value: "폐기될 초안" } });
+    fireEvent.change(input, { target: { value: "확정될 초안" } });
 
-    fireEvent.click(screen.getByTestId("force-off")); // Esc → mode-changed와 같은 경로 (부모가 끔)
+    fireEvent.click(screen.getByTestId("force-off"));
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
-    expect(baseCtx.fillText).not.toHaveBeenCalled();
+    expect(baseCtx.fillText).toHaveBeenCalledWith("확정될 초안", 10, 10);
   });
 });
