@@ -8,6 +8,9 @@ pub const SETTINGS_FILE: &str = "settings.json";
 pub const KEY_SHORTCUTS: &str = "shortcuts";
 pub const KEY_MARKER_HIDDEN: &str = "markerHidden";
 pub const KEY_ONBOARDING_DONE: &str = "onboardingDone";
+// 웹뷰가 소유하는 도구 기본값이지만 settings.json 스키마 lockstep을 위해 Rust에도 선언한다.
+#[allow(dead_code)]
+pub const KEY_TEXT_SIZE: &str = "textSize";
 
 /// settings.json의 shortcuts 객체 (없는 필드는 None — 기본값 해석은 호출자 몫).
 pub struct StoredShortcuts {

@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   loadShortcuts: vi.fn(),
   loadTool: vi.fn(),
   saveColor: vi.fn(),
+  saveTextSize: vi.fn(),
   saveWidth: vi.fn(),
   applyPenCursor: vi.fn(),
   applyTextCursor: vi.fn(),
@@ -21,6 +22,7 @@ vi.mock("../shared/settings", async (importOriginal) => {
     loadShortcuts: mocks.loadShortcuts,
     loadTool: mocks.loadTool,
     saveColor: mocks.saveColor,
+    saveTextSize: mocks.saveTextSize,
     saveWidth: mocks.saveWidth,
   };
 });
@@ -35,14 +37,21 @@ vi.mock("./drawing-canvas", () => ({
     clearAccel,
     textAccel,
     textMode,
+    textSizeKey,
     onTextModeChange,
   }: {
     clearAccel: string;
     textAccel: string;
     textMode: boolean;
+    textSizeKey: string;
     onTextModeChange: (on: boolean) => void;
   }) => (
-    <div data-testid="canvas" data-textmode={String(textMode)} data-textaccel={textAccel}>
+    <div
+      data-testid="canvas"
+      data-textmode={String(textMode)}
+      data-textaccel={textAccel}
+      data-textsize={textSizeKey}
+    >
       <button onClick={() => onTextModeChange(!textMode)}>text-toggle</button>
       {clearAccel}
     </div>
@@ -54,17 +63,20 @@ vi.mock("./marker", () => ({
     widthKey: string;
     board: boolean;
     textMode: boolean;
+    textSizeKey: string;
     onColorChange: (value: "#00AEEF") => void;
     onWidthChange: (value: "thick") => void;
+    onTextSizeChange: (value: "large") => void;
     onBoardToggle: () => void;
     onTextToggle: () => void;
   }) => (
     <div data-testid="marker" data-board={String(props.board)} data-textmode={String(props.textMode)}>
       <button onClick={() => props.onColorChange("#00AEEF")}>color</button>
       <button onClick={() => props.onWidthChange("thick")}>width</button>
+      <button onClick={() => props.onTextSizeChange("large")}>text-size</button>
       <button onClick={props.onBoardToggle}>board</button>
       <button onClick={props.onTextToggle}>marker-text</button>
-      <span>{props.color}:{props.widthKey}</span>
+      <span>{props.color}:{props.widthKey}:{props.textSizeKey}</span>
     </div>
   ),
 }));
@@ -75,8 +87,11 @@ describe("OverlayApp", () => {
   beforeEach(() => {
     commands.length = 0;
     mocks.loadShortcuts.mockReset().mockResolvedValue({ toggle: "Alt+Tab", board: "Shift+Alt+Tab", clear: "Control+KeyK", text: "KeyT" });
-    mocks.loadTool.mockReset().mockResolvedValue({ color: "#2ED573", width: "thin" });
+    mocks.loadTool
+      .mockReset()
+      .mockResolvedValue({ color: "#2ED573", width: "thin", textSize: "small" });
     mocks.saveColor.mockReset().mockResolvedValue(undefined);
+    mocks.saveTextSize.mockReset().mockResolvedValue(undefined);
     mocks.saveWidth.mockReset().mockResolvedValue(undefined);
     mocks.applyPenCursor.mockReset();
     mocks.applyTextCursor.mockReset();
@@ -100,9 +115,12 @@ describe("OverlayApp", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "color" }));
     fireEvent.click(screen.getByRole("button", { name: "width" }));
+    fireEvent.click(screen.getByRole("button", { name: "text-size" }));
     fireEvent.click(screen.getByRole("button", { name: "board" }));
     expect(mocks.saveColor).toHaveBeenCalledWith("#00AEEF");
     expect(mocks.saveWidth).toHaveBeenCalledWith("thick");
+    expect(mocks.saveTextSize).toHaveBeenCalledWith("large");
+    expect(screen.getByTestId("canvas")).toHaveAttribute("data-textsize", "large");
     expect(commands).toContain("toggle_board");
 
     await act(async () => {

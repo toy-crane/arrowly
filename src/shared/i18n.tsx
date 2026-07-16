@@ -39,6 +39,8 @@ const en = {
   "marker.widthValue": "Thickness {value}",
   "marker.toggleBoard": "Toggle blackboard",
   "marker.textMode": "Type text",
+  "marker.changeTextSize": "Change text size",
+  "marker.textSizeValue": "Text size {value}",
 } as const;
 
 export type Key = keyof typeof en;
@@ -81,6 +83,8 @@ const ko: Record<Key, string> = {
   "marker.widthValue": "굵기 {value}",
   "marker.toggleBoard": "블랙보드 토글",
   "marker.textMode": "텍스트 입력",
+  "marker.changeTextSize": "텍스트 크기 바꾸기",
+  "marker.textSizeValue": "텍스트 크기 {value}",
 };
 
 // 시스템 언어 자동 감지 — Rust 쪽(i18n.rs)과 같은 소스(macOS 선호 언어)·같은 규칙

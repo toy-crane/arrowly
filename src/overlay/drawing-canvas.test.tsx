@@ -11,6 +11,7 @@ let contexts: CanvasRenderingContext2D[];
 const baseProps = {
   color: "#FF2D95",
   widthKey: "medium" as const,
+  textSizeKey: "medium" as const,
   clearAccel: "Alt+Backspace",
   textAccel: "KeyT",
 };
@@ -413,8 +414,8 @@ describe("DrawingCanvas", () => {
 
     fireEvent.keyDown(input, { key: "Enter" });
     expect(baseCtx.fillText).toHaveBeenCalledOnce();
-    // 짧은 변 600 기준 16.5px — 리사이즈 후 재계산(22px)이 아니라 표시된 크기로 커밋된다
-    expect(String(baseCtx.font)).toContain("16.5px");
+    // 해상도와 무관한 medium 30px — 리사이즈 후에도 표시된 고정 크기로 커밋된다
+    expect(String(baseCtx.font)).toContain("30px");
   });
 
   it("absorbs shortcuts via editingRef even when the event target is not an editable element", () => {

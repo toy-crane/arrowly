@@ -1,5 +1,13 @@
 import { CSSProperties, useEffect, useState } from "react";
-import { Color, DEFAULT_COLOR, DEFAULT_WIDTH, strokeWidthPx, WidthKey } from "../shared/constants";
+import {
+  Color,
+  DEFAULT_COLOR,
+  DEFAULT_TEXT_SIZE,
+  DEFAULT_WIDTH,
+  strokeWidthPx,
+  TextSizeKey,
+  WidthKey,
+} from "../shared/constants";
 import {
   onBoardChanged,
   onEnterTextMode,
@@ -8,7 +16,14 @@ import {
   onShortcutsChanged,
   toggleBoard,
 } from "../shared/ipc";
-import { DEFAULT_SHORTCUTS, loadShortcuts, loadTool, saveColor, saveWidth } from "../shared/settings";
+import {
+  DEFAULT_SHORTCUTS,
+  loadShortcuts,
+  loadTool,
+  saveColor,
+  saveTextSize,
+  saveWidth,
+} from "../shared/settings";
 import { applyPenCursor, applyTextCursor, resetCursor } from "./cursor";
 import { DrawingCanvas } from "./drawing-canvas";
 import { Marker } from "./marker";
@@ -19,6 +34,7 @@ export function OverlayApp() {
   const [markerHidden, setMarkerHidden] = useState(false);
   const [color, setColor] = useState<Color>(DEFAULT_COLOR);
   const [widthKey, setWidthKey] = useState<WidthKey>(DEFAULT_WIDTH);
+  const [textSizeKey, setTextSizeKey] = useState<TextSizeKey>(DEFAULT_TEXT_SIZE);
   const [clearAccel, setClearAccel] = useState(DEFAULT_SHORTCUTS.clear);
   const [textAccel, setTextAccel] = useState(DEFAULT_SHORTCUTS.text);
   const [textMode, setTextMode] = useState(false);
@@ -28,9 +44,10 @@ export function OverlayApp() {
       setClearAccel(s.clear);
       setTextAccel(s.text);
     });
-    loadTool().then(({ color, width }) => {
+    loadTool().then(({ color, width, textSize }) => {
       setColor(color);
       setWidthKey(width);
+      setTextSizeKey(textSize);
     });
     // mode-changed에 board가 동봉된다 — 웹뷰가 리로드돼도 모드 전환에서 보드 상태가 재동기화된다
     const unMode = onModeChanged((p) => {
@@ -74,6 +91,7 @@ export function OverlayApp() {
       <DrawingCanvas
         color={color}
         widthKey={widthKey}
+        textSizeKey={textSizeKey}
         clearAccel={clearAccel}
         textAccel={textAccel}
         textMode={textMode}
@@ -83,6 +101,7 @@ export function OverlayApp() {
         <Marker
           color={color}
           widthKey={widthKey}
+          textSizeKey={textSizeKey}
           board={board}
           textMode={textMode}
           onColorChange={(c) => {
@@ -92,6 +111,10 @@ export function OverlayApp() {
           onWidthChange={(w) => {
             setWidthKey(w);
             void saveWidth(w);
+          }}
+          onTextSizeChange={(size) => {
+            setTextSizeKey(size);
+            void saveTextSize(size);
           }}
           onBoardToggle={() => void toggleBoard()}
           onTextToggle={() => setTextMode((v) => !v)}

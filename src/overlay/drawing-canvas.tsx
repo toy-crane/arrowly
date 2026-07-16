@@ -15,6 +15,7 @@ import { TextEditor } from "./text-editor";
 type Props = {
   color: string;
   widthKey: WidthKey;
+  textSizeKey: TextSizeKey;
   clearAccel: string;
   textAccel: string;
   textMode: boolean;
@@ -31,7 +32,15 @@ function isEditableTarget(e: KeyboardEvent): boolean {
  * 캔버스 2장: base(확정 획) + live(진행 중 획).
  * live는 rAF당 1회만 clear&redraw, base는 획 확정 시 증분 렌더만 한다.
  */
-export function DrawingCanvas({ color, widthKey, clearAccel, textAccel, textMode, onTextModeChange }: Props) {
+export function DrawingCanvas({
+  color,
+  widthKey,
+  textSizeKey,
+  clearAccel,
+  textAccel,
+  textMode,
+  onTextModeChange,
+}: Props) {
   const baseRef = useRef<HTMLCanvasElement>(null);
   const liveRef = useRef<HTMLCanvasElement>(null);
   const storeRef = useRef<StrokeStore>(null!);
@@ -62,7 +71,7 @@ export function DrawingCanvas({ color, widthKey, clearAccel, textAccel, textMode
 
   // 편집 세션의 표시 크기 — 커밋도 이 값을 그대로 써서 표시와 커밋이 항상 일치한다
   // (resize는 리렌더를 일으키지 않으므로 커밋 시점 재계산은 편집 중 해상도 변경에서 어긋난다)
-  const editorSizeKey = DEFAULT_TEXT_SIZE;
+  const editorSizeKey = textSizeKey ?? DEFAULT_TEXT_SIZE;
   const editorSize = textSizePx(editorSizeKey);
 
   useEffect(() => {
