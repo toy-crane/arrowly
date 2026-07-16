@@ -1,6 +1,16 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createCanvasContext, installCanvasMock } from "../../../test/canvas";
-import { drawMark, fontString, Mark, measureTextWidth, StrokeStore, TEXT_FONT_FAMILY, TextMark } from "./strokes";
+import {
+  drawMark,
+  findTextMarkAt,
+  fontString,
+  Mark,
+  measureTextWidth,
+  StrokeStore,
+  textCaretOffsetAt,
+  TEXT_FONT_FAMILY,
+  TextMark,
+} from "./strokes";
 
 const textMark: TextMark = {
   kind: "text",
@@ -166,6 +176,30 @@ describe("measureTextWidth", () => {
     measureTextWidth("", 29);
     const emptyCtx = contexts[contexts.length - 1];
     expect(emptyCtx.measureText).toHaveBeenCalledWith(" ");
+  });
+});
+
+describe("text hit testing", () => {
+  it("finds the topmost text within the padded bounds", () => {
+    installCanvasMock();
+    const top = { ...textMark, text: "위" };
+    const marks: Mark[] = [textMark, rectMark, top];
+    expect(findTextMarkAt(marks, { x: 39, y: 59 })).toEqual({ index: 2, mark: top });
+    expect(findTextMarkAt(marks, { x: 20, y: 20 })).toBeNull();
+  });
+
+  it("returns a UTF-16 caret boundary nearest to the clicked grapheme", () => {
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(() => {
+      const context = createCanvasContext();
+      context.measureText = vi.fn((text: string) => ({
+        width: text.length * 10,
+      })) as unknown as typeof context.measureText;
+      return context;
+    });
+    const mark = { ...textMark, text: "A😀한" };
+    expect(textCaretOffsetAt(mark, mark.x)).toBe(0);
+    expect(textCaretOffsetAt(mark, mark.x + 28)).toBe(3);
+    expect(textCaretOffsetAt(mark, mark.x + 50)).toBe(4);
   });
 });
 

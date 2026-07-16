@@ -1,4 +1,4 @@
-import { CSSProperties, useEffect, useState } from "react";
+import { CSSProperties, useEffect, useRef, useState } from "react";
 import {
   Color,
   DEFAULT_COLOR,
@@ -25,7 +25,7 @@ import {
   saveWidth,
 } from "../shared/settings";
 import { applyPenCursor, applyTextCursor, resetCursor } from "./cursor";
-import { DrawingCanvas } from "./drawing-canvas";
+import { DrawingCanvas, type DrawingCanvasHandle } from "./drawing-canvas";
 import { Marker } from "./marker";
 
 export function OverlayApp() {
@@ -38,6 +38,8 @@ export function OverlayApp() {
   const [clearAccel, setClearAccel] = useState(DEFAULT_SHORTCUTS.clear);
   const [textAccel, setTextAccel] = useState(DEFAULT_SHORTCUTS.text);
   const [textMode, setTextMode] = useState(false);
+  const [editingTextSizeKey, setEditingTextSizeKey] = useState<TextSizeKey | null>(null);
+  const canvasRef = useRef<DrawingCanvasHandle>(null);
 
   useEffect(() => {
     loadShortcuts().then((s) => {
@@ -89,6 +91,7 @@ export function OverlayApp() {
     <>
       <div style={boardBackdrop(board)} />
       <DrawingCanvas
+        ref={canvasRef}
         color={color}
         widthKey={widthKey}
         textSizeKey={textSizeKey}
@@ -96,12 +99,17 @@ export function OverlayApp() {
         textAccel={textAccel}
         textMode={textMode}
         onTextModeChange={setTextMode}
+        onEditingTextSizeChange={setEditingTextSizeKey}
+        onNewTextSizeCommit={(size) => {
+          setTextSizeKey(size);
+          void saveTextSize(size);
+        }}
       />
       {drawing && !markerHidden && (
         <Marker
           color={color}
           widthKey={widthKey}
-          textSizeKey={textSizeKey}
+          textSizeKey={editingTextSizeKey ?? textSizeKey}
           board={board}
           textMode={textMode}
           onColorChange={(c) => {
@@ -113,11 +121,21 @@ export function OverlayApp() {
             void saveWidth(w);
           }}
           onTextSizeChange={(size) => {
-            setTextSizeKey(size);
-            void saveTextSize(size);
+            if (canvasRef.current?.isEditing()) {
+              canvasRef.current.setTextSize(size);
+            } else {
+              setTextSizeKey(size);
+              void saveTextSize(size);
+            }
           }}
           onBoardToggle={() => void toggleBoard()}
-          onTextToggle={() => setTextMode((v) => !v)}
+          onTextToggle={() => {
+            if (canvasRef.current?.isEditing()) {
+              canvasRef.current.finishTextEditing();
+            } else {
+              setTextMode((v) => !v);
+            }
+          }}
         />
       )}
     </>

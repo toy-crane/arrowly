@@ -1,12 +1,26 @@
-import { CSSProperties, useEffect, useRef, useState } from "react";
 import {
-  DEFAULT_TEXT_SIZE,
+  CSSProperties,
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from "react";
+import {
+  stepTextSize,
   strokeWidthPx,
-  textSizePx,
   TextSizeKey,
   WidthKey,
 } from "../shared/constants";
-import { drawMark, Point, ShapeMark, StrokeStore, TextMark } from "../shared/drawing";
+import {
+  drawMark,
+  findTextMarkAt,
+  Point,
+  ShapeMark,
+  StrokeStore,
+  textCaretOffsetAt,
+  TextMark,
+} from "../shared/drawing";
 import { onClearAll, onModeChanged } from "../shared/ipc";
 import { matchesAccelerator } from "../shared/shortcuts";
 import { classifyStroke, HOLD_MS, RING_DELAY_MS, STILL_RADIUS_PX } from "./shapes";
@@ -20,7 +34,28 @@ type Props = {
   textAccel: string;
   textMode: boolean;
   onTextModeChange: (on: boolean) => void;
+  onEditingTextSizeChange?: (size: TextSizeKey | null) => void;
+  onNewTextSizeCommit?: (size: TextSizeKey) => void;
 };
+
+export type DrawingCanvasHandle = {
+  setTextSize: (size: TextSizeKey) => void;
+  finishTextEditing: () => void;
+  isEditing: () => boolean;
+};
+
+type SessionBase = {
+  id: number;
+  x: number;
+  y: number;
+  value: string;
+  sizeKey: TextSizeKey;
+  initialCaret: number;
+};
+
+type TextEditorSession =
+  | (SessionBase & { kind: "new" })
+  | (SessionBase & { kind: "existing"; index: number; original: TextMark });
 
 /** 편집 요소가 포커스면 오버레이 단축키는 전부 타이핑으로 흡수된다 (우선순위 확정). */
 function isEditableTarget(e: KeyboardEvent): boolean {
@@ -32,15 +67,20 @@ function isEditableTarget(e: KeyboardEvent): boolean {
  * 캔버스 2장: base(확정 획) + live(진행 중 획).
  * live는 rAF당 1회만 clear&redraw, base는 획 확정 시 증분 렌더만 한다.
  */
-export function DrawingCanvas({
-  color,
-  widthKey,
-  textSizeKey,
-  clearAccel,
-  textAccel,
-  textMode,
-  onTextModeChange,
-}: Props) {
+export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function DrawingCanvas(
+  {
+    color,
+    widthKey,
+    textSizeKey,
+    clearAccel,
+    textAccel,
+    textMode,
+    onTextModeChange,
+    onEditingTextSizeChange,
+    onNewTextSizeCommit,
+  },
+  ref,
+) {
   const baseRef = useRef<HTMLCanvasElement>(null);
   const liveRef = useRef<HTMLCanvasElement>(null);
   const storeRef = useRef<StrokeStore>(null!);
@@ -55,24 +95,50 @@ export function DrawingCanvas({
   textModeRef.current = textMode;
   const onTextModeChangeRef = useRef(onTextModeChange);
   onTextModeChangeRef.current = onTextModeChange;
+  const onEditingTextSizeChangeRef = useRef(onEditingTextSizeChange);
+  onEditingTextSizeChangeRef.current = onEditingTextSizeChange;
+  const onNewTextSizeCommitRef = useRef(onNewTextSizeCommit);
+  onNewTextSizeCommitRef.current = onNewTextSizeCommit;
+  const defaultTextSizeRef = useRef(textSizeKey);
+  defaultTextSizeRef.current = textSizeKey;
 
-  // 편집 세션: 캐럿 위치. 텍스트 모드가 꺼지면(Esc·토글) 입력은 폐기된다.
-  const [editorPos, setEditorPos] = useState<Point | null>(null);
+  const [session, setSession] = useState<TextEditorSession | null>(null);
+  const sessionRef = useRef<TextEditorSession | null>(session);
+  sessionRef.current = session;
+  const nextSessionIdRef = useRef(1);
   const editingRef = useRef(false);
-  editingRef.current = textMode && editorPos !== null;
+  editingRef.current = session !== null;
+
+  const renderBaseRef = useRef<() => void>(() => undefined);
+  const rememberOutsideClickRef = useRef<(point: Point) => void>(() => undefined);
+  const finishSessionRef = useRef<(commit: boolean) => void>(() => undefined);
+
+  const updateSession = (update: (current: TextEditorSession) => TextEditorSession) => {
+    const current = sessionRef.current;
+    if (!current) return;
+    const next = update(current);
+    sessionRef.current = next;
+    setSession(next);
+  };
+
+  const setEditingSize = (sizeKey: TextSizeKey) => {
+    updateSession((current) => ({ ...current, sizeKey }));
+    onEditingTextSizeChangeRef.current?.(sizeKey);
+  };
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      setTextSize: setEditingSize,
+      finishTextEditing: () => finishSessionRef.current(true),
+      isEditing: () => sessionRef.current !== null,
+    }),
+    [],
+  );
+
   useEffect(() => {
-    if (!textMode) setEditorPos(null);
+    if (!textMode && sessionRef.current) finishSessionRef.current(true);
   }, [textMode]);
-
-  // effect 클로저의 렌더 경로를 React 이벤트 핸들러에서 쓰기 위한 다리
-  const apiRef = useRef<{
-    commitText: (p: Point, text: string, sizeKey: TextSizeKey) => void;
-  } | null>(null);
-
-  // 편집 세션의 표시 크기 — 커밋도 이 값을 그대로 써서 표시와 커밋이 항상 일치한다
-  // (resize는 리렌더를 일으키지 않으므로 커밋 시점 재계산은 편집 중 해상도 변경에서 어긋난다)
-  const editorSizeKey = textSizeKey ?? DEFAULT_TEXT_SIZE;
-  const editorSize = textSizePx(editorSizeKey);
 
   useEffect(() => {
     const store = storeRef.current;
@@ -84,7 +150,86 @@ export function DrawingCanvas({
 
     const renderBase = () => {
       baseCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
-      for (const s of store.marks) drawMark(baseCtx, s);
+      const editingIndex =
+        sessionRef.current?.kind === "existing" ? sessionRef.current.index : -1;
+      store.marks.forEach((mark, index) => {
+        if (index !== editingIndex) drawMark(baseCtx, mark);
+      });
+    };
+    renderBaseRef.current = renderBase;
+
+    const closeSession = () => {
+      sessionRef.current = null;
+      setSession(null);
+      onEditingTextSizeChangeRef.current?.(null);
+      onTextModeChangeRef.current(false);
+    };
+
+    const finishSession = (commit: boolean) => {
+      const current = sessionRef.current;
+      if (!current) return;
+      if (commit) {
+        const empty = current.value.trim().length === 0;
+        if (current.kind === "new") {
+          if (!empty) {
+            store.push({
+              kind: "text",
+              x: current.x,
+              y: current.y,
+              text: current.value,
+              color: toolRef.current.color,
+              sizeKey: current.sizeKey,
+            });
+            onNewTextSizeCommitRef.current?.(current.sizeKey);
+          }
+        } else if (empty) {
+          store.remove(current.index);
+        } else {
+          store.replace(current.index, {
+            ...current.original,
+            text: current.value,
+            sizeKey: current.sizeKey,
+          });
+        }
+      }
+      closeSession();
+      renderBase();
+    };
+    finishSessionRef.current = finishSession;
+
+    const beginSession = (next: TextEditorSession) => {
+      sessionRef.current = next;
+      setSession(next);
+      onEditingTextSizeChangeRef.current?.(next.sizeKey);
+      onTextModeChangeRef.current(true);
+      renderBase();
+    };
+
+    const beginTextAt = (point: Point) => {
+      const hit = findTextMarkAt(store.marks, point);
+      if (hit) {
+        beginSession({
+          kind: "existing",
+          id: nextSessionIdRef.current++,
+          index: hit.index,
+          original: hit.mark,
+          x: hit.mark.x,
+          y: hit.mark.y,
+          value: hit.mark.text,
+          sizeKey: hit.mark.sizeKey,
+          initialCaret: textCaretOffsetAt(hit.mark, point.x),
+        });
+      } else {
+        beginSession({
+          kind: "new",
+          id: nextSessionIdRef.current++,
+          x: point.x,
+          y: point.y,
+          value: "",
+          sizeKey: defaultTextSizeRef.current,
+          initialCaret: 0,
+        });
+      }
     };
 
     // ---- 홀드 스냅: 버튼을 누른 채 STILL_RADIUS_PX 안에서 HOLD_MS 멈추면 도형으로 치환 ----
@@ -185,8 +330,14 @@ export function DrawingCanvas({
     const DBLCLICK_MS = 350;
     const DBLCLICK_SLOP_PX = 6;
     const CLICK_SLOP_PX = 4;
-    let lastClick: { p: Point; t: number } | null = null;
-    let dblPending: Point | null = null;
+    let lastClick: { p: Point; t: number; markCreated: boolean } | null = null;
+    let dblPending: { p: Point; markCreated: boolean } | null = null;
+    let suppressNextPointerDown = false;
+
+    rememberOutsideClickRef.current = (point) => {
+      lastClick = { p: point, t: Date.now(), markCreated: false };
+      suppressNextPointerDown = true;
+    };
 
     const isClick = (points: Point[], origin: Point) =>
       points.every((q) => Math.hypot(q.x - origin.x, q.y - origin.y) <= CLICK_SLOP_PX);
@@ -209,13 +360,14 @@ export function DrawingCanvas({
     const onPointerDown = (e: PointerEvent) => {
       if (e.button !== 0) return;
       if (activePointerId !== null && e.pointerId !== activePointerId) return;
-      if (textModeRef.current) {
-        // 텍스트 모드: 클릭 = 캐럿 배치, 드래그는 그리지 않는다. 편집 중의 바깥 클릭은
-        // TextEditor의 캡처 리스너가 먼저 확정 처리하므로 여기서는 삼킨다.
-        // preventDefault: 이 pointerdown에 딸린 mousedown의 기본 동작(포커스 이동)이
-        // 방금 마운트된 에디터 input의 포커스를 body로 뺏는다 — 첫 타이핑 유실 버그.
+      if (suppressNextPointerDown) {
+        suppressNextPointerDown = false;
         e.preventDefault();
-        if (!editingRef.current) setEditorPos(toPoint(e));
+        return;
+      }
+      if (textModeRef.current) {
+        e.preventDefault();
+        if (!editingRef.current) beginTextAt(toPoint(e));
         return;
       }
       const p = toPoint(e);
@@ -224,7 +376,7 @@ export function DrawingCanvas({
         Date.now() - lastClick.t <= DBLCLICK_MS &&
         Math.hypot(p.x - lastClick.p.x, p.y - lastClick.p.y) <= DBLCLICK_SLOP_PX
       ) {
-        dblPending = lastClick.p;
+        dblPending = { p: lastClick.p, markCreated: lastClick.markCreated };
         lastClick = null;
         // 두 번째 클릭도 자신의 pointerup까지 제스처를 소유한다 — 그 사이 다른 포인터를 차단
         activePointerId = e.pointerId;
@@ -262,17 +414,19 @@ export function DrawingCanvas({
     const onPointerUp = (e: PointerEvent) => {
       if (activePointerId !== null && e.pointerId !== activePointerId) return;
       if (dblPending) {
-        const at = dblPending;
+        const { p: at, markCreated } = dblPending;
         dblPending = null;
         activePointerId = null;
-        // 첫 클릭이 남긴 점 마크를 회수한다 — 그 자리의 클릭 크기 펜 마크일 때만
-        const last = store.marks[store.marks.length - 1];
-        if (last?.kind === "pen" && isClick(last.points, at)) {
-          store.retractLast();
-          renderBase();
+        if (markCreated) {
+          // 첫 클릭이 남긴 점 마크를 회수한다 — 그 자리의 클릭 크기 펜 마크일 때만
+          const last = store.marks[store.marks.length - 1];
+          if (last?.kind === "pen" && isClick(last.points, at)) {
+            store.retractLast();
+            renderBase();
+          }
         }
-        setEditorPos(at);
-        onTextModeChangeRef.current(true);
+        lastClick = null;
+        beginTextAt(at);
         return;
       }
       stopHold();
@@ -296,7 +450,7 @@ export function DrawingCanvas({
       if (stroke) {
         drawMark(baseCtx, stroke); // 확정 획만 base에 증분 렌더
         lastClick = isClick(stroke.points, stroke.points[0])
-          ? { p: stroke.points[0], t: Date.now() }
+          ? { p: stroke.points[0], t: Date.now(), markCreated: true }
           : null;
       }
       activePointerId = null;
@@ -311,14 +465,33 @@ export function DrawingCanvas({
 
     const clearAll = () => {
       resetGestureState();
+      finishSession(false);
       store.clear();
       renderBase();
       renderLive();
-      // 트레이 경유 전체 지우기도 열려 있던 텍스트 초안을 폐기한다 (초안은 마크가 아니라 언마운트로 폐기)
-      if (editingRef.current) onTextModeChangeRef.current(false);
     };
 
     const onKeyDown = (e: KeyboardEvent) => {
+      const sizeDelta =
+        e.metaKey &&
+        !e.altKey &&
+        !e.ctrlKey &&
+        (e.code === "Equal" || e.code === "NumpadAdd")
+          ? 1
+          : e.metaKey &&
+              !e.altKey &&
+              !e.ctrlKey &&
+              (e.code === "Minus" || e.code === "NumpadSubtract")
+            ? -1
+            : 0;
+      if (sizeDelta) {
+        e.preventDefault();
+        if (sessionRef.current) {
+          const next = stepTextSize(sessionRef.current.sizeKey, sizeDelta as -1 | 1);
+          setEditingSize(next);
+        }
+        return;
+      }
       // 입력 중에는 모든 오버레이 단축키를 흡수. editingRef는 DOM 포커스와 무관한
       // 2차 방어 — non-activating panel에서 포커스가 유실돼도 획 버퍼를 오발화로 지키지 않는다
       if (isEditableTarget(e) || editingRef.current) return;
@@ -340,16 +513,6 @@ export function DrawingCanvas({
       }
     };
 
-    // 텍스트 확정: TextMark를 push하고 base에 증분 렌더 (확정 획 커밋과 같은 경로)
-    apiRef.current = {
-      commitText: (p, text, sizeKey) => {
-        const { color } = toolRef.current;
-        const mark: TextMark = { kind: "text", x: p.x, y: p.y, text, color, sizeKey };
-        store.push(mark);
-        drawMark(baseCtx, mark);
-      },
-    };
-
     setupBacking();
     window.addEventListener("resize", setupBacking);
     window.addEventListener("keydown", onKeyDown);
@@ -362,7 +525,8 @@ export function DrawingCanvas({
       if (p.drawing) {
         setupBacking(); // 모니터·해상도가 바뀌었을 수 있음 (기존 획은 재렌더로 복원)
       } else {
-        // 숨김≠삭제: 진행 중이던 live 획만 취소하고 그림 버퍼는 유지한다 (커서는 OverlayApp 담당)
+        // 숨김≠삭제: 텍스트는 현재 내용 확정, 진행 중 live 획만 취소한다.
+        finishSession(true);
         resetGestureState();
         renderLive();
       }
@@ -380,7 +544,9 @@ export function DrawingCanvas({
       unlistenClear.then((f) => f());
       if (rafId) cancelAnimationFrame(rafId);
       stopHold();
-      apiRef.current = null;
+      renderBaseRef.current = () => undefined;
+      rememberOutsideClickRef.current = () => undefined;
+      finishSessionRef.current = () => undefined;
     };
   }, []);
 
@@ -388,26 +554,28 @@ export function DrawingCanvas({
     <>
       <canvas ref={baseRef} style={canvasStyle} />
       <canvas ref={liveRef} style={canvasStyle} />
-      {textMode && editorPos && (
+      {session && (
         <TextEditor
-          x={editorPos.x}
-          y={editorPos.y}
-          color={color}
-          size={editorSize}
-          onCommit={(text) => {
-            apiRef.current?.commitText(editorPos, text, editorSizeKey);
-            setEditorPos(null);
-            onTextModeChange(false); // one-shot: 확정 후 펜 복귀
-          }}
-          onCancel={() => {
-            setEditorPos(null);
-            onTextModeChange(false);
+          sessionKey={session.id}
+          x={session.x}
+          y={session.y}
+          color={session.kind === "existing" ? session.original.color : color}
+          sizeKey={session.sizeKey}
+          value={session.value}
+          initialCaret={session.initialCaret}
+          onValueChange={(value) => updateSession((current) => ({ ...current, value }))}
+          onStepSize={(delta) => setEditingSize(stepTextSize(session.sizeKey, delta))}
+          onCommit={() => finishSessionRef.current(true)}
+          onCancel={() => finishSessionRef.current(false)}
+          onOutsidePointerDown={(point) => {
+            finishSessionRef.current(true);
+            rememberOutsideClickRef.current(point);
           }}
         />
       )}
     </>
   );
-}
+});
 
 const canvasStyle: CSSProperties = {
   position: "fixed",

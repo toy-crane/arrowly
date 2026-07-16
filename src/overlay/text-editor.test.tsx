@@ -1,105 +1,144 @@
+import { useState } from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { installCanvasMock } from "../../test/canvas";
+import { stepTextSize, type TextSizeKey } from "../shared/constants";
 import { fontString } from "../shared/drawing";
 import { TextEditor } from "./text-editor";
 
-function renderEditor(overrides: Partial<Parameters<typeof TextEditor>[0]> = {}) {
+type EditorProps = Parameters<typeof TextEditor>[0];
+
+function renderEditor(overrides: Partial<EditorProps> = {}) {
   const onCommit = vi.fn();
   const onCancel = vi.fn();
-  const utils = render(
-    <TextEditor x={40} y={60} color="#FF2D95" size={29} onCommit={onCommit} onCancel={onCancel} {...overrides} />,
-  );
+  const onOutsidePointerDown = vi.fn();
+  const onStepSize = vi.fn();
+  const onValueChange = vi.fn();
+
+  function Harness() {
+    const [value, setValue] = useState(overrides.value ?? "");
+    const [sizeKey, setSizeKey] = useState<TextSizeKey>(overrides.sizeKey ?? "medium");
+    return (
+      <TextEditor
+        sessionKey={1}
+        x={40}
+        y={60}
+        color="#FF2D95"
+        sizeKey={sizeKey}
+        value={value}
+        initialCaret={0}
+        onValueChange={(next) => {
+          onValueChange(next);
+          setValue(next);
+        }}
+        onStepSize={(delta) => {
+          onStepSize(delta);
+          setSizeKey((current) => stepTextSize(current, delta));
+        }}
+        onCommit={onCommit}
+        onCancel={onCancel}
+        onOutsidePointerDown={onOutsidePointerDown}
+        {...overrides}
+      />
+    );
+  }
+
+  const utils = render(<Harness />);
   const input = screen.getByRole("textbox") as HTMLInputElement;
-  return { ...utils, input, onCommit, onCancel };
+  return {
+    ...utils,
+    input,
+    onCommit,
+    onCancel,
+    onOutsidePointerDown,
+    onStepSize,
+    onValueChange,
+  };
 }
 
 describe("TextEditor", () => {
   let contexts: CanvasRenderingContext2D[];
 
   beforeEach(() => {
-    contexts = installCanvasMock(); // 폭 측정(measureTextWidth)이 캔버스를 쓴다
+    contexts = installCanvasMock();
   });
 
-  it("mounts focused with the ink color and mark font", () => {
-    const { input } = renderEditor();
+  it("mounts focused at the requested caret with the ink font and local edit outline", () => {
+    const { input } = renderEditor({ value: "재시도", initialCaret: 2 });
     expect(input).toHaveFocus();
+    expect(input.selectionStart).toBe(2);
     expect(input.style.color).toBe("rgb(255, 45, 149)");
-    expect(input.style.font).toContain("29px");
+    expect(input.style.font).toContain("30px");
     expect(input.style.left).toBe("40px");
     expect(input.style.top).toBe("60px");
+    expect(input.style.outlineStyle).toBe("dashed");
+    expect(input.style.outlineOffset).toBe("6px");
   });
 
-  it("sizes the input from measured pixel width, not character count", () => {
+  it("sizes the controlled input from measured pixel width", () => {
     const { input } = renderEditor();
     fireEvent.change(input, { target: { value: "서버 캐시" } });
 
     const latest = contexts[contexts.length - 1];
     expect(latest.measureText).toHaveBeenCalledWith("서버 캐시");
-    expect(latest.font).toBe(fontString(29));
-    expect(input.style.width).toBe("18px"); // mock 측정 폭 10 + 여유 8
+    expect(latest.font).toBe(fontString("medium"));
+    expect(input.style.width).toBe("18px");
   });
 
-  it("commits trimmed text on Enter and only once", () => {
-    const { input, onCommit, onCancel } = renderEditor();
-    fireEvent.change(input, { target: { value: "  리트라이 큐  " } });
-    fireEvent.keyDown(input, { key: "Enter" });
-    fireEvent.keyDown(input, { key: "Enter" });
-    expect(onCommit).toHaveBeenCalledOnce();
-    expect(onCommit).toHaveBeenCalledWith("리트라이 큐");
-    expect(onCancel).not.toHaveBeenCalled();
-  });
-
-  it("ignores Enter while the IME is composing", () => {
+  it("commits on Enter only once and ignores Enter during IME composition", () => {
     const { input, onCommit } = renderEditor();
     fireEvent.change(input, { target: { value: "안녕" } });
     fireEvent.keyDown(input, { key: "Enter", isComposing: true });
     expect(onCommit).not.toHaveBeenCalled();
     fireEvent.keyDown(input, { key: "Enter" });
-    expect(onCommit).toHaveBeenCalledWith("안녕");
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(onCommit).toHaveBeenCalledOnce();
   });
 
-  it("cancels on Cmd+Z without committing", () => {
+  it("cancels the whole session on Cmd+Z and absorbs Shift+Cmd+Z", () => {
     const { input, onCommit, onCancel } = renderEditor();
     fireEvent.change(input, { target: { value: "버려질 텍스트" } });
-    fireEvent.keyDown(input, { code: "KeyZ", metaKey: true });
+    fireEvent.keyDown(input, { code: "KeyZ", metaKey: true, shiftKey: true });
     expect(onCancel).toHaveBeenCalledOnce();
     expect(onCommit).not.toHaveBeenCalled();
   });
 
-  it("commits on outside pointerdown but not on clicks inside the input", () => {
-    const { input, onCommit } = renderEditor();
-    fireEvent.change(input, { target: { value: "재시도" } });
-    fireEvent.pointerDown(input);
-    expect(onCommit).not.toHaveBeenCalled();
-    fireEvent.pointerDown(document.body);
-    expect(onCommit).toHaveBeenCalledOnce();
-    expect(onCommit).toHaveBeenCalledWith("재시도");
+  it("steps fixed text sizes with Cmd plus/equal and Cmd minus", () => {
+    const { input, onStepSize } = renderEditor();
+    fireEvent.keyDown(input, { code: "Equal", metaKey: true, shiftKey: true });
+    expect(onStepSize).toHaveBeenLastCalledWith(1);
+    expect(input.style.font).toContain("40px");
+
+    fireEvent.keyDown(input, { code: "Minus", metaKey: true });
+    expect(onStepSize).toHaveBeenLastCalledWith(-1);
+    expect(input.style.font).toContain("30px");
   });
 
-  it("cancels instead of committing an empty value", () => {
-    const { input, onCommit, onCancel } = renderEditor();
-    fireEvent.change(input, { target: { value: "   " } });
-    fireEvent.keyDown(input, { key: "Enter" });
-    expect(onCancel).toHaveBeenCalledOnce();
-    expect(onCommit).not.toHaveBeenCalled();
+  it("reports outside pointerdown but ignores the input and marker", () => {
+    const { input, onOutsidePointerDown } = renderEditor();
+    fireEvent.pointerDown(input, { clientX: 1, clientY: 2 });
+    expect(onOutsidePointerDown).not.toHaveBeenCalled();
+
+    const marker = document.createElement("button");
+    marker.setAttribute("data-arrowly-marker", "");
+    document.body.appendChild(marker);
+    fireEvent.pointerDown(marker, { clientX: 3, clientY: 4 });
+    expect(onOutsidePointerDown).not.toHaveBeenCalled();
+
+    fireEvent.pointerDown(document.body, { clientX: 12, clientY: 34 });
+    expect(onOutsidePointerDown).toHaveBeenCalledWith({ x: 12, y: 34 });
+    marker.remove();
   });
 
-  it("stops keydown propagation so overlay shortcuts never fire while typing", () => {
+  it("stops keydown propagation and does not finish merely by unmounting", () => {
     const windowSpy = vi.fn();
     window.addEventListener("keydown", windowSpy);
-    const { input } = renderEditor();
-    fireEvent.keyDown(input, { code: "Backspace", altKey: true });
-    fireEvent.keyDown(input, { code: "KeyT" });
-    expect(windowSpy).not.toHaveBeenCalled();
-    window.removeEventListener("keydown", windowSpy);
-  });
-
-  it("does not commit on unmount (Esc exit discards the draft)", () => {
     const { input, onCommit, onCancel, unmount } = renderEditor();
-    fireEvent.change(input, { target: { value: "폐기됨" } });
+    fireEvent.keyDown(input, { code: "Backspace", altKey: true });
+    expect(windowSpy).not.toHaveBeenCalled();
     unmount();
     expect(onCommit).not.toHaveBeenCalled();
     expect(onCancel).not.toHaveBeenCalled();
+    window.removeEventListener("keydown", windowSpy);
   });
 });

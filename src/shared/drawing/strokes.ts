@@ -177,6 +177,75 @@ export function measureTextWidth(text: string, size: number | TextSizeKey): numb
   return ctx.measureText(text || " ").width;
 }
 
+export const TEXT_HIT_PADDING_PX = 6;
+
+export type TextHit = { index: number; mark: TextMark };
+
+/** 가장 위에 그려진 텍스트부터 실제 글자 영역 + 여유 안에 점이 들어오는지 찾는다. */
+export function findTextMarkAt(marks: Mark[], point: Point): TextHit | null {
+  for (let index = marks.length - 1; index >= 0; index -= 1) {
+    const mark = marks[index];
+    if (mark.kind !== "text") continue;
+    const width = measureTextWidth(mark.text, mark.sizeKey);
+    const height = textSizePx(mark.sizeKey);
+    if (
+      point.x >= mark.x - TEXT_HIT_PADDING_PX &&
+      point.x <= mark.x + width + TEXT_HIT_PADDING_PX &&
+      point.y >= mark.y - TEXT_HIT_PADDING_PX &&
+      point.y <= mark.y + height + TEXT_HIT_PADDING_PX
+    ) {
+      return { index, mark };
+    }
+  }
+  return null;
+}
+
+type Grapheme = { segment: string; index: number };
+type SegmenterLike = { segment: (input: string) => Iterable<Grapheme> };
+type SegmenterConstructor = new (
+  locale?: string | string[],
+  options?: { granularity: "grapheme" },
+) => SegmenterLike;
+
+function graphemeBoundaries(text: string): number[] {
+  const Segmenter = (
+    Intl as unknown as {
+      Segmenter?: SegmenterConstructor;
+    }
+  ).Segmenter;
+  if (Segmenter) {
+    const boundaries = [0];
+    for (const item of new Segmenter(undefined, { granularity: "grapheme" }).segment(text)) {
+      boundaries.push(item.index + item.segment.length);
+    }
+    return boundaries;
+  }
+  const boundaries = [0];
+  let offset = 0;
+  for (const codePoint of Array.from(text)) {
+    offset += codePoint.length;
+    boundaries.push(offset);
+  }
+  return boundaries;
+}
+
+/** 클릭 X와 가장 가까운 grapheme 경계를 DOM input의 UTF-16 selection offset으로 반환한다. */
+export function textCaretOffsetAt(mark: TextMark, clickX: number): number {
+  const relativeX = clickX - mark.x;
+  const boundaries = graphemeBoundaries(mark.text);
+  let best = 0;
+  let distance = Number.POSITIVE_INFINITY;
+  for (const boundary of boundaries) {
+    const width = measureTextWidth(mark.text.slice(0, boundary), mark.sizeKey);
+    const nextDistance = Math.abs(relativeX - width);
+    if (nextDistance < distance) {
+      best = boundary;
+      distance = nextDistance;
+    }
+  }
+  return best;
+}
+
 /** 공통 잉크 스타일: 둥근 캡·조인, 외곽선·그림자 금지. */
 function inkStyle(ctx: CanvasRenderingContext2D, color: string, width: number) {
   ctx.strokeStyle = color;
