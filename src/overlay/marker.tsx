@@ -1,17 +1,26 @@
 import { CSSProperties, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Color, COLORS, WidthKey, WIDTHS } from "../shared/constants";
+import {
+  Color,
+  COLORS,
+  TEXT_SIZE_KEYS,
+  TextSizeKey,
+  WidthKey,
+  WIDTHS,
+} from "../shared/constants";
 import { t } from "../shared/i18n";
 import { loadMarkerPos, MarkerPos, saveMarkerPos } from "../shared/settings";
 
-type Panel = "collapsed" | "colors" | "widths";
+type Panel = "collapsed" | "colors" | "widths" | "textSizes";
 
 type Props = {
   color: Color;
   widthKey: WidthKey;
+  textSizeKey: TextSizeKey;
   board: boolean;
   textMode: boolean;
   onColorChange: (c: Color) => void;
   onWidthChange: (w: WidthKey) => void;
+  onTextSizeChange: (size: TextSizeKey) => void;
   onBoardToggle: () => void;
   onTextToggle: () => void;
 };
@@ -27,10 +36,12 @@ let sessionPos: MarkerPos | null = null;
 export function Marker({
   color,
   widthKey,
+  textSizeKey,
   board,
   textMode,
   onColorChange,
   onWidthChange,
+  onTextSizeChange,
   onBoardToggle,
   onTextToggle,
 }: Props) {
@@ -135,6 +146,10 @@ export function Marker({
     onWidthChange(w);
     setPanel("collapsed");
   };
+  const pickTextSize = (size: TextSizeKey) => {
+    onTextSizeChange(size);
+    setPanel("collapsed");
+  };
 
   // 최상단 근처에서는 팝오버를 아래로 뒤집는다
   const openBelow = pos.yRatio * window.innerHeight < 64;
@@ -165,28 +180,32 @@ export function Marker({
         <WidthSteps current={widthKey} />
       </button>
       <span style={divider} />
-      <button
-        style={{ ...btn, ...(textMode ? modeOn : undefined) }}
-        aria-label={t("marker.textMode")}
-        onClick={() => {
-          setPanel("collapsed");
-          onTextToggle();
+      <span
+        style={{
+          ...textSplit,
+          ...(textMode ? modeOn : undefined),
+          ...(panel === "textSizes" ? activeCell : undefined),
         }}
       >
-        <svg
-          width="20"
-          height="20"
-          viewBox="0 0 20 20"
-          fill="none"
-          stroke={NEUTRAL}
-          strokeWidth="1.8"
-          strokeLinecap="round"
-          strokeLinejoin="round"
+        <button
+          style={textMain}
+          aria-label={t("marker.textMode")}
+          onClick={() => {
+            setPanel("collapsed");
+            onTextToggle();
+          }}
         >
-          <path d="M4 5.5 H16" />
-          <path d="M10 5.5 V16" />
-        </svg>
-      </button>
+          <span style={{ ...textGlyph, fontSize: TEXT_DISPLAY_SIZES[textSizeKey] }}>T</span>
+        </button>
+        <button
+          style={textMenu}
+          aria-label={t("marker.changeTextSize")}
+          aria-expanded={panel === "textSizes"}
+          onClick={() => togglePanel("textSizes")}
+        >
+          <span style={chevron} />
+        </button>
+      </span>
       <span style={divider} />
       <button
         style={{ ...btn, ...(board ? modeOn : undefined) }}
@@ -220,23 +239,53 @@ export function Marker({
             ...(openBelow ? { top: "calc(100% + 8px)" } : { bottom: "calc(100% + 8px)" }),
           }}
         >
-          {panel === "colors"
-            ? COLORS.map((c) => (
-                <button key={c} style={btn} aria-label={t("marker.colorValue", { value: c })} onClick={() => pickColor(c)}>
-                  <span style={{ ...dot, background: c, ...(c === color ? currentRing : undefined) }} />
-                </button>
-              ))
-            : (Object.keys(WIDTHS) as WidthKey[]).map((w) => (
-                <button key={w} style={btn} aria-label={t("marker.widthValue", { value: w })} onClick={() => pickWidth(w)}>
-                  <span
-                    style={
-                      w === widthKey
-                        ? { ...bar(w), background: NEUTRAL }
-                        : { ...bar(w), border: "1.5px solid rgba(232,234,240,0.85)" }
-                    }
-                  />
-                </button>
-              ))}
+          {panel === "colors" &&
+            COLORS.map((c) => (
+              <button
+                key={c}
+                style={btn}
+                aria-label={t("marker.colorValue", { value: c })}
+                onClick={() => pickColor(c)}
+              >
+                <span style={{ ...dot, background: c, ...(c === color ? currentRing : undefined) }} />
+              </button>
+            ))}
+          {panel === "widths" &&
+            (Object.keys(WIDTHS) as WidthKey[]).map((w) => (
+              <button
+                key={w}
+                style={btn}
+                aria-label={t("marker.widthValue", { value: w })}
+                onClick={() => pickWidth(w)}
+              >
+                <span
+                  style={
+                    w === widthKey
+                      ? { ...bar(w), background: NEUTRAL }
+                      : { ...bar(w), border: "1.5px solid rgba(232,234,240,0.85)" }
+                  }
+                />
+              </button>
+            ))}
+          {panel === "textSizes" &&
+            TEXT_SIZE_KEYS.map((size) => (
+              <button
+                key={size}
+                style={btn}
+                aria-label={t("marker.textSizeValue", { value: size })}
+                onClick={() => pickTextSize(size)}
+              >
+                <span
+                  style={{
+                    ...textOption,
+                    fontSize: TEXT_DISPLAY_SIZES[size],
+                    ...(size === textSizeKey ? currentTextSize : undefined),
+                  }}
+                >
+                  T
+                </span>
+              </button>
+            ))}
         </div>
       )}
     </div>
@@ -294,6 +343,61 @@ const activeCell: CSSProperties = {
 const modeOn: CSSProperties = {
   background: "rgba(255,255,255,0.16)",
   borderRadius: 8,
+};
+
+const TEXT_DISPLAY_SIZES: Record<TextSizeKey, number> = {
+  xsmall: 13,
+  small: 16,
+  medium: 20,
+  large: 25,
+  xlarge: 30,
+};
+
+const textSplit: CSSProperties = {
+  width: 58,
+  height: 32,
+  display: "flex",
+  overflow: "hidden",
+  borderRadius: 8,
+};
+
+const textMain: CSSProperties = {
+  ...btn,
+  width: 38,
+};
+
+const textMenu: CSSProperties = {
+  ...btn,
+  width: 20,
+  borderLeft: "1px solid rgba(255,255,255,0.14)",
+};
+
+const textGlyph: CSSProperties = {
+  color: NEUTRAL,
+  fontWeight: 650,
+  lineHeight: 1,
+};
+
+const chevron: CSSProperties = {
+  width: 0,
+  height: 0,
+  borderLeft: "3.5px solid transparent",
+  borderRight: "3.5px solid transparent",
+  borderTop: `4.5px solid ${NEUTRAL}`,
+};
+
+const textOption: CSSProperties = {
+  width: 32,
+  height: 32,
+  display: "grid",
+  placeItems: "center",
+  color: NEUTRAL,
+  borderRadius: 7,
+  fontWeight: 650,
+};
+
+const currentTextSize: CSSProperties = {
+  background: "rgba(255,255,255,0.16)",
 };
 
 const dot: CSSProperties = { width: 20, height: 20, borderRadius: "50%", display: "block" };

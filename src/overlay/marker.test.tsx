@@ -25,6 +25,7 @@ describe("Marker", () => {
     const user = userEvent.setup();
     const onColorChange = vi.fn();
     const onWidthChange = vi.fn();
+    const onTextSizeChange = vi.fn();
     const onBoardToggle = vi.fn();
     const onTextToggle = vi.fn();
     let popoverSide: "left" | "right" = "left";
@@ -49,10 +50,12 @@ describe("Marker", () => {
       <Marker
         color="#FF2D95"
         widthKey="medium"
+        textSizeKey="medium"
         board={false}
         textMode={false}
         onColorChange={onColorChange}
         onWidthChange={onWidthChange}
+        onTextSizeChange={onTextSizeChange}
         onBoardToggle={onBoardToggle}
         onTextToggle={onTextToggle}
       />,
@@ -76,6 +79,10 @@ describe("Marker", () => {
     await user.click(screen.getByRole("button", { name: "Thickness thick" }));
     expect(onWidthChange).toHaveBeenCalledWith("thick");
 
+    await user.click(screen.getByRole("button", { name: "Change text size" }));
+    await user.click(screen.getByRole("button", { name: "Text size xlarge" }));
+    expect(onTextSizeChange).toHaveBeenCalledWith("xlarge");
+
     await user.click(width);
     fireEvent.pointerDown(document.body);
     expect(screen.queryByRole("button", { name: "Thickness xthin" })).not.toBeInTheDocument();
@@ -94,18 +101,21 @@ describe("Marker", () => {
     const props = {
       color: "#FF2D95" as const,
       widthKey: "medium" as const,
+      textSizeKey: "medium" as const,
       board: false,
       onColorChange: vi.fn(),
       onWidthChange: vi.fn(),
+      onTextSizeChange: vi.fn(),
       onBoardToggle: vi.fn(),
       onTextToggle: vi.fn(),
     };
     const { rerender } = render(<Marker {...props} textMode={false} />);
     const cell = screen.getByRole("button", { name: "Type text" });
-    expect(cell.style.background).toBe("none");
+    const split = cell.parentElement!;
+    expect(split.style.background).toBe("");
 
     rerender(<Marker {...props} textMode={true} />);
-    expect(cell.style.background).toBe("rgba(255, 255, 255, 0.16)");
+    expect(split.style.background).toBe("rgba(255, 255, 255, 0.16)");
   });
 
   it("distinguishes taps from drags, clamps both edges, saves ratios and restores session position", async () => {
@@ -126,10 +136,12 @@ describe("Marker", () => {
     const props = {
       color: "#FFD400" as const,
       widthKey: "xthin" as const,
+      textSizeKey: "xsmall" as const,
       board: true,
       textMode: false,
       onColorChange: vi.fn(),
       onWidthChange: vi.fn(),
+      onTextSizeChange: vi.fn(),
       onBoardToggle: vi.fn(),
       onTextToggle: vi.fn(),
     };

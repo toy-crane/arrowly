@@ -21,6 +21,7 @@ import {
   saveMarkerPos,
   saveOnboardingDone,
   saveShortcuts,
+  saveTextSize,
   saveWidth,
   settingsStore,
 } from "./settings";
@@ -36,25 +37,41 @@ describe("settings", () => {
   it("loads one shared Tauri store and sanitizes tool values", async () => {
     expect(await settingsStore()).toBe(await settingsStore());
     expect(mocks.load).toHaveBeenCalledWith("settings.json");
-    await expect(loadTool()).resolves.toEqual({ color: "#FF2D95", width: "medium" });
+    await expect(loadTool()).resolves.toEqual({
+      color: "#FF2D95",
+      width: "medium",
+      textSize: "medium",
+    });
 
     mocks.values.set("color", "#00AEEF");
     mocks.values.set("width", "thick");
-    await expect(loadTool()).resolves.toEqual({ color: "#00AEEF", width: "thick" });
+    mocks.values.set("textSize", "large");
+    await expect(loadTool()).resolves.toEqual({
+      color: "#00AEEF",
+      width: "thick",
+      textSize: "large",
+    });
 
     mocks.values.set("color", "invalid");
     mocks.values.set("width", "giant");
-    await expect(loadTool()).resolves.toEqual({ color: "#FF2D95", width: "medium" });
+    mocks.values.set("textSize", "giant");
+    await expect(loadTool()).resolves.toEqual({
+      color: "#FF2D95",
+      width: "medium",
+      textSize: "medium",
+    });
   });
 
   it("persists tool and marker choices", async () => {
     await saveColor("#2ED573");
     await saveWidth("thin");
+    await saveTextSize("xlarge");
     await saveMarkerPos({ xRatio: 0.25, yRatio: 0.75 });
     expect(mocks.values.get("color")).toBe("#2ED573");
     expect(mocks.values.get("width")).toBe("thin");
+    expect(mocks.values.get("textSize")).toBe("xlarge");
     await expect(loadMarkerPos()).resolves.toEqual({ xRatio: 0.25, yRatio: 0.75 });
-    expect(mocks.store.save).toHaveBeenCalledTimes(3);
+    expect(mocks.store.save).toHaveBeenCalledTimes(4);
   });
 
   it("returns null when a marker position has never been stored", async () => {

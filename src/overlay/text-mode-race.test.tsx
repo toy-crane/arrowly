@@ -27,6 +27,7 @@ function Harness() {
       <DrawingCanvas
         color="#FF2D95"
         widthKey="medium"
+        textSizeKey="medium"
         clearAccel="Alt+Backspace"
         textAccel="KeyT"
         textMode={textMode}
@@ -35,10 +36,12 @@ function Harness() {
       <Marker
         color="#FF2D95"
         widthKey="medium"
+        textSizeKey="medium"
         board={false}
         textMode={textMode}
         onColorChange={() => {}}
         onWidthChange={() => {}}
+        onTextSizeChange={() => {}}
         onBoardToggle={() => {}}
         onTextToggle={() => setTextMode((v) => !v)}
       />
@@ -82,7 +85,7 @@ describe("text mode and marker interplay", () => {
     fireEvent.click(tButton);
 
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
-    expect(tButton.style.background).toBe("none"); // modeOn(16%)이 아님 — 재점화되지 않았다
+    expect(tButton.parentElement!.style.background).toBe(""); // modeOn(16%)이 아님 — 재점화되지 않았다
     expect(baseCtx.fillText).not.toHaveBeenCalled(); // 초안은 커밋이 아니라 폐기된다
   });
 

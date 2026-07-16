@@ -1,5 +1,15 @@
 import { load, Store } from "@tauri-apps/plugin-store";
-import { Color, COLORS, DEFAULT_COLOR, DEFAULT_WIDTH, WIDTHS, WidthKey } from "./constants";
+import {
+  Color,
+  COLORS,
+  DEFAULT_COLOR,
+  DEFAULT_TEXT_SIZE,
+  DEFAULT_WIDTH,
+  TEXT_SIZES,
+  TextSizeKey,
+  WIDTHS,
+  WidthKey,
+} from "./constants";
 
 // 설정 파일 단일 진입점.
 let storePromise: Promise<Store> | null = null;
@@ -9,13 +19,19 @@ export function settingsStore(): Promise<Store> {
   return storePromise;
 }
 
-export async function loadTool(): Promise<{ color: Color; width: WidthKey }> {
+export async function loadTool(): Promise<{
+  color: Color;
+  width: WidthKey;
+  textSize: TextSizeKey;
+}> {
   const store = await settingsStore();
   const color = await store.get<Color>("color");
   const width = await store.get<WidthKey>("width");
+  const textSize = await store.get<TextSizeKey>("textSize");
   return {
     color: color && COLORS.includes(color) ? color : DEFAULT_COLOR,
     width: width && width in WIDTHS ? width : DEFAULT_WIDTH,
+    textSize: textSize && textSize in TEXT_SIZES ? textSize : DEFAULT_TEXT_SIZE,
   };
 }
 
@@ -28,6 +44,12 @@ export async function saveColor(color: Color): Promise<void> {
 export async function saveWidth(width: WidthKey): Promise<void> {
   const store = await settingsStore();
   await store.set("width", width);
+  await store.save();
+}
+
+export async function saveTextSize(textSize: TextSizeKey): Promise<void> {
+  const store = await settingsStore();
+  await store.set("textSize", textSize);
   await store.save();
 }
 
