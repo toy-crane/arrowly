@@ -19,10 +19,24 @@ export function strokeWidthPx(key: WidthKey, screenShortSide: number): number {
   return Math.max(MIN_STROKE_PX, screenShortSide * WIDTHS[key]);
 }
 
-/** 텍스트 크기 = 굵기 5단계 연동 (전용 크기 UI 없음, REQUIREMENTS 확정) */
-export const TEXT_SIZE_FACTOR = 5;
-export const MIN_TEXT_PX = 14;
+/** 텍스트 크기 5단계 — 펜 굵기·화면 해상도와 독립적인 고정 CSS px. */
+export const TEXT_SIZES = {
+  xsmall: 16,
+  small: 22,
+  medium: 30,
+  large: 40,
+  xlarge: 54,
+} as const;
+export type TextSizeKey = keyof typeof TEXT_SIZES;
+export const TEXT_SIZE_KEYS = Object.keys(TEXT_SIZES) as TextSizeKey[];
+export const DEFAULT_TEXT_SIZE: TextSizeKey = "medium";
 
-export function textSizePx(key: WidthKey, screenShortSide: number): number {
-  return Math.max(MIN_TEXT_PX, strokeWidthPx(key, screenShortSide) * TEXT_SIZE_FACTOR);
+export function textSizePx(key: TextSizeKey): number {
+  return TEXT_SIZES[key];
+}
+
+export function stepTextSize(key: TextSizeKey, delta: -1 | 1): TextSizeKey {
+  const index = TEXT_SIZE_KEYS.indexOf(key);
+  const next = Math.min(TEXT_SIZE_KEYS.length - 1, Math.max(0, index + delta));
+  return TEXT_SIZE_KEYS[next];
 }

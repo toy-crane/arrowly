@@ -1,5 +1,11 @@
 import { CSSProperties, useEffect, useRef, useState } from "react";
-import { strokeWidthPx, textSizePx, WidthKey } from "../shared/constants";
+import {
+  DEFAULT_TEXT_SIZE,
+  strokeWidthPx,
+  textSizePx,
+  TextSizeKey,
+  WidthKey,
+} from "../shared/constants";
 import { drawMark, Point, ShapeMark, StrokeStore, TextMark } from "../shared/drawing";
 import { onClearAll, onModeChanged } from "../shared/ipc";
 import { matchesAccelerator } from "../shared/shortcuts";
@@ -50,11 +56,14 @@ export function DrawingCanvas({ color, widthKey, clearAccel, textAccel, textMode
   }, [textMode]);
 
   // effect 클로저의 렌더 경로를 React 이벤트 핸들러에서 쓰기 위한 다리
-  const apiRef = useRef<{ commitText: (p: Point, text: string, size: number) => void } | null>(null);
+  const apiRef = useRef<{
+    commitText: (p: Point, text: string, sizeKey: TextSizeKey) => void;
+  } | null>(null);
 
   // 편집 세션의 표시 크기 — 커밋도 이 값을 그대로 써서 표시와 커밋이 항상 일치한다
   // (resize는 리렌더를 일으키지 않으므로 커밋 시점 재계산은 편집 중 해상도 변경에서 어긋난다)
-  const editorSize = textSizePx(widthKey, Math.min(window.innerWidth, window.innerHeight));
+  const editorSizeKey = DEFAULT_TEXT_SIZE;
+  const editorSize = textSizePx(editorSizeKey);
 
   useEffect(() => {
     const store = storeRef.current;
@@ -324,9 +333,9 @@ export function DrawingCanvas({ color, widthKey, clearAccel, textAccel, textMode
 
     // 텍스트 확정: TextMark를 push하고 base에 증분 렌더 (확정 획 커밋과 같은 경로)
     apiRef.current = {
-      commitText: (p, text, size) => {
+      commitText: (p, text, sizeKey) => {
         const { color } = toolRef.current;
-        const mark: TextMark = { kind: "text", x: p.x, y: p.y, text, color, size };
+        const mark: TextMark = { kind: "text", x: p.x, y: p.y, text, color, sizeKey };
         store.push(mark);
         drawMark(baseCtx, mark);
       },
@@ -377,7 +386,7 @@ export function DrawingCanvas({ color, widthKey, clearAccel, textAccel, textMode
           color={color}
           size={editorSize}
           onCommit={(text) => {
-            apiRef.current?.commitText(editorPos, text, editorSize);
+            apiRef.current?.commitText(editorPos, text, editorSizeKey);
             setEditorPos(null);
             onTextModeChange(false); // one-shot: 확정 후 펜 복귀
           }}

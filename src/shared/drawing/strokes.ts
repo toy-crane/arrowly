@@ -1,10 +1,18 @@
 import { strokePath } from "./smoothing";
 import type { Point } from "./types";
+import { textSizePx, type TextSizeKey } from "../constants";
 
 /** 자유곡선 획 — 펜으로 그린 마크. */
 export type PenMark = { kind: "pen"; points: Point[]; color: string; width: number };
-/** 타이핑 텍스트 — 확정 후 편집·이동 불가, 획과 같은 마크. */
-export type TextMark = { kind: "text"; x: number; y: number; text: string; color: string; size: number };
+/** 타이핑 텍스트 — 위치·색은 고정하고 내용·크기만 다시 교정할 수 있는 마크. */
+export type TextMark = {
+  kind: "text";
+  x: number;
+  y: number;
+  text: string;
+  color: string;
+  sizeKey: TextSizeKey;
+};
 
 export type RectGeometry = { x: number; y: number; w: number; h: number };
 export type EllipseGeometry = { cx: number; cy: number; rx: number; ry: number };
@@ -17,10 +25,20 @@ export type ShapeMark =
 
 export type Mark = PenMark | TextMark | ShapeMark;
 
-/** 마크 상태의 단일 소스. append-only, 개별 편집 없음. undo 단위 = 마크 1개. */
+type HistoryEntry =
+  | { kind: "insert"; index: number; mark: Mark }
+  | { kind: "replace"; index: number; before: Mark; after: Mark }
+  | { kind: "remove"; index: number; mark: Mark };
+
+function sameMark(a: Mark, b: Mark): boolean {
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
+/** 마크 상태의 단일 소스. 추가·텍스트 교체·텍스트 삭제가 각각 undo 한 단위다. */
 export class StrokeStore {
   marks: Mark[] = [];
-  redoStack: Mark[] = [];
+  history: HistoryEntry[] = [];
+  redoStack: HistoryEntry[] = [];
   live: PenMark | null = null;
 
   beginLive(color: string, width: number, p: Point) {
@@ -41,8 +59,7 @@ export class StrokeStore {
       const p = s.points[0];
       s.points.push({ x: p.x + 0.01, y: p.y });
     }
-    this.marks.push(s);
-    this.redoStack = [];
+    this.recordInsert(s);
     return s;
   }
 
@@ -52,33 +69,93 @@ export class StrokeStore {
 
   /** 완성된 마크(텍스트·도형)를 직접 추가한다. commitLive와 같은 redo 무효 불변식. */
   push(mark: Mark) {
-    this.marks.push(mark);
-    this.redoStack = [];
+    this.recordInsert(mark);
   }
 
-  /** 마지막 마크를 redo에 넣지 않고 회수한다 — 더블클릭 점 회수 전용. */
+  /** 마지막 마크와 직전 insert 이력을 함께 회수한다 — 더블클릭 점 회수 전용. */
   retractLast(): Mark | null {
-    return this.marks.pop() ?? null;
+    const index = this.marks.length - 1;
+    const mark = this.marks.pop() ?? null;
+    if (!mark) return null;
+    const last = this.history[this.history.length - 1];
+    if (last?.kind === "insert" && last.index === index && last.mark === mark) {
+      this.history.pop();
+    }
+    return mark;
+  }
+
+  /** 기존 마크를 같은 z-order 위치에서 교체한다. 동일 값은 이력을 만들지 않는다. */
+  replace(index: number, mark: Mark): boolean {
+    const before = this.marks[index];
+    if (!before || sameMark(before, mark)) return false;
+    const entry: HistoryEntry = { kind: "replace", index, before, after: mark };
+    this.applyForward(entry);
+    this.record(entry);
+    return true;
+  }
+
+  /** 기존 마크를 제거하고 원래 위치 복원이 가능한 이력을 남긴다. */
+  remove(index: number): Mark | null {
+    const mark = this.marks[index];
+    if (!mark) return null;
+    const entry: HistoryEntry = { kind: "remove", index, mark };
+    this.applyForward(entry);
+    this.record(entry);
+    return mark;
   }
 
   undo(): boolean {
-    const s = this.marks.pop();
-    if (!s) return false;
-    this.redoStack.push(s);
+    const entry = this.history.pop();
+    if (!entry) return false;
+    this.applyBackward(entry);
+    this.redoStack.push(entry);
     return true;
   }
 
   redo(): boolean {
-    const s = this.redoStack.pop();
-    if (!s) return false;
-    this.marks.push(s);
+    const entry = this.redoStack.pop();
+    if (!entry) return false;
+    this.applyForward(entry);
+    this.history.push(entry);
     return true;
   }
 
   clear() {
     this.marks = [];
+    this.history = [];
     this.redoStack = [];
     this.live = null;
+  }
+
+  private recordInsert(mark: Mark) {
+    const entry: HistoryEntry = { kind: "insert", index: this.marks.length, mark };
+    this.applyForward(entry);
+    this.record(entry);
+  }
+
+  private record(entry: HistoryEntry) {
+    this.history.push(entry);
+    this.redoStack = [];
+  }
+
+  private applyForward(entry: HistoryEntry) {
+    if (entry.kind === "insert") {
+      this.marks.splice(entry.index, 0, entry.mark);
+    } else if (entry.kind === "replace") {
+      this.marks[entry.index] = entry.after;
+    } else {
+      this.marks.splice(entry.index, 1);
+    }
+  }
+
+  private applyBackward(entry: HistoryEntry) {
+    if (entry.kind === "insert") {
+      this.marks.splice(entry.index, 1);
+    } else if (entry.kind === "replace") {
+      this.marks[entry.index] = entry.before;
+    } else {
+      this.marks.splice(entry.index, 0, entry.mark);
+    }
   }
 }
 
@@ -86,14 +163,15 @@ export class StrokeStore {
 export const TEXT_FONT_FAMILY = '-apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", sans-serif';
 
 /** 캔버스 마크와 DOM 에디터가 공유하는 완성된 font 문자열 — 조립 중복을 막는 단일 진입점. */
-export function fontString(size: number): string {
-  return `${size}px ${TEXT_FONT_FAMILY}`;
+export function fontString(size: number | TextSizeKey): string {
+  const px = typeof size === "number" ? size : textSizePx(size);
+  return `${px}px ${TEXT_FONT_FAMILY}`;
 }
 
 /** size 크기의 마크 서체로 text의 렌더 폭(px)을 잰다. 빈 문자열은 캐럿 한 칸 폭으로 최소화한다.
  * 측정용 캔버스는 매 호출 생성(cursor.ts와 같은 패턴) — 모듈 캐시는 테스트별
  * installCanvasMock() 격리를 깨뜨리고, 타이핑 속도에서는 생성 비용이 무시할 수준이다. */
-export function measureTextWidth(text: string, size: number): number {
+export function measureTextWidth(text: string, size: number | TextSizeKey): number {
   const ctx = document.createElement("canvas").getContext("2d")!;
   ctx.font = fontString(size);
   return ctx.measureText(text || " ").width;
@@ -119,7 +197,7 @@ export function drawMark(ctx: CanvasRenderingContext2D, m: Mark) {
   if (m.kind === "text") {
     ctx.globalAlpha = 1;
     ctx.fillStyle = m.color;
-    ctx.font = fontString(m.size);
+    ctx.font = fontString(m.sizeKey);
     ctx.textBaseline = "top";
     ctx.fillText(m.text, m.x, m.y);
     return;

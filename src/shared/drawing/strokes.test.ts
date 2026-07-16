@@ -2,7 +2,14 @@ import { describe, expect, it } from "vitest";
 import { createCanvasContext, installCanvasMock } from "../../../test/canvas";
 import { drawMark, fontString, Mark, measureTextWidth, StrokeStore, TEXT_FONT_FAMILY, TextMark } from "./strokes";
 
-const textMark: TextMark = { kind: "text", x: 40, y: 60, text: "재시도", color: "#FFD400", size: 29 };
+const textMark: TextMark = {
+  kind: "text",
+  x: 40,
+  y: 60,
+  text: "재시도",
+  color: "#FFD400",
+  sizeKey: "medium",
+};
 const rectMark: Mark = {
   kind: "shape",
   shape: "rect",
@@ -102,6 +109,43 @@ describe("StrokeStore", () => {
     expect(store.redoStack).toEqual([]);
     expect(store.redo()).toBe(false);
   });
+
+  it("replaces text as one history entry and skips a no-op edit", () => {
+    const store = new StrokeStore();
+    store.push(textMark);
+    const changed = { ...textMark, text: "수정", sizeKey: "large" as const };
+    expect(store.replace(0, changed)).toBe(true);
+    expect(store.marks).toEqual([changed]);
+    expect(store.replace(0, { ...changed })).toBe(false);
+
+    expect(store.undo()).toBe(true);
+    expect(store.marks).toEqual([textMark]);
+    expect(store.redo()).toBe(true);
+    expect(store.marks).toEqual([changed]);
+  });
+
+  it("removes a mark and restores it at the same z-order position", () => {
+    const store = new StrokeStore();
+    store.push(textMark);
+    store.push(rectMark);
+    expect(store.remove(0)).toBe(textMark);
+    expect(store.marks).toEqual([rectMark]);
+
+    expect(store.undo()).toBe(true);
+    expect(store.marks).toEqual([textMark, rectMark]);
+    expect(store.redo()).toBe(true);
+    expect(store.marks).toEqual([rectMark]);
+    expect(store.remove(4)).toBeNull();
+  });
+
+  it("retracts the matching insert history with a double-click dot", () => {
+    const store = new StrokeStore();
+    store.push(textMark);
+    store.push(rectMark);
+    store.retractLast();
+    expect(store.undo()).toBe(true);
+    expect(store.marks).toEqual([]);
+  });
 });
 
 describe("fontString", () => {
@@ -146,7 +190,7 @@ describe("drawMark", () => {
     const ctx = createCanvasContext();
     drawMark(ctx, textMark);
     expect(ctx.fillStyle).toBe("#FFD400");
-    expect(ctx.font).toBe(`29px ${TEXT_FONT_FAMILY}`);
+    expect(ctx.font).toBe(`30px ${TEXT_FONT_FAMILY}`);
     expect(ctx.textBaseline).toBe("top");
     expect(ctx.fillText).toHaveBeenCalledOnce();
     expect(ctx.fillText).toHaveBeenCalledWith("재시도", 40, 60);
