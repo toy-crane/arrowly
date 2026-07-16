@@ -7,6 +7,7 @@ const en = {
   "onboarding.draw.hi": "one stroke",
   "onboarding.shortcut.title": "Choose your shortcuts",
   "onboarding.shortcut.body": "Click a field, then press the combination you want to use.",
+  "onboarding.shortcut.textHint": "Use ⌘+/⌘− to resize text, and double-click text to edit it again.",
   "onboarding.erase.title": "Undo and exit",
   "onboarding.erase.body":
     "Made a mistake? Press {cmd}{z} to undo one stroke at a time. While drawing, {board} turns {hi} — your strokes stay. Press {esc} anytime to exit. Try drawing below, then press {board}.",
@@ -32,6 +33,8 @@ const en = {
   "settings.title": "Shortcuts",
   "settings.undo": "Undo",
   "settings.exit": "Exit",
+  "settings.textLarger": "Text larger",
+  "settings.textSmaller": "Text smaller",
   "settings.fixed": "Fixed",
   "marker.changeColor": "Change color",
   "marker.changeWidth": "Change thickness",
@@ -51,6 +54,7 @@ const ko: Record<Key, string> = {
   "onboarding.draw.hi": "한 획",
   "onboarding.shortcut.title": "단축키 정하기",
   "onboarding.shortcut.body": "필드를 누른 다음 원하는 키 조합을 입력하세요.",
+  "onboarding.shortcut.textHint": "⌘+/⌘−로 텍스트 크기를 바꾸고, 텍스트를 더블클릭해 다시 편집할 수 있어요.",
   "onboarding.erase.title": "지우기와 빠져나가기",
   "onboarding.erase.body":
     "그리다 실수하면 {cmd}{z}로 한 획씩 취소돼요. 그리는 중 {board}를 누르면 {hi}이 되고 그림은 그대로 남아요. {esc}로 언제든 빠져나옵니다. 아래에서 그리고 {board}를 눌러 보세요.",
@@ -76,6 +80,8 @@ const ko: Record<Key, string> = {
   "settings.title": "단축키",
   "settings.undo": "실행 취소",
   "settings.exit": "빠져나가기",
+  "settings.textLarger": "텍스트 크게",
+  "settings.textSmaller": "텍스트 작게",
   "settings.fixed": "고정",
   "marker.changeColor": "색 바꾸기",
   "marker.changeWidth": "굵기 바꾸기",

@@ -56,6 +56,7 @@ export function OnboardingApp() {
           <div style={editorCard}>
             <ShortcutEditor showReset={false} />
           </div>
+          <p style={textHint}>{t("onboarding.shortcut.textHint")}</p>
           <p style={menubarLine}>{tx("onboarding.menubar", { arrow: <ArrowGlyph /> })}</p>
         </>
       )}
@@ -147,6 +148,7 @@ const editorCard: CSSProperties = {
 };
 
 const menubarLine: CSSProperties = { margin: "12px 0 0", fontSize: 12.5, color: "var(--muted)" };
+const textHint: CSSProperties = { margin: "10px 0 0", fontSize: 12.5, color: "var(--muted)" };
 
 const kbd: CSSProperties = {
   display: "inline-flex",
