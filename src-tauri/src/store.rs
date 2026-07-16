@@ -37,15 +37,24 @@ pub fn load_shortcuts_with_migration(app: &AppHandle) -> Option<StoredShortcuts>
         Some(board)
     } else {
         let migrated = crate::shortcut_policy::migrated_board_default(
-            toggle.as_deref().unwrap_or(crate::shortcut_policy::DEFAULT_TOGGLE),
-            clear.as_deref().unwrap_or(crate::shortcut_policy::DEFAULT_CLEAR),
+            toggle
+                .as_deref()
+                .unwrap_or(crate::shortcut_policy::DEFAULT_TOGGLE),
+            clear
+                .as_deref()
+                .unwrap_or(crate::shortcut_policy::DEFAULT_CLEAR),
         );
         values.insert("board".into(), serde_json::json!(migrated));
         store.set(KEY_SHORTCUTS, serde_json::Value::Object(values));
         let _ = store.save();
         Some(migrated)
     };
-    Some(StoredShortcuts { toggle, board, clear, text })
+    Some(StoredShortcuts {
+        toggle,
+        board,
+        clear,
+        text,
+    })
 }
 
 pub fn read_marker_hidden(app: &AppHandle) -> bool {

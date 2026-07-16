@@ -159,7 +159,7 @@ fn handle_menu(app: &AppHandle, id: &str) {
         "board" => crate::overlay::toggle_board(app.clone()),
         "text" => crate::overlay::enter_text_mode(app),
         "clear" => {
-            let _ = app.emit(crate::events::CLEAR_ALL, ());
+            crate::overlay::clear_all(app);
         }
         "marker" => toggle_marker_hidden(app),
         "autostart" => toggle_autostart(app),

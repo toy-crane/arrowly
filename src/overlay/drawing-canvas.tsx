@@ -21,7 +21,12 @@ import {
   textCaretOffsetAt,
   TextMark,
 } from "../shared/drawing";
-import { onClearAll, onModeChanged } from "../shared/ipc";
+import {
+  onClearAll,
+  onFinishTextEditing,
+  onModeChanged,
+  setTextEditing,
+} from "../shared/ipc";
 import { matchesAccelerator } from "../shared/shortcuts";
 import { classifyStroke, HOLD_MS, RING_DELAY_MS, STILL_RADIUS_PX } from "./shapes";
 import { TextEditor } from "./text-editor";
@@ -106,6 +111,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
   const sessionRef = useRef<TextEditorSession | null>(session);
   sessionRef.current = session;
   const nextSessionIdRef = useRef(1);
+  const sessionRequestRef = useRef(0);
+  const wantsEditingRef = useRef(false);
   const editingRef = useRef(false);
   editingRef.current = session !== null;
 
@@ -159,15 +166,21 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
     renderBaseRef.current = renderBase;
 
     const closeSession = () => {
+      wantsEditingRef.current = false;
+      sessionRequestRef.current += 1;
       sessionRef.current = null;
       setSession(null);
       onEditingTextSizeChangeRef.current?.(null);
       onTextModeChangeRef.current(false);
+      void setTextEditing(false);
     };
 
     const finishSession = (commit: boolean) => {
       const current = sessionRef.current;
-      if (!current) return;
+      if (!current) {
+        closeSession();
+        return;
+      }
       if (commit) {
         const empty = current.value.trim().length === 0;
         if (current.kind === "new") {
@@ -197,7 +210,23 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
     };
     finishSessionRef.current = finishSession;
 
-    const beginSession = (next: TextEditorSession) => {
+    const beginSession = async (next: TextEditorSession) => {
+      wantsEditingRef.current = true;
+      const request = ++sessionRequestRef.current;
+      try {
+        await setTextEditing(true);
+      } catch {
+        if (request === sessionRequestRef.current) {
+          wantsEditingRef.current = false;
+          onEditingTextSizeChangeRef.current?.(null);
+          onTextModeChangeRef.current(false);
+        }
+        return;
+      }
+      if (request !== sessionRequestRef.current || !wantsEditingRef.current) {
+        if (!wantsEditingRef.current) void setTextEditing(false);
+        return;
+      }
       sessionRef.current = next;
       setSession(next);
       onEditingTextSizeChangeRef.current?.(next.sizeKey);
@@ -208,7 +237,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
     const beginTextAt = (point: Point) => {
       const hit = findTextMarkAt(store.marks, point);
       if (hit) {
-        beginSession({
+        void beginSession({
           kind: "existing",
           id: nextSessionIdRef.current++,
           index: hit.index,
@@ -220,7 +249,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
           initialCaret: textCaretOffsetAt(hit.mark, point.x),
         });
       } else {
-        beginSession({
+        void beginSession({
           kind: "new",
           id: nextSessionIdRef.current++,
           x: point.x,
@@ -532,6 +561,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       }
     });
     const unlistenClear = onClearAll(clearAll);
+    const unlistenFinishText = onFinishTextEditing(() => finishSession(true));
 
     return () => {
       window.removeEventListener("resize", setupBacking);
@@ -542,8 +572,13 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       live.removeEventListener("pointercancel", onPointerCancel);
       unlistenMode.then((f) => f());
       unlistenClear.then((f) => f());
+      unlistenFinishText.then((f) => f());
       if (rafId) cancelAnimationFrame(rafId);
       stopHold();
+      const hadEditingRequest = wantsEditingRef.current;
+      wantsEditingRef.current = false;
+      sessionRequestRef.current += 1;
+      if (hadEditingRequest) void setTextEditing(false);
       renderBaseRef.current = () => undefined;
       rememberOutsideClickRef.current = () => undefined;
       finishSessionRef.current = () => undefined;

@@ -36,3 +36,8 @@ export function onClearAll(handler: () => void): Promise<UnlistenFn> {
 export function onEnterTextMode(handler: () => void): Promise<UnlistenFn> {
   return listen("enter-text-mode", () => handler());
 }
+
+/** 편집 중 첫 전역 Esc — 현재 내용을 확정하고 텍스트 편집만 끝낸다. */
+export function onFinishTextEditing(handler: () => void): Promise<UnlistenFn> {
+  return listen("finish-text-editing", () => handler());
+}

@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { mockIPC } from "@tauri-apps/api/mocks";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { installCanvasMock } from "../../test/canvas";
 import { type TextSizeKey } from "../shared/constants";
@@ -62,10 +62,13 @@ function Harness() {
   );
 }
 
-function openEditorWithDraft(container: HTMLElement) {
+async function openEditorWithDraft(container: HTMLElement) {
   fireEvent.keyDown(window, { code: "KeyT" });
   const live = container.querySelectorAll("canvas")[1];
   fireEvent.pointerDown(live, { button: 0, clientX: 120, clientY: 90, pointerId: 1 });
+  await act(async () => {
+    await Promise.resolve();
+  });
   const input = screen.getByRole("textbox") as HTMLInputElement;
   fireEvent.change(input, { target: { value: "초안" } });
   return input;
@@ -87,10 +90,10 @@ describe("text mode and marker interplay", () => {
     Object.defineProperty(window, "devicePixelRatio", { configurable: true, value: 2 });
   });
 
-  it("clicking the marker's T button while editing turns text mode off instead of re-arming it", () => {
+  it("clicking the marker's T button while editing turns text mode off instead of re-arming it", async () => {
     const { container } = render(<Harness />);
     const [baseCtx] = contexts;
-    openEditorWithDraft(container);
+    await openEditorWithDraft(container);
 
     const tButton = screen.getByRole("button", { name: "Type text" });
     // 실제 클릭의 이벤트 순서를 재현: pointerdown(캡처 리스너 대상) → click(토글 핸들러)
@@ -104,7 +107,7 @@ describe("text mode and marker interplay", () => {
 
   it("clicking another marker cell while editing keeps the draft open", async () => {
     const { container } = render(<Harness />);
-    openEditorWithDraft(container);
+    await openEditorWithDraft(container);
 
     const colorButton = screen.getByRole("button", { name: "Change color" });
     fireEvent.pointerDown(colorButton, { button: 0, pointerId: 2 });
@@ -115,9 +118,9 @@ describe("text mode and marker interplay", () => {
     expect(screen.getByRole("textbox")).toHaveValue("초안");
   });
 
-  it("changes the active editor size from the T split menu without closing the draft", () => {
+  it("changes the active editor size from the T split menu without closing the draft", async () => {
     const { container } = render(<Harness />);
-    openEditorWithDraft(container);
+    await openEditorWithDraft(container);
 
     fireEvent.click(screen.getByRole("button", { name: "Change text size" }));
     fireEvent.click(screen.getByRole("button", { name: "Text size xlarge" }));

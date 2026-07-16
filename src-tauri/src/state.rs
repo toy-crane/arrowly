@@ -6,6 +6,12 @@ pub enum BlackboardAction {
     EnterDrawing,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EscapeAction {
+    FinishTextEditing,
+    ExitDrawing,
+}
+
 /// 앱 전역 상태. 상태 전이의 단일 소스는 Rust다.
 #[derive(Debug)]
 pub struct AppState {
@@ -25,6 +31,8 @@ pub struct AppState {
     pub clear_accel: String,
     /// 현재 텍스트 입력 accelerator (웹뷰 처리, 전역 미등록, 메뉴 라벨 표시용)
     pub text_accel: String,
+    /// 웹뷰가 텍스트 편집 세션을 열어 첫 Esc를 편집 종료에 써야 하는지 여부.
+    pub text_editing: bool,
 }
 
 impl Default for AppState {
@@ -39,6 +47,7 @@ impl Default for AppState {
             board_accel: crate::shortcut_policy::DEFAULT_BOARD.into(),
             clear_accel: crate::shortcut_policy::DEFAULT_CLEAR.into(),
             text_accel: crate::shortcut_policy::DEFAULT_TEXT.into(),
+            text_editing: false,
         }
     }
 }
@@ -63,6 +72,16 @@ impl AppState {
             BlackboardAction::SetBoard(true)
         }
     }
+
+    /// 첫 Esc는 편집만 끝내고 상태를 즉시 내린다. 다음 Esc는 그리기 종료로 진행한다.
+    pub fn escape_action(&mut self) -> EscapeAction {
+        if self.text_editing {
+            self.text_editing = false;
+            EscapeAction::FinishTextEditing
+        } else {
+            EscapeAction::ExitDrawing
+        }
+    }
 }
 
 pub type SharedState = Mutex<AppState>;
@@ -82,6 +101,7 @@ mod tests {
         assert_eq!(state.board_accel, "Shift+Alt+Tab");
         assert_eq!(state.clear_accel, "Alt+Backspace");
         assert_eq!(state.text_accel, "KeyT");
+        assert!(!state.text_editing);
     }
 
     #[test]
@@ -103,5 +123,17 @@ mod tests {
         assert_eq!(state.blackboard_action(), BlackboardAction::SetBoard(false));
         state.board = false;
         assert_eq!(state.blackboard_action(), BlackboardAction::SetBoard(true));
+    }
+
+    #[test]
+    fn escape_finishes_text_once_then_exits_drawing() {
+        let mut state = AppState {
+            drawing: true,
+            text_editing: true,
+            ..Default::default()
+        };
+        assert_eq!(state.escape_action(), EscapeAction::FinishTextEditing);
+        assert!(!state.text_editing);
+        assert_eq!(state.escape_action(), EscapeAction::ExitDrawing);
     }
 }

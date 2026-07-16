@@ -1,6 +1,13 @@
 import { mockIPC } from "@tauri-apps/api/mocks";
 import { beforeEach, describe, expect, it } from "vitest";
-import { applyShortcuts, resumeShortcuts, suspendShortcuts, toggleBoard, tryRegisterShortcut } from "./index";
+import {
+  applyShortcuts,
+  resumeShortcuts,
+  setTextEditing,
+  suspendShortcuts,
+  toggleBoard,
+  tryRegisterShortcut,
+} from "./index";
 
 describe("ipc commands", () => {
   const calls: { cmd: string; args: Record<string, unknown> }[] = [];
@@ -12,9 +19,15 @@ describe("ipc commands", () => {
 
   it("maps wrappers to Rust command names", async () => {
     await toggleBoard();
+    await setTextEditing(true);
     await suspendShortcuts();
     await resumeShortcuts();
-    expect(calls.map(({ cmd }) => cmd)).toEqual(["toggle_board", "suspend_shortcuts", "resume_shortcuts"]);
+    expect(calls).toEqual([
+      { cmd: "toggle_board", args: {} },
+      { cmd: "set_text_editing", args: { editing: true } },
+      { cmd: "suspend_shortcuts", args: {} },
+      { cmd: "resume_shortcuts", args: {} },
+    ]);
   });
 
   it("passes recorder arguments with exact top-level keys", async () => {
