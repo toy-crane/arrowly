@@ -3,11 +3,13 @@ export {
   drawMark,
   findTextMarkAt,
   fontString,
+  layoutText,
   measureTextWidth,
   StrokeStore,
   textCaretOffsetAt,
   TEXT_FONT_FAMILY,
   TEXT_HIT_PADDING_PX,
+  TEXT_LINE_HEIGHT_RATIO,
 } from "./strokes";
 export type {
   ArrowGeometry,
@@ -18,6 +20,8 @@ export type {
   ShapeMark,
   TextMark,
   TextHit,
+  TextLayout,
+  TextLineLayout,
 } from "./strokes";
 export { strokePath } from "./smoothing";
 export type { Point } from "./types";

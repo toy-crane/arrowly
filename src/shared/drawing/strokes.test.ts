@@ -4,6 +4,7 @@ import {
   drawMark,
   findTextMarkAt,
   fontString,
+  layoutText,
   Mark,
   measureTextWidth,
   StrokeStore,
@@ -179,6 +180,21 @@ describe("measureTextWidth", () => {
   });
 });
 
+describe("layoutText", () => {
+  it("preserves empty and trailing lines with a shared 1.2 line height", () => {
+    installCanvasMock();
+    const layout = layoutText("첫 줄\n\n끝\n", "medium");
+    expect(layout.lines.map((line) => ({ text: line.text, start: line.start, end: line.end }))).toEqual([
+      { text: "첫 줄", start: 0, end: 3 },
+      { text: "", start: 4, end: 4 },
+      { text: "끝", start: 5, end: 6 },
+      { text: "", start: 7, end: 7 },
+    ]);
+    expect(layout.lineHeight).toBe(36);
+    expect(layout.height).toBe(144);
+  });
+});
+
 describe("text hit testing", () => {
   it("finds the topmost text within the padded bounds", () => {
     installCanvasMock();
@@ -197,9 +213,23 @@ describe("text hit testing", () => {
       return context;
     });
     const mark = { ...textMark, text: "A😀한" };
-    expect(textCaretOffsetAt(mark, mark.x)).toBe(0);
-    expect(textCaretOffsetAt(mark, mark.x + 28)).toBe(3);
-    expect(textCaretOffsetAt(mark, mark.x + 50)).toBe(4);
+    expect(textCaretOffsetAt(mark, { x: mark.x, y: mark.y })).toBe(0);
+    expect(textCaretOffsetAt(mark, { x: mark.x + 28, y: mark.y })).toBe(3);
+    expect(textCaretOffsetAt(mark, { x: mark.x + 50, y: mark.y })).toBe(4);
+  });
+
+  it("hits individual lines and places the caret on the nearest multiline row", () => {
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(() => {
+      const context = createCanvasContext();
+      context.measureText = vi.fn((text: string) => ({
+        width: text.length * 10 || 10,
+      })) as unknown as typeof context.measureText;
+      return context;
+    });
+    const mark = { ...textMark, text: "긴 첫 줄\nB😀" };
+    expect(findTextMarkAt([mark], { x: 45, y: 98 })).toEqual({ index: 0, mark });
+    expect(findTextMarkAt([mark], { x: 90, y: 98 })).toBeNull();
+    expect(textCaretOffsetAt(mark, { x: 66, y: 100 })).toBe(9);
   });
 });
 
@@ -221,6 +251,7 @@ describe("drawMark", () => {
   });
 
   it("renders text with top baseline, ink color and derived size", () => {
+    installCanvasMock();
     const ctx = createCanvasContext();
     drawMark(ctx, textMark);
     expect(ctx.fillStyle).toBe("#FFD400");
@@ -229,6 +260,15 @@ describe("drawMark", () => {
     expect(ctx.fillText).toHaveBeenCalledOnce();
     expect(ctx.fillText).toHaveBeenCalledWith("재시도", 40, 60);
     expect(ctx.stroke).not.toHaveBeenCalled();
+  });
+
+  it("renders multiline text one row at a time and skips empty rows", () => {
+    installCanvasMock();
+    const ctx = createCanvasContext();
+    drawMark(ctx, { ...textMark, text: "첫 줄\n\n셋째" });
+    expect(ctx.fillText).toHaveBeenCalledTimes(2);
+    expect(ctx.fillText).toHaveBeenNthCalledWith(1, "첫 줄", 40, 60);
+    expect(ctx.fillText).toHaveBeenNthCalledWith(2, "셋째", 40, 132);
   });
 
   it("renders rect and ellipse with round-cap ink style", () => {

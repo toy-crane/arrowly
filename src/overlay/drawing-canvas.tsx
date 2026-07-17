@@ -246,7 +246,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
           y: hit.mark.y,
           value: hit.mark.text,
           sizeKey: hit.mark.sizeKey,
-          initialCaret: textCaretOffsetAt(hit.mark, point.x),
+          initialCaret: textCaretOffsetAt(hit.mark, point),
         });
       } else {
         void beginSession({
