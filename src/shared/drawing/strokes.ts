@@ -4,7 +4,7 @@ import { textSizePx, type TextSizeKey } from "../constants";
 
 /** 자유곡선 획 — 펜으로 그린 마크. */
 export type PenMark = { kind: "pen"; points: Point[]; color: string; width: number };
-/** 타이핑 텍스트 — 위치·색은 고정하고 내용·크기만 다시 교정할 수 있는 마크. */
+/** 타이핑 텍스트 — 색은 유지하고 내용·크기·위치를 다시 교정할 수 있는 마크. */
 export type TextMark = {
   kind: "text";
   x: number;
@@ -161,6 +161,7 @@ export class StrokeStore {
 
 /** 텍스트 마크와 DOM 에디터가 공유하는 서체 — 시스템 산세리프(확정). */
 export const TEXT_FONT_FAMILY = '-apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", sans-serif';
+export const TEXT_LINE_HEIGHT_RATIO = 1.2;
 
 /** 캔버스 마크와 DOM 에디터가 공유하는 완성된 font 문자열 — 조립 중복을 막는 단일 진입점. */
 export function fontString(size: number | TextSizeKey): string {
@@ -177,6 +178,48 @@ export function measureTextWidth(text: string, size: number | TextSizeKey): numb
   return ctx.measureText(text || " ").width;
 }
 
+export type TextLineLayout = {
+  text: string;
+  start: number;
+  end: number;
+  width: number;
+  top: number;
+};
+
+export type TextLayout = {
+  lines: TextLineLayout[];
+  width: number;
+  height: number;
+  lineHeight: number;
+  fontSize: number;
+};
+
+/** 줄바꿈을 보존한 텍스트의 공통 레이아웃. 캔버스·DOM·hit testing이 같은 줄 높이를 쓴다. */
+export function layoutText(text: string, sizeKey: TextSizeKey): TextLayout {
+  const fontSize = textSizePx(sizeKey);
+  const lineHeight = fontSize * TEXT_LINE_HEIGHT_RATIO;
+  let offset = 0;
+  const lines = text.split("\n").map((line, index) => {
+    const start = offset;
+    const end = start + line.length;
+    offset = end + 1;
+    return {
+      text: line,
+      start,
+      end,
+      width: measureTextWidth(line, sizeKey),
+      top: index * lineHeight,
+    };
+  });
+  return {
+    lines,
+    width: Math.max(...lines.map((line) => line.width)),
+    height: lines.length * lineHeight,
+    lineHeight,
+    fontSize,
+  };
+}
+
 export const TEXT_HIT_PADDING_PX = 6;
 
 export type TextHit = { index: number; mark: TextMark };
@@ -186,14 +229,15 @@ export function findTextMarkAt(marks: Mark[], point: Point): TextHit | null {
   for (let index = marks.length - 1; index >= 0; index -= 1) {
     const mark = marks[index];
     if (mark.kind !== "text") continue;
-    const width = measureTextWidth(mark.text, mark.sizeKey);
-    const height = textSizePx(mark.sizeKey);
-    if (
-      point.x >= mark.x - TEXT_HIT_PADDING_PX &&
-      point.x <= mark.x + width + TEXT_HIT_PADDING_PX &&
-      point.y >= mark.y - TEXT_HIT_PADDING_PX &&
-      point.y <= mark.y + height + TEXT_HIT_PADDING_PX
-    ) {
+    const layout = layoutText(mark.text, mark.sizeKey);
+    const hit = layout.lines.some(
+      (line) =>
+        point.x >= mark.x - TEXT_HIT_PADDING_PX &&
+        point.x <= mark.x + line.width + TEXT_HIT_PADDING_PX &&
+        point.y >= mark.y + line.top - TEXT_HIT_PADDING_PX &&
+        point.y <= mark.y + line.top + layout.fontSize + TEXT_HIT_PADDING_PX,
+    );
+    if (hit) {
       return { index, mark };
     }
   }
@@ -229,17 +273,34 @@ function graphemeBoundaries(text: string): number[] {
   return boundaries;
 }
 
-/** 클릭 X와 가장 가까운 grapheme 경계를 DOM input의 UTF-16 selection offset으로 반환한다. */
-export function textCaretOffsetAt(mark: TextMark, clickX: number): number {
-  const relativeX = clickX - mark.x;
-  const boundaries = graphemeBoundaries(mark.text);
-  let best = 0;
+function closestLine(layout: TextLayout, relativeY: number): TextLineLayout {
+  let best = layout.lines[0];
+  let distance = Number.POSITIVE_INFINITY;
+  for (const line of layout.lines) {
+    const lineBottom = line.top + layout.fontSize;
+    const nextDistance =
+      relativeY < line.top ? line.top - relativeY : relativeY > lineBottom ? relativeY - lineBottom : 0;
+    if (nextDistance < distance) {
+      best = line;
+      distance = nextDistance;
+    }
+  }
+  return best;
+}
+
+/** 클릭 점과 가장 가까운 줄·grapheme 경계를 DOM textarea의 UTF-16 selection offset으로 반환한다. */
+export function textCaretOffsetAt(mark: TextMark, point: Point): number {
+  const layout = layoutText(mark.text, mark.sizeKey);
+  const line = closestLine(layout, point.y - mark.y);
+  const relativeX = point.x - mark.x;
+  const boundaries = graphemeBoundaries(line.text);
+  let best = line.start;
   let distance = Number.POSITIVE_INFINITY;
   for (const boundary of boundaries) {
-    const width = measureTextWidth(mark.text.slice(0, boundary), mark.sizeKey);
+    const width = measureTextWidth(line.text.slice(0, boundary), mark.sizeKey);
     const nextDistance = Math.abs(relativeX - width);
     if (nextDistance < distance) {
-      best = boundary;
+      best = line.start + boundary;
       distance = nextDistance;
     }
   }
@@ -268,7 +329,10 @@ export function drawMark(ctx: CanvasRenderingContext2D, m: Mark) {
     ctx.fillStyle = m.color;
     ctx.font = fontString(m.sizeKey);
     ctx.textBaseline = "top";
-    ctx.fillText(m.text, m.x, m.y);
+    const layout = layoutText(m.text, m.sizeKey);
+    for (const line of layout.lines) {
+      if (line.text) ctx.fillText(line.text, m.x, m.y + line.top);
+    }
     return;
   }
   inkStyle(ctx, m.color, m.width);
