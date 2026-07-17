@@ -154,13 +154,21 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
     const baseCtx = base.getContext("2d")!;
     const liveCtx = live.getContext("2d")!;
     let rafId = 0;
+    let movingTextIndex = -1;
+    let movingText: TextMark | null = null;
+    let textGesture: {
+      origin: Point;
+      index: number;
+      original: TextMark;
+      moving: boolean;
+    } | null = null;
 
     const renderBase = () => {
       baseCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
       const editingIndex =
         sessionRef.current?.kind === "existing" ? sessionRef.current.index : -1;
       store.marks.forEach((mark, index) => {
-        if (index !== editingIndex) drawMark(baseCtx, mark);
+        if (index !== editingIndex && index !== movingTextIndex) drawMark(baseCtx, mark);
       });
     };
     renderBaseRef.current = renderBase;
@@ -234,20 +242,24 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       renderBase();
     };
 
+    const beginExistingText = (index: number, mark: TextMark, point: Point) => {
+      void beginSession({
+        kind: "existing",
+        id: nextSessionIdRef.current++,
+        index,
+        original: mark,
+        x: mark.x,
+        y: mark.y,
+        value: mark.text,
+        sizeKey: mark.sizeKey,
+        initialCaret: textCaretOffsetAt(mark, point),
+      });
+    };
+
     const beginTextAt = (point: Point) => {
       const hit = findTextMarkAt(store.marks, point);
       if (hit) {
-        void beginSession({
-          kind: "existing",
-          id: nextSessionIdRef.current++,
-          index: hit.index,
-          original: hit.mark,
-          x: hit.mark.x,
-          y: hit.mark.y,
-          value: hit.mark.text,
-          sizeKey: hit.mark.sizeKey,
-          initialCaret: textCaretOffsetAt(hit.mark, point),
-        });
+        beginExistingText(hit.index, hit.mark, point);
       } else {
         void beginSession({
           kind: "new",
@@ -293,6 +305,10 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
 
     const renderLive = () => {
       liveCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+      if (movingText) {
+        drawMark(liveCtx, movingText);
+        return;
+      }
       if (snapped) {
         drawMark(liveCtx, snapped); // 스냅 미리보기 — 떼면 확정
         return;
@@ -375,15 +391,19 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
     // (두 번째 입력 장치·멀티터치가 첫 포인터의 홀드·스냅 상태를 덮어쓰지 못하게 한다)
     let activePointerId: number | null = null;
 
-    /** 제스처 상태 전체를 취소한다 — pointercancel·모드 전환·전체 지우기·텍스트 모드 진입의 공유 경로.
-     * 렌더는 호출자가 상황에 맞게 따로 한다(clearAll은 renderBase도 함께 불러야 하므로). */
+    /** 제스처 상태 전체를 취소한다 — 이동 중인 텍스트만 즉시 원위치로 다시 그린다. */
     const resetGestureState = () => {
+      const wasMovingText = movingTextIndex >= 0;
       lastClick = null;
       dblPending = null;
       stopHold();
       snapped = null;
+      textGesture = null;
+      movingText = null;
+      movingTextIndex = -1;
       store.cancelLive();
       activePointerId = null;
+      if (wasMovingText) renderBase();
     };
 
     const onPointerDown = (e: PointerEvent) => {
@@ -396,7 +416,21 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       }
       if (textModeRef.current) {
         e.preventDefault();
-        if (!editingRef.current) beginTextAt(toPoint(e));
+        if (editingRef.current) return;
+        const point = toPoint(e);
+        const hit = findTextMarkAt(store.marks, point);
+        if (!hit) {
+          beginTextAt(point);
+          return;
+        }
+        textGesture = {
+          origin: point,
+          index: hit.index,
+          original: hit.mark,
+          moving: false,
+        };
+        activePointerId = e.pointerId;
+        live.setPointerCapture(e.pointerId);
         return;
       }
       const p = toPoint(e);
@@ -425,6 +459,25 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
 
     const onPointerMove = (e: PointerEvent) => {
       if (activePointerId !== null && e.pointerId !== activePointerId) return;
+      if (textGesture) {
+        const point = toPoint(e);
+        const dx = point.x - textGesture.origin.x;
+        const dy = point.y - textGesture.origin.y;
+        if (!textGesture.moving && Math.hypot(dx, dy) > CLICK_SLOP_PX) {
+          textGesture.moving = true;
+          movingTextIndex = textGesture.index;
+          renderBase();
+        }
+        if (textGesture.moving) {
+          movingText = {
+            ...textGesture.original,
+            x: textGesture.original.x + dx,
+            y: textGesture.original.y + dy,
+          };
+          scheduleLive();
+        }
+        return;
+      }
       if (snapped) return; // 스냅 후에는 떼기 전까지 도형이 고정된다
       if (!store.live) return;
       const coalesced = e.getCoalescedEvents?.() ?? [];
@@ -442,6 +495,33 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
 
     const onPointerUp = (e: PointerEvent) => {
       if (activePointerId !== null && e.pointerId !== activePointerId) return;
+      if (textGesture) {
+        const gesture = textGesture;
+        const point = toPoint(e);
+        const wasMoving =
+          gesture.moving ||
+          Math.hypot(point.x - gesture.origin.x, point.y - gesture.origin.y) > CLICK_SLOP_PX;
+        const moved = wasMoving
+          ? {
+              ...gesture.original,
+              x: gesture.original.x + point.x - gesture.origin.x,
+              y: gesture.original.y + point.y - gesture.origin.y,
+            }
+          : null;
+        textGesture = null;
+        movingText = null;
+        movingTextIndex = -1;
+        activePointerId = null;
+        if (moved) {
+          store.replace(gesture.index, moved);
+          onTextModeChangeRef.current(false);
+          renderBase();
+          renderLive();
+        } else {
+          beginExistingText(gesture.index, gesture.original, point);
+        }
+        return;
+      }
       if (dblPending) {
         const { p: at, markCreated } = dblPending;
         dblPending = null;

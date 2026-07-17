@@ -404,6 +404,7 @@ describe("DrawingCanvas", () => {
 
       fireEvent.keyDown(window, { code: "KeyT" });
       fireEvent.pointerDown(live, { button: 0, clientX: 80, clientY: 70, pointerId: 2 });
+      fireEvent.pointerUp(live, { clientX: 80, clientY: 70, pointerId: 2 });
       await flushTextEditingStart();
       const input = screen.getByRole("textbox");
       fireEvent.change(input, { target: { value: "   " } });
@@ -424,6 +425,7 @@ describe("DrawingCanvas", () => {
 
       fireEvent.keyDown(window, { code: "KeyT" });
       fireEvent.pointerDown(live, { button: 0, clientX: 100, clientY: 100, pointerId: 3 });
+      fireEvent.pointerUp(live, { clientX: 100, clientY: 100, pointerId: 3 });
       await flushTextEditingStart();
       const editorA = screen.getByRole("textbox");
       fireEvent.change(editorA, { target: { value: "A 수정" } });
@@ -438,7 +440,54 @@ describe("DrawingCanvas", () => {
 
       expect(baseCtx.stroke).toHaveBeenCalledTimes(strokesBefore);
       expect(baseCtx.fillText).toHaveBeenCalledWith("A 수정", 100, 100);
-      expect((screen.getByRole("textbox") as HTMLInputElement).value).toBe("B");
+      expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe("B");
+    });
+
+    it("moves existing text after the click threshold and records one undoable position change", async () => {
+      const onChange = vi.fn();
+      const { container } = render(<Harness onChange={onChange} />);
+      const [baseCtx, liveCtx] = contexts;
+      const live = container.querySelectorAll("canvas")[1];
+      await createText(live, 100, 100, "이동\n대상", 1);
+
+      fireEvent.keyDown(window, { code: "KeyT" });
+      fireEvent.pointerDown(live, { button: 0, clientX: 105, clientY: 105, pointerId: 2 });
+      fireEvent.pointerMove(live, { clientX: 135, clientY: 125, pointerId: 2 });
+      expect(liveCtx.fillText).toHaveBeenCalledWith("이동", 130, 120);
+      expect(liveCtx.fillText).toHaveBeenCalledWith("대상", 130, 156);
+
+      fireEvent.pointerUp(live, { clientX: 145, clientY: 135, pointerId: 2 });
+      expect(baseCtx.fillText).toHaveBeenLastCalledWith("대상", 140, 166);
+      expect(onChange).toHaveBeenLastCalledWith(false);
+      expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+
+      fireEvent.keyDown(window, { code: "KeyZ", metaKey: true });
+      expect(baseCtx.fillText).toHaveBeenLastCalledWith("대상", 100, 136);
+      fireEvent.keyDown(window, { code: "KeyZ", metaKey: true, shiftKey: true });
+      expect(baseCtx.fillText).toHaveBeenLastCalledWith("대상", 140, 166);
+    });
+
+    it("treats a sub-threshold text gesture as editing and restores a cancelled move", async () => {
+      const onChange = vi.fn();
+      const { container } = render(<Harness onChange={onChange} />);
+      const [baseCtx] = contexts;
+      const live = container.querySelectorAll("canvas")[1];
+      await createText(live, 100, 100, "원본", 1);
+
+      fireEvent.keyDown(window, { code: "KeyT" });
+      fireEvent.pointerDown(live, { button: 0, clientX: 100, clientY: 100, pointerId: 2 });
+      fireEvent.pointerMove(live, { clientX: 103, clientY: 100, pointerId: 2 });
+      fireEvent.pointerUp(live, { clientX: 103, clientY: 100, pointerId: 2 });
+      await flushTextEditingStart();
+      expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe("원본");
+      fireEvent.keyDown(screen.getByRole("textbox"), { code: "KeyZ", metaKey: true });
+
+      fireEvent.keyDown(window, { code: "KeyT" });
+      fireEvent.pointerDown(live, { button: 0, clientX: 100, clientY: 100, pointerId: 3 });
+      fireEvent.pointerMove(live, { clientX: 130, clientY: 130, pointerId: 3 });
+      fireEvent.pointerCancel(live, { pointerId: 3 });
+      expect(baseCtx.fillText).toHaveBeenLastCalledWith("원본", 100, 100);
+      expect(onChange).toHaveBeenLastCalledWith(true);
     });
   });
 
