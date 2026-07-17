@@ -1,6 +1,6 @@
 import { CSSProperties, useEffect, useLayoutEffect, useRef } from "react";
 import { textSizePx, type TextSizeKey } from "../shared/constants";
-import { fontString, measureTextWidth, type Point } from "../shared/drawing";
+import { fontString, layoutText, type Point } from "../shared/drawing";
 
 /** 빈 입력에서도 캐럿이 보이는 최소 폭. */
 const MIN_WIDTH_PX = 10;
@@ -23,7 +23,7 @@ type Props = {
 };
 
 /**
- * 텍스트 마크 입력기 — 캔버스 위에 뜨는 controlled 네이티브 <input>.
+ * 텍스트 마크 입력기 — 캔버스 위에 뜨는 controlled 네이티브 <textarea>.
  * 편집 세션과 확정 정책은 DrawingCanvas가 소유하고, 이 컴포넌트는 DOM 입력·IME·캐럿만 담당한다.
  */
 export function TextEditor({
@@ -40,7 +40,7 @@ export function TextEditor({
   onCancel,
   onOutsidePointerDown,
 }: Props) {
-  const inputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const doneRef = useRef(false);
   const commitRef = useRef(onCommit);
   const outsideRef = useRef(onOutsidePointerDown);
@@ -72,9 +72,10 @@ export function TextEditor({
     action();
   };
 
-  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const onKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     e.stopPropagation();
-    if (e.key === "Enter" && !e.nativeEvent.isComposing) {
+    if (e.key === "Enter") {
+      if (e.nativeEvent.isComposing || e.shiftKey) return;
       e.preventDefault();
       finish(() => commitRef.current());
       return;
@@ -95,12 +96,13 @@ export function TextEditor({
     }
   };
 
-  const measuredWidth = measureTextWidth(value, sizeKey);
+  const layout = layoutText(value, sizeKey);
   const style: CSSProperties = {
     position: "fixed",
     left: x,
     top: y,
-    width: `${Math.max(MIN_WIDTH_PX, measuredWidth + WIDTH_PADDING_PX)}px`,
+    width: `${Math.max(MIN_WIDTH_PX, layout.width + WIDTH_PADDING_PX)}px`,
+    height: `${layout.height}px`,
     margin: 0,
     padding: 0,
     border: "none",
@@ -110,22 +112,27 @@ export function TextEditor({
     outlineOffset: 6,
     borderRadius: 1,
     background: "transparent",
+    boxSizing: "border-box",
     color,
     caretColor: color,
     font: fontString(sizeKey),
-    lineHeight: 1,
+    lineHeight: `${layout.lineHeight}px`,
+    overflow: "hidden",
+    resize: "none",
+    whiteSpace: "pre",
   };
 
   return (
-    <input
+    <textarea
       ref={inputRef}
-      type="text"
       value={value}
       style={style}
+      wrap="off"
       spellCheck={false}
       autoCapitalize="off"
       autoCorrect="off"
       aria-label="Text editor"
+      data-text-line-count={layout.lines.length}
       data-text-size-px={textSizePx(sizeKey)}
       onChange={(e) => onValueChange(e.target.value)}
       onKeyDown={onKeyDown}
