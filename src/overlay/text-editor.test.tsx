@@ -44,7 +44,7 @@ function renderEditor(overrides: Partial<EditorProps> = {}) {
   }
 
   const utils = render(<Harness />);
-  const input = screen.getByRole("textbox") as HTMLInputElement;
+  const input = screen.getByRole("textbox") as HTMLTextAreaElement;
   return {
     ...utils,
     input,
@@ -75,21 +75,29 @@ describe("TextEditor", () => {
     expect(input.style.outlineOffset).toBe("6px");
   });
 
-  it("sizes the controlled input from measured pixel width", () => {
+  it("sizes the controlled textarea from the longest row and line count", () => {
     const { input } = renderEditor();
-    fireEvent.change(input, { target: { value: "서버 캐시" } });
+    fireEvent.change(input, { target: { value: "서버 캐시\n\n끝\n" } });
 
     const latest = contexts[contexts.length - 1];
-    expect(latest.measureText).toHaveBeenCalledWith("서버 캐시");
+    expect(latest.measureText).toHaveBeenCalledWith(" ");
     expect(latest.font).toBe(fontString("medium"));
     expect(input.style.width).toBe("18px");
+    expect(input.style.height).toBe("144px");
+    expect(input.style.lineHeight).toBe("36px");
+    expect(input).toHaveAttribute("data-text-line-count", "4");
+    expect(input).toHaveAttribute("wrap", "off");
   });
 
-  it("commits on Enter only once and ignores Enter during IME composition", () => {
+  it("commits on Enter, inserts with Shift+Enter and ignores Enter during IME composition", () => {
     const { input, onCommit } = renderEditor();
     fireEvent.change(input, { target: { value: "안녕" } });
     fireEvent.keyDown(input, { key: "Enter", isComposing: true });
     expect(onCommit).not.toHaveBeenCalled();
+    fireEvent.keyDown(input, { key: "Enter", shiftKey: true });
+    expect(onCommit).not.toHaveBeenCalled();
+    fireEvent.change(input, { target: { value: "안녕\n두 번째 줄" } });
+    expect(input.value).toBe("안녕\n두 번째 줄");
     fireEvent.keyDown(input, { key: "Enter" });
     fireEvent.keyDown(input, { key: "Enter" });
     expect(onCommit).toHaveBeenCalledOnce();
