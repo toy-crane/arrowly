@@ -1,0 +1,431 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Arrowly 플로팅 마커 — 최종 확정 프로토타입</title>
+  <style>
+    :root {
+      --background: #eceef2;
+      --foreground: #1c1e24;
+      --muted: #737884;
+      --line: #d2d5dc;
+      --accent: #ffd400;
+      --radius: 15px;
+      --font: -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif;
+      --marker-surface: rgba(24,26,32,.88);
+      --marker-strong: rgba(24,26,32,.97);
+      --marker-foreground: #e8eaf0;
+      --marker-line: rgba(255,255,255,.14);
+      --marker-active: rgba(255,255,255,.16);
+      --marker-hover: rgba(255,255,255,.08);
+      --ink: #00aeef;
+    }
+
+    * { box-sizing: border-box }
+    body {
+      margin: 0 0 40px; background: var(--background); color: var(--foreground);
+      font-family: var(--font); -webkit-font-smoothing: antialiased;
+    }
+    button { font: inherit }
+    [hidden] { display: none !important }
+
+    .sh-bar {
+      position: sticky; top: 0; z-index: 999;
+      display: flex; gap: 9px; align-items: center; flex-wrap: wrap;
+      min-height: 48px; padding: 8px 12px;
+      background: #15161a; color: #dfe1e6;
+      font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    .sh-bar b { color: #848994; font-weight: 500 }
+    .sh-bar button {
+      border: 1px solid #3b3e46; background: none; color: inherit;
+      padding: 3px 9px; border-radius: 99px; cursor: pointer;
+    }
+    .sh-bar button.on { background: #e3e5ea; color: #18191d; border-color: #e3e5ea }
+    #sh-states:not([hidden])::before { content: "state"; color: #7d828d; margin-right: 4px }
+    .sh-spacer { flex: 1 }
+    .sh-stage { max-width: 1120px; margin: 0 auto; padding: 20px 20px 0 }
+    .sh-vp-390 .sh-stage {
+      max-width: 390px; border: 10px solid #191a1c; border-radius: 28px;
+      padding: 16px 12px; min-height: 660px; margin-top: 12px;
+    }
+    .sh-vp-768 .sh-stage {
+      max-width: 768px; border: 1px solid #c4c4c4; border-radius: 12px;
+      padding: 16px; margin-top: 12px;
+    }
+
+    .review-head {
+      display: grid; grid-template-columns: 1fr 340px; gap: 18px;
+      margin: 2px 0 14px;
+    }
+    .review-head h1 { margin: 0 0 5px; font-size: 24px; letter-spacing: -.03em }
+    .review-head p { margin: 0; color: #6f7480; font-size: 14px }
+    .approved {
+      align-self: start; padding: 10px 12px; border: 1px solid #c5a600;
+      border-radius: 10px; background: rgba(255,255,255,.8);
+      box-shadow: inset 4px 0 0 var(--accent); font-size: 12px; line-height: 1.45;
+    }
+    .approved b { display: block; margin-bottom: 2px }
+
+    .desktop {
+      position: relative; height: min(590px, calc(100vh - 205px)); min-height: 500px;
+      overflow: hidden; border: 1px solid #c6c9d0; border-radius: var(--radius);
+      background: #f8f8fa; box-shadow: 0 18px 46px rgba(20,22,28,.12);
+    }
+    .menu-bar {
+      height: 28px; display: flex; align-items: center; justify-content: space-between;
+      padding: 0 13px; border-bottom: 1px solid #d7d9de;
+      background: rgba(255,255,255,.78); color: #676b73; font-size: 11px;
+    }
+    .app { position: absolute; inset: 28px 0 0; display: grid; grid-template-columns: 170px 1fr }
+    .sidebar { padding: 24px 16px; background: #eff0f3; border-right: 1px solid #d8dae0 }
+    .line { height: 9px; margin: 9px 0; border-radius: 4px; background: #d7d9df }
+    .line.short { width: 62% }
+    .content { padding: 46px 52px }
+    .content .title { width: 43%; height: 18px; margin-bottom: 26px; background: #d0d2d8; border-radius: 5px }
+    .content .line:nth-child(3n) { width: 80% }
+    .ink-mark {
+      position: absolute; left: 44%; top: 39%; width: 205px; height: 116px;
+      border: 5px solid #ff7a00; border-radius: 50%; transform: rotate(-6deg); opacity: .74;
+    }
+    .ink-mark::after {
+      content: ""; position: absolute; width: 115px; border-top: 5px solid #ff7a00;
+      right: -87px; top: 58px; transform: rotate(9deg);
+    }
+    .board-layer {
+      display: none; position: absolute; inset: 28px 0 0; background: #050506;
+    }
+    .board-layer::after {
+      content: "관찰 → 가설 → 검증"; position: absolute; left: 35%; top: 35%;
+      color: #ffd400; font: 650 34px/1.2 var(--font); transform: rotate(-2deg);
+    }
+    .text-draft {
+      display: none; position: absolute; left: 44%; top: 31%; min-width: 260px; min-height: 58px;
+      padding: 10px 12px; border: 2px solid rgba(0,174,239,.82); border-radius: 6px;
+      background: rgba(255,255,255,.88); color: var(--ink); font: 650 40px/1.1 var(--font);
+      box-shadow: 0 2px 10px rgba(0,0,0,.08);
+    }
+    .text-draft::after {
+      content: ""; display: inline-block; width: 2px; height: .95em;
+      margin-left: 3px; vertical-align: -.08em; background: var(--ink);
+    }
+
+    .marker-wrap {
+      position: absolute; left: 4%; bottom: 5%; display: flex;
+      flex-direction: column; align-items: flex-start; gap: 8px;
+    }
+    .marker, .inspector {
+      color: var(--marker-foreground); background: var(--marker-surface);
+      border: 1px solid var(--marker-line); box-shadow: 0 4px 18px rgba(0,0,0,.35);
+      backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+    }
+    .marker {
+      height: 44px; display: flex; align-items: center; padding: 0 8px; border-radius: 999px;
+    }
+    .tool-button {
+      width: 42px; height: 32px; display: grid; place-items: center;
+      padding: 0; border: 0; border-radius: 8px; background: transparent;
+      color: var(--marker-foreground); cursor: pointer; line-height: 1;
+    }
+    .tool-button:hover { background: var(--marker-hover) }
+    .tool-button.is-active { background: var(--marker-active) }
+    .tool-button:focus-visible, .choice:focus-visible {
+      outline: 2px solid var(--accent); outline-offset: 1px;
+    }
+    .divider { width: 1px; height: 20px; margin: 0 8px; background: var(--marker-line) }
+    .freehand-icon {
+      width: 24px; height: 22px; display: block; fill: none; stroke: var(--ink);
+      stroke-width: 2.15; stroke-linecap: round; stroke-linejoin: round;
+    }
+    .text-icon { font-size: 19px; font-weight: 650 }
+    .board-icon {
+      width: 20px; height: 20px; fill: none; stroke: currentColor;
+      stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;
+    }
+
+    .inspector {
+      display: none; min-width: 306px; padding: 8px 9px; border-radius: 14px;
+      background: var(--marker-strong); position: relative;
+    }
+    .inspector::after {
+      content: ""; position: absolute; left: 25px; bottom: -5px;
+      width: 9px; height: 9px; background: var(--marker-strong);
+      border-right: 1px solid var(--marker-line); border-bottom: 1px solid var(--marker-line);
+      transform: rotate(45deg);
+    }
+    .inspector-row {
+      min-height: 34px; display: grid; grid-template-columns: 43px 1fr;
+      align-items: center; gap: 5px;
+    }
+    .inspector-label { padding-left: 5px; color: #aeb2bc; font-size: 11px }
+    .choice-strip { display: flex; align-items: center; gap: 3px }
+    .choice {
+      width: 42px; height: 32px; display: grid; place-items: center;
+      padding: 0; border: 0; border-radius: 8px; background: transparent;
+      color: #d6d9e0; cursor: pointer;
+    }
+    .choice:hover, .choice.selected { background: var(--marker-active) }
+    .color-dot { width: 17px; height: 17px; display: block; border-radius: 50% }
+    .choice.selected .color-dot { outline: 2px solid #e8eaf0; outline-offset: 2.5px }
+    .width-bar { width: 28px; display: block; border-radius: 99px; box-sizing: border-box }
+    .choice:not(.selected) .width-bar { background: transparent !important; border: 1.5px solid rgba(232,234,240,.85) }
+    .size-choice { font-size: 12px; font-variant-numeric: tabular-nums }
+
+    .state-note {
+      position: absolute; right: 18px; bottom: 17px; width: 265px;
+      padding: 10px 12px; border: 1px solid #d6d8de; border-radius: 9px;
+      background: rgba(255,255,255,.9); color: #626772; font-size: 11px; line-height: 1.48;
+    }
+    .state-note b { color: #20232a }
+    .component-key { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 11px; color: #737884; font-size: 11px }
+    .component-key span { padding: 4px 8px; border: 1px solid #d2d5dc; border-radius: 99px; background: rgba(255,255,255,.72) }
+
+    #final-screen[data-state="펜 속성"] .pen-inspector,
+    #final-screen[data-state="텍스트 속성"] .text-inspector,
+    #final-screen[data-state="편집 40"] .text-inspector,
+    #final-screen[data-state="상단 배치"] .text-inspector { display: grid }
+    #final-screen[data-state="편집 40"] .text-draft,
+    #final-screen[data-state="편집 적용 후"] .text-draft { display: block }
+    #final-screen[data-state="보드"] .board-layer { display: block }
+    #final-screen[data-state="보드"] .ink-mark { display: none }
+    #final-screen[data-state="상단 배치"] .marker-wrap {
+      top: 42px; bottom: auto; flex-direction: column-reverse;
+    }
+    #final-screen[data-state="상단 배치"] .inspector::after {
+      top: -5px; bottom: auto; transform: rotate(225deg);
+    }
+
+    .sh-vp-390 .review-head, .sh-vp-768 .review-head { grid-template-columns: 1fr }
+    .sh-vp-390 .desktop { min-height: 560px }
+    .sh-vp-390 .app { grid-template-columns: 82px 1fr }
+    .sh-vp-390 .content { padding: 30px 15px }
+    .sh-vp-390 .marker-wrap { left: 12px }
+    .sh-vp-390 .state-note { display: none }
+    .sh-vp-390 .inspector { min-width: 332px }
+    .sh-vp-390 .text-draft { left: 26%; min-width: 220px }
+  </style>
+</head>
+<body>
+  <header class="sh-bar">
+    <b>Arrowly · approved surface</b>
+    <nav id="sh-tabs"></nav>
+    <span class="sh-spacer"></span>
+    <span id="sh-states" hidden></span>
+    <button id="sh-vp">vp: full (m)</button>
+  </header>
+
+  <main class="sh-stage">
+    <section id="final-screen" data-screen="final" data-title="최종 확정" data-states="펜 기본,펜 속성,텍스트 기본,텍스트 속성,편집 40,편집 적용 후,보드,상단 배치">
+      <div class="review-head">
+        <div>
+          <h1>플로팅 마커 최종 확정</h1>
+          <p>1층은 도구, 2층은 활성 도구의 속성입니다.</p>
+        </div>
+        <div class="approved"><b>확정 · 자유곡선 아이콘</b>현재 잉크색을 품은 자유곡선 · T · 블랙보드의 3버튼 구조입니다.</div>
+      </div>
+
+      <div class="desktop">
+        <div class="menu-bar"><span>강의 자료</span><span>9:41</span></div>
+        <div class="app">
+          <aside class="sidebar"><div class="line"></div><div class="line short"></div><div class="line"></div></aside>
+          <div class="content"><div class="title"></div><div class="line"></div><div class="line"></div><div class="line short"></div><div class="line"></div></div>
+        </div>
+        <div class="ink-mark"></div>
+        <div class="board-layer"></div>
+        <div class="text-draft">핵심 개념</div>
+
+        <div class="marker-wrap">
+          <div class="inspector pen-inspector" data-component="ToolInspector:new" aria-label="자유곡선 속성">
+            <div class="inspector-row">
+              <span class="inspector-label">색</span>
+              <div class="choice-strip">
+                <button class="choice color-choice" data-color="#ffd400" aria-label="색 옐로우"><span class="color-dot" style="background:#ffd400"></span></button>
+                <button class="choice color-choice" data-color="#ff7a00" aria-label="색 오렌지"><span class="color-dot" style="background:#ff7a00"></span></button>
+                <button class="choice color-choice" data-color="#ff2d95" aria-label="색 핑크"><span class="color-dot" style="background:#ff2d95"></span></button>
+                <button class="choice color-choice" data-color="#2ed573" aria-label="색 그린"><span class="color-dot" style="background:#2ed573"></span></button>
+                <button class="choice color-choice selected" data-color="#00aeef" aria-label="색 블루"><span class="color-dot" style="background:#00aeef"></span></button>
+              </div>
+            </div>
+            <div class="inspector-row">
+              <span class="inspector-label">굵기</span>
+              <div class="choice-strip">
+                <button class="choice width-choice" data-width="3" aria-label="굵기 매우 얇게"><span class="width-bar" style="height:3px;background:#e8eaf0"></span></button>
+                <button class="choice width-choice" data-width="5" aria-label="굵기 얇게"><span class="width-bar" style="height:5px;background:#e8eaf0"></span></button>
+                <button class="choice width-choice selected" data-width="7" aria-label="굵기 보통"><span class="width-bar" style="height:7px;background:#e8eaf0"></span></button>
+                <button class="choice width-choice" data-width="9" aria-label="굵기 굵게"><span class="width-bar" style="height:9px;background:#e8eaf0"></span></button>
+                <button class="choice width-choice" data-width="12" aria-label="굵기 매우 굵게"><span class="width-bar" style="height:12px;background:#e8eaf0"></span></button>
+              </div>
+            </div>
+          </div>
+
+          <div class="inspector text-inspector" data-component="ToolInspector:new" aria-label="텍스트 속성">
+            <div class="inspector-row">
+              <span class="inspector-label">크기</span>
+              <div class="choice-strip">
+                <button class="choice size-choice" data-size="16" aria-label="텍스트 크기 16">16</button>
+                <button class="choice size-choice" data-size="22" aria-label="텍스트 크기 22">22</button>
+                <button class="choice size-choice selected" data-size="30" aria-label="텍스트 크기 30">30</button>
+                <button class="choice size-choice" data-size="40" aria-label="텍스트 크기 40">40</button>
+                <button class="choice size-choice" data-size="54" aria-label="텍스트 크기 54">54</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="marker" data-component="Marker:reuse">
+            <button class="tool-button tool-pen" aria-label="자유곡선 도구" aria-pressed="true">
+              <svg class="freehand-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 16.7c2.4-5.8 4.6-8.3 6.1-6.5 1.4 1.8-2.8 7.1-.5 8.1 2.7 1.2 5.8-8.7 8-6.5 1.6 1.6-2 5.4-.2 6.4 1.3.8 3.6-1 5.6-3.6"/></svg>
+            </button>
+            <button class="tool-button tool-text" aria-label="텍스트 도구" aria-pressed="false"><span class="text-icon">T</span></button>
+            <span class="divider"></span>
+            <button class="tool-button tool-board" aria-label="블랙보드 전환" aria-pressed="false">
+              <svg class="board-icon" viewBox="0 0 20 20" aria-hidden="true"><rect x="2" y="4" width="16" height="9.5" rx="1.5"/><path d="M6 9c1.6-2.4 3.8 1.6 6.4-1M6.5 17l1.8-3.5M13.5 17l-1.8-3.5"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="state-note"><b>동작 규칙</b><br>비활성 도구 클릭: 도구 전환<br>활성 도구 재클릭: 속성 열기·닫기<br>값 선택·바깥 클릭: 적용 후 닫기</div>
+      </div>
+
+      <div class="component-key"><span>reuse · Marker position & drag</span><span>new · FreehandToolIcon</span><span>new · ToolInspector</span></div>
+    </section>
+  </main>
+
+  <script>
+    const stage = document.querySelector('.sh-stage');
+    const screens = [...stage.querySelectorAll('[data-screen]')];
+    const tabs = document.getElementById('sh-tabs');
+    const statebox = document.getElementById('sh-states');
+    const vpBtn = document.getElementById('sh-vp');
+    const finalScreen = document.getElementById('final-screen');
+    const penButton = finalScreen.querySelector('.tool-pen');
+    const textButton = finalScreen.querySelector('.tool-text');
+    const boardButton = finalScreen.querySelector('.tool-board');
+    const draft = finalScreen.querySelector('.text-draft');
+    const desktop = finalScreen.querySelector('.desktop');
+    const markerWrap = finalScreen.querySelector('.marker-wrap');
+    let current = null;
+    let boardTool = 'pen';
+
+    screens.forEach(screen => {
+      const button = document.createElement('button');
+      button.textContent = screen.dataset.title || screen.dataset.screen;
+      button.dataset.for = screen.dataset.screen;
+      button.onclick = () => show(screen.dataset.screen);
+      tabs.append(button);
+    });
+
+    function show(slug) {
+      current = screens.find(screen => screen.dataset.screen === slug) || screens[0];
+      screens.forEach(screen => screen.hidden = screen !== current);
+      [...tabs.children].forEach(button => button.classList.toggle('on', button.dataset.for === current.dataset.screen));
+      history.replaceState(null, '', '#' + current.dataset.screen);
+      buildStates();
+    }
+
+    function buildStates() {
+      const names = (current.dataset.states || '').split(',').map(value => value.trim()).filter(Boolean);
+      statebox.innerHTML = '';
+      statebox.hidden = !names.length;
+      names.forEach(name => {
+        const button = document.createElement('button');
+        button.textContent = name;
+        button.onclick = () => applyState(name);
+        statebox.append(button);
+      });
+      applyState(names[0] || null);
+    }
+
+    function activeToolFor(name) {
+      if (name === '보드') return boardTool;
+      if (name?.startsWith('텍스트') || name?.startsWith('편집') || name === '상단 배치') return 'text';
+      return 'pen';
+    }
+
+    function applyState(name) {
+      current.dataset.state = name || '';
+      [...statebox.children].forEach(button => button.classList.toggle('on', button.textContent === name));
+      const tool = activeToolFor(name);
+      penButton.classList.toggle('is-active', tool === 'pen');
+      textButton.classList.toggle('is-active', tool === 'text');
+      boardButton.classList.toggle('is-active', name === '보드');
+      penButton.setAttribute('aria-pressed', String(tool === 'pen'));
+      textButton.setAttribute('aria-pressed', String(tool === 'text'));
+      boardButton.setAttribute('aria-pressed', String(name === '보드'));
+      if (name === '편집 40') selectSize(40, false);
+    }
+
+    penButton.onclick = () => {
+      const state = finalScreen.dataset.state;
+      if (activeToolFor(state) !== 'pen') return applyState('펜 기본');
+      applyState(state === '펜 속성' ? '펜 기본' : '펜 속성');
+    };
+
+    textButton.onclick = () => {
+      const state = finalScreen.dataset.state;
+      if (activeToolFor(state) !== 'text') return applyState('텍스트 기본');
+      if (state?.startsWith('편집')) return applyState(state === '편집 40' ? '편집 적용 후' : '편집 40');
+      applyState(state === '텍스트 속성' ? '텍스트 기본' : '텍스트 속성');
+    };
+
+    boardButton.onclick = () => {
+      const state = finalScreen.dataset.state;
+      if (state === '보드') return applyState(boardTool === 'text' ? '텍스트 기본' : '펜 기본');
+      boardTool = activeToolFor(state);
+      applyState('보드');
+    };
+
+    desktop.addEventListener('pointerdown', event => {
+      if (markerWrap.contains(event.target)) return;
+      const state = finalScreen.dataset.state;
+      if (state === '펜 속성') applyState('펜 기본');
+      if (state === '텍스트 속성' || state === '상단 배치') applyState('텍스트 기본');
+      if (state === '편집 40') applyState('편집 적용 후');
+    });
+
+    finalScreen.querySelectorAll('.color-choice').forEach(button => {
+      button.onclick = () => {
+        finalScreen.style.setProperty('--ink', button.dataset.color);
+        finalScreen.querySelectorAll('.color-choice').forEach(choice => choice.classList.toggle('selected', choice === button));
+        applyState('펜 기본');
+      };
+    });
+
+    finalScreen.querySelectorAll('.width-choice').forEach(button => {
+      button.onclick = () => {
+        finalScreen.querySelectorAll('.width-choice').forEach(choice => choice.classList.toggle('selected', choice === button));
+        applyState('펜 기본');
+      };
+    });
+
+    function selectSize(size, close = true) {
+      finalScreen.querySelectorAll('.size-choice').forEach(choice => choice.classList.toggle('selected', Number(choice.dataset.size) === size));
+      draft.style.fontSize = size + 'px';
+      if (!close) return;
+      const editing = finalScreen.dataset.state?.startsWith('편집');
+      applyState(editing ? '편집 적용 후' : '텍스트 기본');
+    }
+
+    finalScreen.querySelectorAll('.size-choice').forEach(button => {
+      button.onclick = () => selectSize(Number(button.dataset.size));
+    });
+
+    const VPS = ['full', '390', '768'];
+    let vp = 'full';
+    function applyVp() {
+      VPS.forEach(value => document.body.classList.toggle('sh-vp-' + value, value === vp && value !== 'full'));
+      vpBtn.textContent = 'vp: ' + vp + ' (m)';
+      vpBtn.classList.toggle('on', vp !== 'full');
+    }
+    vpBtn.onclick = () => { vp = VPS[(VPS.indexOf(vp) + 1) % VPS.length]; applyVp(); };
+    applyVp();
+
+    addEventListener('keydown', event => {
+      if (/INPUT|TEXTAREA|SELECT/.test(event.target.tagName)) return;
+      if (event.key === 'm') vpBtn.click();
+    });
+    addEventListener('hashchange', () => show(location.hash.slice(1)));
+    show(location.hash.slice(1));
+  </script>
+</body>
+</html>
