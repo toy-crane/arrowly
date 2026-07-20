@@ -135,6 +135,7 @@
       outline: 2px solid var(--accent); outline-offset: 1px;
     }
     .divider { width: 1px; height: 20px; margin: 0 8px; background: var(--marker-line) }
+    .tool-pen { margin-right: 4px }
     .freehand-icon {
       width: 24px; height: 22px; display: block; fill: none; stroke: var(--ink);
       stroke-width: var(--icon-stroke-width); stroke-linecap: round; stroke-linejoin: round;
@@ -146,7 +147,7 @@
     }
 
     .inspector {
-      display: none; min-width: 306px; padding: 8px 9px; border-radius: 14px;
+      display: none; width: max-content; padding: 8px; gap: 4px; border-radius: 14px;
       background: var(--marker-strong); position: relative;
     }
     .inspector::after {
@@ -156,11 +157,9 @@
       transform: rotate(45deg);
     }
     .inspector-row {
-      min-height: 34px; display: grid; grid-template-columns: 43px 1fr;
-      align-items: center; gap: 5px;
+      min-height: 32px; display: block;
     }
-    .inspector-label { padding-left: 5px; color: #aeb2bc; font-size: 11px }
-    .choice-strip { display: flex; align-items: center; gap: 3px }
+    .choice-strip { display: flex; align-items: center; gap: 4px }
     .choice {
       width: 42px; height: 32px; display: grid; place-items: center;
       padding: 0; border: 0; border-radius: 8px; background: transparent;
@@ -228,7 +227,6 @@
     .sh-vp-390 .content { padding: 30px 15px }
     .sh-vp-390 .marker-wrap { left: 12px }
     .sh-vp-390 .state-note { display: none }
-    .sh-vp-390 .inspector { min-width: 332px }
     .sh-vp-390 .text-draft { left: 26%; min-width: 220px }
   </style>
 </head>
@@ -248,7 +246,7 @@
           <h1>플로팅 마커 최종 확정</h1>
           <p>1층은 도구, 2층은 활성 도구의 속성입니다.</p>
         </div>
-        <div class="approved"><b>확정 · 라이브 스윕 + 비례형 T</b>자유곡선 아이콘은 현재 색·굵기를 반영하는 넓은 1단 스윕을 사용합니다.</div>
+        <div class="approved"><b>확정 · 최소 보정 간격</b>캡슐은 8·4·8, 레이블 없는 ToolInspector는 8·4·4 간격을 사용합니다.</div>
       </div>
 
       <div class="desktop">
@@ -263,8 +261,7 @@
 
         <div class="marker-wrap">
           <div class="inspector pen-inspector" data-component="ToolInspector:new" aria-label="자유곡선 속성">
-            <div class="inspector-row">
-              <span class="inspector-label">색</span>
+            <div class="inspector-row" role="group" aria-label="색">
               <div class="choice-strip">
                 <button class="choice color-choice" data-color="#ffd400" aria-label="색 옐로우"><span class="color-dot" style="background:#ffd400"></span></button>
                 <button class="choice color-choice" data-color="#ff7a00" aria-label="색 오렌지"><span class="color-dot" style="background:#ff7a00"></span></button>
@@ -273,8 +270,7 @@
                 <button class="choice color-choice selected" data-color="#00aeef" aria-label="색 블루"><span class="color-dot" style="background:#00aeef"></span></button>
               </div>
             </div>
-            <div class="inspector-row">
-              <span class="inspector-label">굵기</span>
+            <div class="inspector-row" role="group" aria-label="굵기">
               <div class="choice-strip">
                 <button class="choice width-choice" data-width="3" data-icon-width="2" aria-label="굵기 매우 얇게"><span class="width-bar" style="height:3px;background:#e8eaf0"></span></button>
                 <button class="choice width-choice" data-width="5" data-icon-width="2.6" aria-label="굵기 얇게"><span class="width-bar" style="height:5px;background:#e8eaf0"></span></button>
@@ -286,8 +282,7 @@
           </div>
 
           <div class="inspector text-inspector" data-component="ToolInspector:new" aria-label="텍스트 속성">
-            <div class="inspector-row">
-              <span class="inspector-label">크기</span>
+            <div class="inspector-row" role="group" aria-label="크기">
               <div class="choice-strip">
                 <button class="choice size-choice" data-size="16" aria-label="텍스트 크기 16px" title="16px">T</button>
                 <button class="choice size-choice" data-size="22" aria-label="텍스트 크기 22px" title="22px">T</button>
