@@ -4,13 +4,14 @@ import {
   COLORS,
   TEXT_SIZE_KEYS,
   TextSizeKey,
+  textSizePx,
   WidthKey,
   WIDTHS,
 } from "../shared/constants";
 import { t } from "../shared/i18n";
 import { loadMarkerPos, MarkerPos, saveMarkerPos } from "../shared/settings";
 
-type Panel = "collapsed" | "colors" | "widths" | "textSizes";
+type Panel = "collapsed" | "pen" | "text";
 
 type Props = {
   color: Color;
@@ -29,6 +30,8 @@ type Props = {
 const DEFAULT_POS: MarkerPos = { xRatio: 0.04, yRatio: 0.92 };
 const BAR_HEIGHTS: Record<WidthKey, number> = { xthin: 3, thin: 5, medium: 7, thick: 9, xthick: 12 };
 const NEUTRAL = "#E8EAF0";
+const SAFE_MARGIN = 6;
+const ARROW_HALF_SIZE = 4.5;
 
 // 마커는 모드 토글마다 언마운트되므로, 세션 내 위치는 모듈 레벨로 기억한다
 let sessionPos: MarkerPos | null = null;
@@ -47,8 +50,12 @@ export function Marker({
 }: Props) {
   const [panel, setPanel] = useState<Panel>("collapsed");
   const [pos, setPosState] = useState<MarkerPos>(sessionPos ?? DEFAULT_POS);
+  const [viewportRevision, setViewportRevision] = useState(0);
   const rootRef = useRef<HTMLDivElement>(null);
   const popRef = useRef<HTMLDivElement>(null);
+  const penButtonRef = useRef<HTMLButtonElement>(null);
+  const textButtonRef = useRef<HTMLButtonElement>(null);
+  const arrowRef = useRef<HTMLSpanElement>(null);
   const dragRef = useRef<{
     startX: number;
     startY: number;
@@ -83,17 +90,39 @@ export function Marker({
     return () => window.removeEventListener("pointerdown", onDown);
   }, []);
 
-  // 팝오버가 화면 밖으로 나가지 않게 좌우 클램프 (기본은 캡슐 중앙 정렬)
+  // 단축키나 외부 이벤트가 도구·블랙보드 상태를 바꾸면 열려 있던 속성을 접는다.
+  useEffect(() => {
+    setPanel("collapsed");
+  }, [textMode, board]);
+
+  useEffect(() => {
+    const onResize = () => setViewportRevision((revision) => revision + 1);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  // 패널은 화면 안으로 클램프하고, 화살표는 이동한 패널 안에서 활성 도구 중심을 다시 가리킨다.
   useLayoutEffect(() => {
     const pop = popRef.current;
-    if (!pop || panel === "collapsed") return;
-    pop.style.transform = "translateX(-50%)";
-    const r = pop.getBoundingClientRect();
-    let dx = 0;
-    if (r.left < 6) dx = 6 - r.left;
-    else if (r.right > window.innerWidth - 6) dx = window.innerWidth - 6 - r.right;
-    if (dx !== 0) pop.style.transform = `translateX(calc(-50% + ${dx}px))`;
-  }, [panel, pos]);
+    const root = rootRef.current;
+    const arrow = arrowRef.current;
+    const anchor = panel === "pen" ? penButtonRef.current : textButtonRef.current;
+    if (!pop || !root || !arrow || !anchor || panel === "collapsed") return;
+
+    const rootRect = root.getBoundingClientRect();
+    const anchorRect = anchor.getBoundingClientRect();
+    const panelWidth = pop.getBoundingClientRect().width;
+    const { panelLeft, arrowLeft } = calculateInspectorLayout({
+      anchorLeft: anchorRect.left,
+      anchorWidth: anchorRect.width,
+      panelWidth,
+      viewportWidth: window.innerWidth,
+    });
+
+    pop.style.left = `${panelLeft - rootRect.left}px`;
+    pop.style.transform = "none";
+    arrow.style.left = `${arrowLeft}px`;
+  }, [panel, pos, viewportRevision]);
 
   const onPointerDown = (e: React.PointerEvent) => {
     e.stopPropagation(); // 마커 위에서 획이 시작되면 안 된다
@@ -165,51 +194,56 @@ export function Marker({
       onPointerCancel={onPointerUp}
     >
       <button
-        style={{ ...btn, ...(panel === "colors" ? activeCell : undefined) }}
-        aria-label={t("marker.changeColor")}
-        onClick={() => togglePanel("colors")}
-      >
-        <span style={{ ...dot, background: color }} />
-      </button>
-      <span style={divider} />
-      <button
-        style={{ ...btn, ...(panel === "widths" ? activeCell : undefined) }}
-        aria-label={t("marker.changeWidth")}
-        onClick={() => togglePanel("widths")}
-      >
-        <WidthSteps current={widthKey} />
-      </button>
-      <span style={divider} />
-      <span
-        style={{
-          ...textSplit,
-          ...(textMode ? modeOn : undefined),
-          ...(panel === "textSizes" ? activeCell : undefined),
-        }}
-      >
-        <button
-          style={textMain}
-          aria-label={t("marker.textMode")}
-          onClick={() => {
+        ref={penButtonRef}
+        style={{ ...btn, ...(!textMode ? modeOn : undefined) }}
+        aria-label={t("marker.freehandTool")}
+        aria-pressed={!textMode}
+        aria-expanded={panel === "pen"}
+        onClick={() => {
+          if (textMode) {
             setPanel("collapsed");
             onTextToggle();
-          }}
+          } else {
+            togglePanel("pen");
+          }
+        }}
+      >
+        <svg
+          width="24"
+          height="22"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke={color}
+          strokeWidth="2.15"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true"
         >
-          <span style={{ ...textGlyph, fontSize: TEXT_DISPLAY_SIZES[textSizeKey] }}>T</span>
-        </button>
-        <button
-          style={textMenu}
-          aria-label={t("marker.changeTextSize")}
-          aria-expanded={panel === "textSizes"}
-          onClick={() => togglePanel("textSizes")}
-        >
-          <span style={chevron} />
-        </button>
-      </span>
+          <path d="M2.5 16.7c2.4-5.8 4.6-8.3 6.1-6.5 1.4 1.8-2.8 7.1-.5 8.1 2.7 1.2 5.8-8.7 8-6.5 1.6 1.6-2 5.4-.2 6.4 1.3.8 3.6-1 5.6-3.6" />
+        </svg>
+      </button>
+      <button
+        ref={textButtonRef}
+        style={{ ...btn, ...(textMode ? modeOn : undefined) }}
+        aria-label={t("marker.textTool")}
+        aria-pressed={textMode}
+        aria-expanded={panel === "text"}
+        onClick={() => {
+          if (!textMode) {
+            setPanel("collapsed");
+            onTextToggle();
+          } else {
+            togglePanel("text");
+          }
+        }}
+      >
+        <span style={textGlyph}>T</span>
+      </button>
       <span style={divider} />
       <button
         style={{ ...btn, ...(board ? modeOn : undefined) }}
         aria-label={t("marker.toggleBoard")}
+        aria-pressed={board}
         onClick={() => {
           setPanel("collapsed");
           onBoardToggle();
@@ -234,58 +268,83 @@ export function Marker({
       {panel !== "collapsed" && (
         <div
           ref={popRef}
+          role="group"
+          aria-label={panel === "pen" ? t("marker.freehandProperties") : t("marker.textProperties")}
           style={{
             ...popover,
             ...(openBelow ? { top: "calc(100% + 8px)" } : { bottom: "calc(100% + 8px)" }),
           }}
         >
-          {panel === "colors" &&
-            COLORS.map((c) => (
-              <button
-                key={c}
-                style={btn}
-                aria-label={t("marker.colorValue", { value: c })}
-                onClick={() => pickColor(c)}
-              >
-                <span style={{ ...dot, background: c, ...(c === color ? currentRing : undefined) }} />
-              </button>
-            ))}
-          {panel === "widths" &&
-            (Object.keys(WIDTHS) as WidthKey[]).map((w) => (
-              <button
-                key={w}
-                style={btn}
-                aria-label={t("marker.widthValue", { value: w })}
-                onClick={() => pickWidth(w)}
-              >
-                <span
-                  style={
-                    w === widthKey
-                      ? { ...bar(w), background: NEUTRAL }
-                      : { ...bar(w), border: "1.5px solid rgba(232,234,240,0.85)" }
-                  }
-                />
-              </button>
-            ))}
-          {panel === "textSizes" &&
-            TEXT_SIZE_KEYS.map((size) => (
-              <button
-                key={size}
-                style={btn}
-                aria-label={t("marker.textSizeValue", { value: size })}
-                onClick={() => pickTextSize(size)}
-              >
-                <span
-                  style={{
-                    ...textOption,
-                    fontSize: TEXT_DISPLAY_SIZES[size],
-                    ...(size === textSizeKey ? currentTextSize : undefined),
-                  }}
-                >
-                  T
-                </span>
-              </button>
-            ))}
+          <span
+            ref={arrowRef}
+            data-arrowly-inspector-arrow=""
+            aria-hidden="true"
+            style={{
+              ...inspectorArrow,
+              ...(openBelow ? inspectorArrowAbove : inspectorArrowBelow),
+            }}
+          />
+          {panel === "pen" && (
+            <>
+              <div style={inspectorRow}>
+                <span style={inspectorLabel}>{t("marker.colorLabel")}</span>
+                <div style={choiceStrip}>
+                  {COLORS.map((c) => (
+                    <button
+                      key={c}
+                      style={{ ...choice, ...(c === color ? activeCell : undefined) }}
+                      aria-label={t("marker.colorValue", { value: c })}
+                      aria-pressed={c === color}
+                      onClick={() => pickColor(c)}
+                    >
+                      <span style={{ ...dot, background: c, ...(c === color ? currentRing : undefined) }} />
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div style={inspectorRow}>
+                <span style={inspectorLabel}>{t("marker.widthLabel")}</span>
+                <div style={choiceStrip}>
+                  {(Object.keys(WIDTHS) as WidthKey[]).map((w) => (
+                    <button
+                      key={w}
+                      style={{ ...choice, ...(w === widthKey ? activeCell : undefined) }}
+                      aria-label={t("marker.widthValue", { value: w })}
+                      aria-pressed={w === widthKey}
+                      onClick={() => pickWidth(w)}
+                    >
+                      <span
+                        style={
+                          w === widthKey
+                            ? { ...bar(w), background: NEUTRAL }
+                            : { ...bar(w), border: "1.5px solid rgba(232,234,240,0.85)" }
+                        }
+                      />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+          {panel === "text" && (
+            <div style={inspectorRow}>
+              <span style={inspectorLabel}>{t("marker.textSizeLabel")}</span>
+              <div style={choiceStrip}>
+                {TEXT_SIZE_KEYS.map((size) => (
+                  <button
+                    key={size}
+                    style={{ ...choice, ...(size === textSizeKey ? activeCell : undefined) }}
+                    aria-label={t("marker.textSizeValue", { value: textSizePx(size) })}
+                    aria-pressed={size === textSizeKey}
+                    title={`${textSizePx(size)}px`}
+                    onClick={() => pickTextSize(size)}
+                  >
+                    <span style={{ ...textOption, fontSize: TEXT_DISPLAY_SIZES[size] }}>T</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -301,6 +360,10 @@ const surface: CSSProperties = {
   background: "rgba(24,26,32,0.88)",
   border: "1px solid rgba(255,255,255,0.14)",
   boxShadow: "0 4px 18px rgba(0,0,0,0.35)",
+  boxSizing: "border-box",
+  backdropFilter: "blur(16px)",
+  WebkitBackdropFilter: "blur(16px)",
+  fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Display', system-ui, sans-serif",
 };
 
 const capsule: CSSProperties = {
@@ -312,11 +375,42 @@ const capsule: CSSProperties = {
 
 // 캡슐 위(또는 아래)에 뜨는 선택지 — 캡슐 자체는 위치·크기 불변
 const popover: CSSProperties = {
-  ...surface,
   position: "absolute",
   left: "50%",
   transform: "translateX(-50%)",
-  width: "max-content",
+  display: "grid",
+  minWidth: 306,
+  padding: "8px 9px",
+  borderRadius: 14,
+  color: NEUTRAL,
+  background: "rgba(24,26,32,0.97)",
+  border: "1px solid rgba(255,255,255,0.14)",
+  boxShadow: "0 4px 18px rgba(0,0,0,0.35)",
+  boxSizing: "border-box",
+  backdropFilter: "blur(16px)",
+  WebkitBackdropFilter: "blur(16px)",
+  fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Display', system-ui, sans-serif",
+};
+
+const inspectorArrow: CSSProperties = {
+  position: "absolute",
+  width: 9,
+  height: 9,
+  background: "rgba(24,26,32,0.97)",
+};
+
+const inspectorArrowBelow: CSSProperties = {
+  bottom: -5,
+  borderRight: "1px solid rgba(255,255,255,0.14)",
+  borderBottom: "1px solid rgba(255,255,255,0.14)",
+  transform: "rotate(45deg)",
+};
+
+const inspectorArrowAbove: CSSProperties = {
+  top: -5,
+  borderRight: "1px solid rgba(255,255,255,0.14)",
+  borderBottom: "1px solid rgba(255,255,255,0.14)",
+  transform: "rotate(225deg)",
 };
 
 // 셀은 고정폭 42(최대 내용물인 굵기 획 34 + 좌우 4) — 캡슐 셀과 팝오버 셀이 모두 같은 폭으로 정렬된다
@@ -353,37 +447,11 @@ const TEXT_DISPLAY_SIZES: Record<TextSizeKey, number> = {
   xlarge: 30,
 };
 
-const textSplit: CSSProperties = {
-  width: 58,
-  height: 32,
-  display: "flex",
-  overflow: "hidden",
-  borderRadius: 8,
-};
-
-const textMain: CSSProperties = {
-  ...btn,
-  width: 38,
-};
-
-const textMenu: CSSProperties = {
-  ...btn,
-  width: 20,
-  borderLeft: "1px solid rgba(255,255,255,0.14)",
-};
-
 const textGlyph: CSSProperties = {
   color: NEUTRAL,
   fontWeight: 650,
   lineHeight: 1,
-};
-
-const chevron: CSSProperties = {
-  width: 0,
-  height: 0,
-  borderLeft: "3.5px solid transparent",
-  borderRight: "3.5px solid transparent",
-  borderTop: `4.5px solid ${NEUTRAL}`,
+  fontSize: 19,
 };
 
 const textOption: CSSProperties = {
@@ -396,11 +464,31 @@ const textOption: CSSProperties = {
   fontWeight: 650,
 };
 
-const currentTextSize: CSSProperties = {
-  background: "rgba(255,255,255,0.16)",
+const inspectorRow: CSSProperties = {
+  minHeight: 34,
+  display: "grid",
+  gridTemplateColumns: "43px 1fr",
+  alignItems: "center",
+  gap: 5,
 };
 
-const dot: CSSProperties = { width: 20, height: 20, borderRadius: "50%", display: "block" };
+const inspectorLabel: CSSProperties = {
+  paddingLeft: 5,
+  color: "#AEB2BC",
+  fontSize: 11,
+};
+
+const choiceStrip: CSSProperties = {
+  display: "flex",
+  alignItems: "center",
+  gap: 3,
+};
+
+const choice: CSSProperties = {
+  ...btn,
+};
+
+const dot: CSSProperties = { width: 17, height: 17, borderRadius: "50%", display: "block" };
 
 const currentRing: CSSProperties = { outline: `2px solid ${NEUTRAL}`, outlineOffset: 2.5 };
 
@@ -413,34 +501,32 @@ const divider: CSSProperties = {
 };
 
 const bar = (w: WidthKey): CSSProperties => ({
-  width: 34,
+  width: 28,
   height: BAR_HEIGHTS[w],
   borderRadius: 99,
   display: "block",
   boxSizing: "border-box",
 });
 
-// 캡슐의 굵기 표시 — 5단계가 있음을 아이콘 자체가 보여주도록 세로획 5개를 상시 그리고
-// 현재 단계만 밝힌다. 높이는 균일(신호세기로 오독 방지), 굵기는 정수 px(안티앨리어싱 뭉개짐 방지).
-const STEP_X = [0.5, 3.6, 7.7, 12.8, 18.9];
-const STEP_W = [2, 3, 4, 5, 6];
-
-function WidthSteps({ current }: { current: WidthKey }) {
-  const cur = (Object.keys(WIDTHS) as WidthKey[]).indexOf(current);
-  return (
-    <svg width="25" height="20" viewBox="0 0 25 20">
-      {STEP_W.map((w, i) => (
-        <rect
-          key={w}
-          x={STEP_X[i]}
-          y={3}
-          width={w}
-          height={14}
-          rx={w / 2}
-          fill={NEUTRAL}
-          opacity={i === cur ? 1 : 0.35}
-        />
-      ))}
-    </svg>
+function calculateInspectorLayout({
+  anchorLeft,
+  anchorWidth,
+  panelWidth,
+  viewportWidth,
+}: {
+  anchorLeft: number;
+  anchorWidth: number;
+  panelWidth: number;
+  viewportWidth: number;
+}) {
+  const anchorCenter = anchorLeft + anchorWidth / 2;
+  const rightmostPanelLeft = Math.max(SAFE_MARGIN, viewportWidth - panelWidth - SAFE_MARGIN);
+  const panelLeft = Math.min(
+    Math.max(anchorCenter - panelWidth / 2, SAFE_MARGIN),
+    rightmostPanelLeft,
   );
+  return {
+    panelLeft,
+    arrowLeft: anchorCenter - panelLeft - ARROW_HALF_SIZE,
+  };
 }

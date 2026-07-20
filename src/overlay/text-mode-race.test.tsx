@@ -90,43 +90,43 @@ describe("text mode and marker interplay", () => {
     Object.defineProperty(window, "devicePixelRatio", { configurable: true, value: 2 });
   });
 
-  it("clicking the marker's T button while editing turns text mode off instead of re-arming it", async () => {
+  it("clicking the freehand tool while editing commits the draft and returns to pen mode", async () => {
     const { container } = render(<Harness />);
     const [baseCtx] = contexts;
     await openEditorWithDraft(container);
 
-    const tButton = screen.getByRole("button", { name: "Type text" });
+    const freehand = screen.getByRole("button", { name: "Freehand tool" });
     // 실제 클릭의 이벤트 순서를 재현: pointerdown(캡처 리스너 대상) → click(토글 핸들러)
-    fireEvent.pointerDown(tButton, { button: 0, pointerId: 2 });
-    fireEvent.click(tButton);
+    fireEvent.pointerDown(freehand, { button: 0, pointerId: 2 });
+    fireEvent.click(freehand);
 
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
-    expect(tButton.parentElement!.style.background).toBe(""); // modeOn(16%)이 아님 — 재점화되지 않았다
+    expect(freehand).toHaveAttribute("aria-pressed", "true");
     expect(baseCtx.fillText).toHaveBeenCalledWith("초안", 120, 90);
   });
 
-  it("clicking another marker cell while editing keeps the draft open", async () => {
+  it("opens text properties from the active text tool without closing the draft", async () => {
     const { container } = render(<Harness />);
     await openEditorWithDraft(container);
 
-    const colorButton = screen.getByRole("button", { name: "Change color" });
-    fireEvent.pointerDown(colorButton, { button: 0, pointerId: 2 });
-    fireEvent.click(colorButton);
+    const textTool = screen.getByRole("button", { name: "Text tool" });
+    fireEvent.pointerDown(textTool, { button: 0, pointerId: 2 });
+    fireEvent.click(textTool);
 
-    // 팝오버는 열리고, 초안은 확정되지 않은 채 살아 있다 — 색 변경이 초안에 라이브 적용된다
-    expect(await screen.findByRole("button", { name: "Color #FFD400" })).toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Text properties" })).toBeInTheDocument();
     expect(screen.getByRole("textbox")).toHaveValue("초안");
   });
 
-  it("changes the active editor size from the T split menu without closing the draft", async () => {
+  it("changes the active editor size from text properties without closing the draft", async () => {
     const { container } = render(<Harness />);
     await openEditorWithDraft(container);
 
-    fireEvent.click(screen.getByRole("button", { name: "Change text size" }));
-    fireEvent.click(screen.getByRole("button", { name: "Text size xlarge" }));
+    fireEvent.click(screen.getByRole("button", { name: "Text tool" }));
+    fireEvent.click(screen.getByRole("button", { name: "Text size 54px" }));
 
     const input = screen.getByRole("textbox");
     expect(input).toHaveAttribute("data-text-size-px", "54");
     expect(input).toHaveValue("초안");
+    expect(screen.queryByRole("group", { name: "Text properties" })).not.toBeInTheDocument();
   });
 });
