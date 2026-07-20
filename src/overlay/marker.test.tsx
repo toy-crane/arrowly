@@ -21,6 +21,48 @@ describe("Marker", () => {
     Object.defineProperty(window, "innerHeight", { configurable: true, value: 800 });
   });
 
+  it("keeps the approved dock geometry while its tool icons reflect current properties", () => {
+    const props = {
+      color: "#FF2D95" as const,
+      widthKey: "medium" as const,
+      textSizeKey: "medium" as const,
+      board: false,
+      textMode: false,
+      onColorChange: vi.fn(),
+      onWidthChange: vi.fn(),
+      onTextSizeChange: vi.fn(),
+      onBoardToggle: vi.fn(),
+      onTextToggle: vi.fn(),
+    };
+    const { container, rerender } = render(<Marker {...props} />);
+    const marker = container.querySelector<HTMLElement>("[data-arrowly-marker]")!;
+    const freehand = screen.getByRole("button", { name: "Freehand tool" });
+    const text = screen.getByRole("button", { name: "Text tool" });
+    const sweep = freehand.querySelector("svg")!;
+
+    expect(marker).toHaveStyle({ width: "163px", height: "44px" });
+    expect(freehand).toHaveStyle({ marginRight: "4px", color: "#FF2D95" });
+    expect(sweep).toHaveAttribute("stroke", "currentColor");
+    expect(sweep).toHaveAttribute("stroke-width", "3.2");
+    expect(sweep.querySelector("path")).toHaveAttribute(
+      "d",
+      "M3 15.8c3.2-7.4 6.3-7.5 8.2-3.2 2.1 4.8 6 3.7 9.8-2.5",
+    );
+    expect(text.querySelector("span")).toHaveStyle({ fontSize: "19px" });
+
+    rerender(
+      <Marker
+        {...props}
+        color="#00AEEF"
+        widthKey="xthick"
+        textSizeKey="xlarge"
+      />,
+    );
+    expect(freehand).toHaveStyle({ color: "#00AEEF" });
+    expect(sweep).toHaveAttribute("stroke-width", "5.6");
+    expect(text.querySelector("span")).toHaveStyle({ fontSize: "24px" });
+  });
+
   it("switches an inactive tool without opening properties and toggles properties from the active tool", async () => {
     const user = userEvent.setup();
     const onTextToggle = vi.fn();
@@ -43,9 +85,16 @@ describe("Marker", () => {
     expect(text).toHaveAttribute("aria-pressed", "false");
 
     await user.click(freehand);
-    expect(screen.getByRole("group", { name: "Freehand properties" })).toBeInTheDocument();
-    expect(screen.getByText("Color")).toBeInTheDocument();
-    expect(screen.getByText("Thickness")).toBeInTheDocument();
+    const penInspector = screen.getByRole("group", { name: "Freehand properties" });
+    const colorRow = screen.getByRole("group", { name: "Color" });
+    const widthRow = screen.getByRole("group", { name: "Thickness" });
+    expect(penInspector).toHaveStyle({ width: "max-content", padding: "8px", gap: "4px" });
+    expect(penInspector.style.minWidth).toBe("");
+    expect(colorRow).toHaveStyle({ minHeight: "32px", display: "block" });
+    expect(widthRow).toHaveStyle({ minHeight: "32px", display: "block" });
+    expect(colorRow.firstElementChild).toHaveStyle({ gap: "4px" });
+    expect(screen.queryByText("Color")).not.toBeInTheDocument();
+    expect(screen.queryByText("Thickness")).not.toBeInTheDocument();
 
     await user.click(freehand);
     expect(screen.queryByRole("group", { name: "Freehand properties" })).not.toBeInTheDocument();
@@ -191,7 +240,8 @@ describe("Marker", () => {
     );
 
     const freehand = screen.getByRole("button", { name: "Freehand tool" });
-    expect(freehand.querySelector("svg")).toHaveAttribute("stroke", "#FF2D95");
+    expect(freehand).toHaveStyle({ color: "#FF2D95" });
+    expect(freehand.querySelector("svg")).toHaveAttribute("stroke", "currentColor");
 
     await user.click(freehand);
     expect(screen.getByRole("group", { name: "Freehand properties" })).toBeInTheDocument();

@@ -10,6 +10,8 @@ import {
 } from "../shared/constants";
 import { t, type Key } from "../shared/i18n";
 import { loadMarkerPos, MarkerPos, saveMarkerPos } from "../shared/settings";
+import { FreehandToolLiveStrokeIcon } from "./freehand-tool-live-stroke-icon";
+import { LiveTextSizeIcon } from "./live-text-size-icon";
 import { ToolInspector } from "./tool-inspector";
 
 type Panel = "collapsed" | "pen" | "text";
@@ -173,7 +175,7 @@ export function Marker({
     >
       <button
         ref={penButtonRef}
-        style={{ ...btn, ...(!textMode ? modeOn : undefined) }}
+        style={{ ...btn, ...penToolButton, color, ...(!textMode ? modeOn : undefined) }}
         aria-label={t("marker.freehandTool")}
         aria-pressed={!textMode}
         aria-expanded={panel === "pen"}
@@ -186,19 +188,7 @@ export function Marker({
           }
         }}
       >
-        <svg
-          width="24"
-          height="22"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke={color}
-          strokeWidth="2.15"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          aria-hidden="true"
-        >
-          <path d="M2.5 16.7c2.4-5.8 4.6-8.3 6.1-6.5 1.4 1.8-2.8 7.1-.5 8.1 2.7 1.2 5.8-8.7 8-6.5 1.6 1.6-2 5.4-.2 6.4 1.3.8 3.6-1 5.6-3.6" />
-        </svg>
+        <FreehandToolLiveStrokeIcon widthKey={widthKey} />
       </button>
       <button
         ref={textButtonRef}
@@ -215,7 +205,7 @@ export function Marker({
           }
         }}
       >
-        <span style={textGlyph}>T</span>
+        <LiveTextSizeIcon sizeKey={textSizeKey} />
       </button>
       <span style={divider} />
       <button
@@ -251,8 +241,7 @@ export function Marker({
         >
           {panel === "pen" && (
             <>
-              <div style={inspectorRow}>
-                <span style={inspectorLabel}>{t("marker.colorLabel")}</span>
+              <div role="group" aria-label={t("marker.colorLabel")} style={inspectorRow}>
                 <div style={choiceStrip}>
                   {COLORS.map((c) => (
                     <button
@@ -267,8 +256,7 @@ export function Marker({
                   ))}
                 </div>
               </div>
-              <div style={inspectorRow}>
-                <span style={inspectorLabel}>{t("marker.widthLabel")}</span>
+              <div role="group" aria-label={t("marker.widthLabel")} style={inspectorRow}>
                 <div style={choiceStrip}>
                   {(Object.keys(WIDTHS) as WidthKey[]).map((w) => (
                     <button
@@ -292,8 +280,7 @@ export function Marker({
             </>
           )}
           {panel === "text" && (
-            <div style={inspectorRow}>
-              <span style={inspectorLabel}>{t("marker.textSizeLabel")}</span>
+            <div role="group" aria-label={t("marker.textSizeLabel")} style={inspectorRow}>
               <div style={choiceStrip}>
                 {TEXT_SIZE_KEYS.map((size) => (
                   <button
@@ -334,6 +321,7 @@ const surface: CSSProperties = {
 const capsule: CSSProperties = {
   ...surface,
   position: "fixed",
+  width: 163,
   cursor: "default",
   touchAction: "none",
 };
@@ -372,13 +360,6 @@ const TEXT_DISPLAY_SIZES: Record<TextSizeKey, number> = {
   xlarge: 30,
 };
 
-const textGlyph: CSSProperties = {
-  color: NEUTRAL,
-  fontWeight: 650,
-  lineHeight: 1,
-  fontSize: 19,
-};
-
 const textOption: CSSProperties = {
   width: 32,
   height: 32,
@@ -390,27 +371,22 @@ const textOption: CSSProperties = {
 };
 
 const inspectorRow: CSSProperties = {
-  minHeight: 34,
-  display: "grid",
-  gridTemplateColumns: "43px 1fr",
-  alignItems: "center",
-  gap: 5,
-};
-
-const inspectorLabel: CSSProperties = {
-  paddingLeft: 5,
-  color: "#AEB2BC",
-  fontSize: 11,
+  minHeight: 32,
+  display: "block",
 };
 
 const choiceStrip: CSSProperties = {
   display: "flex",
   alignItems: "center",
-  gap: 3,
+  gap: 4,
 };
 
 const choice: CSSProperties = {
   ...btn,
+};
+
+const penToolButton: CSSProperties = {
+  marginRight: 4,
 };
 
 const dot: CSSProperties = { width: 17, height: 17, borderRadius: "50%", display: "block" };
