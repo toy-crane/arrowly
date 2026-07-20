@@ -144,7 +144,18 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
   );
 
   useEffect(() => {
-    if (!textMode && sessionRef.current) finishSessionRef.current(true);
+    if (textMode) return;
+    if (sessionRef.current) {
+      finishSessionRef.current(true);
+      return;
+    }
+    // Rust가 편집 시작 IPC에 아직 응답하지 않았더라도 T 재입력/마커 토글은 즉시 취소한다.
+    // 요청 번호를 넘겨 늦게 도착한 성공 응답이 편집기를 다시 여는 것도 막는다.
+    if (wantsEditingRef.current) {
+      wantsEditingRef.current = false;
+      sessionRequestRef.current += 1;
+      void setTextEditing(false);
+    }
   }, [textMode]);
 
   useEffect(() => {
