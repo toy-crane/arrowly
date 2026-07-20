@@ -20,6 +20,7 @@
       --marker-active: rgba(255,255,255,.16);
       --marker-hover: rgba(255,255,255,.08);
       --ink: #00aeef;
+      --icon-stroke-width: 3.2;
     }
 
     * { box-sizing: border-box }
@@ -136,7 +137,7 @@
     .divider { width: 1px; height: 20px; margin: 0 8px; background: var(--marker-line) }
     .freehand-icon {
       width: 24px; height: 22px; display: block; fill: none; stroke: var(--ink);
-      stroke-width: 2.15; stroke-linecap: round; stroke-linejoin: round;
+      stroke-width: var(--icon-stroke-width); stroke-linecap: round; stroke-linejoin: round;
     }
     .text-icon { font-size: 19px; font-weight: 650 }
     .board-icon {
@@ -247,7 +248,7 @@
           <h1>플로팅 마커 최종 확정</h1>
           <p>1층은 도구, 2층은 활성 도구의 속성입니다.</p>
         </div>
-        <div class="approved"><b>확정 · 자유곡선 + 비례형 T</b>3버튼 도구 위계와 숫자 없는 텍스트 크기 표본을 사용합니다.</div>
+        <div class="approved"><b>확정 · 라이브 스윕 + 비례형 T</b>자유곡선 아이콘은 현재 색·굵기를 반영하는 넓은 1단 스윕을 사용합니다.</div>
       </div>
 
       <div class="desktop">
@@ -275,11 +276,11 @@
             <div class="inspector-row">
               <span class="inspector-label">굵기</span>
               <div class="choice-strip">
-                <button class="choice width-choice" data-width="3" aria-label="굵기 매우 얇게"><span class="width-bar" style="height:3px;background:#e8eaf0"></span></button>
-                <button class="choice width-choice" data-width="5" aria-label="굵기 얇게"><span class="width-bar" style="height:5px;background:#e8eaf0"></span></button>
-                <button class="choice width-choice selected" data-width="7" aria-label="굵기 보통"><span class="width-bar" style="height:7px;background:#e8eaf0"></span></button>
-                <button class="choice width-choice" data-width="9" aria-label="굵기 굵게"><span class="width-bar" style="height:9px;background:#e8eaf0"></span></button>
-                <button class="choice width-choice" data-width="12" aria-label="굵기 매우 굵게"><span class="width-bar" style="height:12px;background:#e8eaf0"></span></button>
+                <button class="choice width-choice" data-width="3" data-icon-width="2" aria-label="굵기 매우 얇게"><span class="width-bar" style="height:3px;background:#e8eaf0"></span></button>
+                <button class="choice width-choice" data-width="5" data-icon-width="2.6" aria-label="굵기 얇게"><span class="width-bar" style="height:5px;background:#e8eaf0"></span></button>
+                <button class="choice width-choice selected" data-width="7" data-icon-width="3.2" aria-label="굵기 보통"><span class="width-bar" style="height:7px;background:#e8eaf0"></span></button>
+                <button class="choice width-choice" data-width="9" data-icon-width="4.2" aria-label="굵기 굵게"><span class="width-bar" style="height:9px;background:#e8eaf0"></span></button>
+                <button class="choice width-choice" data-width="12" data-icon-width="5.6" aria-label="굵기 매우 굵게"><span class="width-bar" style="height:12px;background:#e8eaf0"></span></button>
               </div>
             </div>
           </div>
@@ -298,8 +299,8 @@
           </div>
 
           <div class="marker" data-component="Marker:reuse">
-            <button class="tool-button tool-pen" aria-label="자유곡선 도구" aria-pressed="true">
-              <svg class="freehand-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 16.7c2.4-5.8 4.6-8.3 6.1-6.5 1.4 1.8-2.8 7.1-.5 8.1 2.7 1.2 5.8-8.7 8-6.5 1.6 1.6-2 5.4-.2 6.4 1.3.8 3.6-1 5.6-3.6"/></svg>
+            <button class="tool-button tool-pen" data-component="FreehandToolLiveStrokeIcon:new" aria-label="자유곡선 도구" aria-pressed="true">
+              <svg class="freehand-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 15.8c3.2-7.4 6.3-7.5 8.2-3.2 2.1 4.8 6 3.7 9.8-2.5"/></svg>
             </button>
             <button class="tool-button tool-text" aria-label="텍스트 도구" aria-pressed="false"><span class="text-icon">T</span></button>
             <span class="divider"></span>
@@ -312,7 +313,7 @@
         <div class="state-note"><b>동작 규칙</b><br>비활성 도구 클릭: 도구 전환<br>활성 도구 재클릭: 속성 열기·닫기<br>값 선택·바깥 클릭: 적용 후 닫기</div>
       </div>
 
-      <div class="component-key"><span>reuse · Marker position & drag</span><span>new · FreehandToolIcon</span><span>new · ToolInspector</span></div>
+      <div class="component-key"><span>reuse · Marker position & drag</span><span>new · FreehandToolLiveStrokeIcon</span><span>new · ToolInspector</span></div>
     </section>
   </main>
 
@@ -418,6 +419,7 @@
 
     finalScreen.querySelectorAll('.width-choice').forEach(button => {
       button.onclick = () => {
+        finalScreen.style.setProperty('--icon-stroke-width', button.dataset.iconWidth);
         finalScreen.querySelectorAll('.width-choice').forEach(choice => choice.classList.toggle('selected', choice === button));
         applyState('펜 기본');
       };
