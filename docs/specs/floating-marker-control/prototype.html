@@ -170,7 +170,12 @@
     .choice.selected .color-dot { outline: 2px solid #e8eaf0; outline-offset: 2.5px }
     .width-bar { width: 28px; display: block; border-radius: 99px; box-sizing: border-box }
     .choice:not(.selected) .width-bar { background: transparent !important; border: 1.5px solid rgba(232,234,240,.85) }
-    .size-choice { font-size: 12px; font-variant-numeric: tabular-nums }
+    .size-choice { font-weight: 650; line-height: 1 }
+    .size-choice[data-size="16"] { font-size: 13px }
+    .size-choice[data-size="22"] { font-size: 16px }
+    .size-choice[data-size="30"] { font-size: 20px }
+    .size-choice[data-size="40"] { font-size: 25px }
+    .size-choice[data-size="54"] { font-size: 30px }
 
     .state-note {
       position: absolute; right: 18px; bottom: 17px; width: 265px;
@@ -184,7 +189,9 @@
     #final-screen[data-state="펜 속성"] .pen-inspector,
     #final-screen[data-state="텍스트 속성"] .text-inspector,
     #final-screen[data-state="편집 40"] .text-inspector,
-    #final-screen[data-state="상단 배치"] .text-inspector { display: grid }
+    #final-screen[data-state="상단 배치"] .text-inspector,
+    #final-screen[data-state="우측 하단"] .text-inspector,
+    #final-screen[data-state="우측 상단"] .text-inspector { display: grid }
     #final-screen[data-state="편집 40"] .text-draft,
     #final-screen[data-state="편집 적용 후"] .text-draft { display: block }
     #final-screen[data-state="보드"] .board-layer { display: block }
@@ -193,6 +200,24 @@
       top: 42px; bottom: auto; flex-direction: column-reverse;
     }
     #final-screen[data-state="상단 배치"] .inspector::after {
+      top: -5px; bottom: auto; transform: rotate(225deg);
+    }
+    #final-screen[data-state="우측 하단"] .marker-wrap,
+    #final-screen[data-state="우측 상단"] .marker-wrap {
+      left: auto; right: 6px; align-items: flex-end;
+    }
+    #final-screen[data-state="우측 하단"] .state-note,
+    #final-screen[data-state="우측 상단"] .state-note {
+      left: 18px; right: auto;
+    }
+    #final-screen[data-state="우측 하단"] .inspector::after,
+    #final-screen[data-state="우측 상단"] .inspector::after {
+      left: auto; right: 82px;
+    }
+    #final-screen[data-state="우측 상단"] .marker-wrap {
+      top: 42px; bottom: auto; flex-direction: column-reverse;
+    }
+    #final-screen[data-state="우측 상단"] .inspector::after {
       top: -5px; bottom: auto; transform: rotate(225deg);
     }
 
@@ -216,13 +241,13 @@
   </header>
 
   <main class="sh-stage">
-    <section id="final-screen" data-screen="final" data-title="최종 확정" data-states="펜 기본,펜 속성,텍스트 기본,텍스트 속성,편집 40,편집 적용 후,보드,상단 배치">
+    <section id="final-screen" data-screen="final" data-title="최종 확정" data-states="펜 기본,펜 속성,텍스트 기본,텍스트 속성,편집 40,편집 적용 후,보드,상단 배치,우측 하단,우측 상단">
       <div class="review-head">
         <div>
           <h1>플로팅 마커 최종 확정</h1>
           <p>1층은 도구, 2층은 활성 도구의 속성입니다.</p>
         </div>
-        <div class="approved"><b>확정 · 자유곡선 아이콘</b>현재 잉크색을 품은 자유곡선 · T · 블랙보드의 3버튼 구조입니다.</div>
+        <div class="approved"><b>확정 · 자유곡선 + 비례형 T</b>3버튼 도구 위계와 숫자 없는 텍스트 크기 표본을 사용합니다.</div>
       </div>
 
       <div class="desktop">
@@ -263,11 +288,11 @@
             <div class="inspector-row">
               <span class="inspector-label">크기</span>
               <div class="choice-strip">
-                <button class="choice size-choice" data-size="16" aria-label="텍스트 크기 16">16</button>
-                <button class="choice size-choice" data-size="22" aria-label="텍스트 크기 22">22</button>
-                <button class="choice size-choice selected" data-size="30" aria-label="텍스트 크기 30">30</button>
-                <button class="choice size-choice" data-size="40" aria-label="텍스트 크기 40">40</button>
-                <button class="choice size-choice" data-size="54" aria-label="텍스트 크기 54">54</button>
+                <button class="choice size-choice" data-size="16" aria-label="텍스트 크기 16px" title="16px">T</button>
+                <button class="choice size-choice" data-size="22" aria-label="텍스트 크기 22px" title="22px">T</button>
+                <button class="choice size-choice selected" data-size="30" aria-label="텍스트 크기 30px" title="30px">T</button>
+                <button class="choice size-choice" data-size="40" aria-label="텍스트 크기 40px" title="40px">T</button>
+                <button class="choice size-choice" data-size="54" aria-label="텍스트 크기 54px" title="54px">T</button>
               </div>
             </div>
           </div>
@@ -338,7 +363,7 @@
 
     function activeToolFor(name) {
       if (name === '보드') return boardTool;
-      if (name?.startsWith('텍스트') || name?.startsWith('편집') || name === '상단 배치') return 'text';
+      if (name?.startsWith('텍스트') || name?.startsWith('편집') || name === '상단 배치' || name?.startsWith('우측')) return 'text';
       return 'pen';
     }
 
@@ -379,7 +404,7 @@
       if (markerWrap.contains(event.target)) return;
       const state = finalScreen.dataset.state;
       if (state === '펜 속성') applyState('펜 기본');
-      if (state === '텍스트 속성' || state === '상단 배치') applyState('텍스트 기본');
+      if (state === '텍스트 속성' || state === '상단 배치' || state?.startsWith('우측')) applyState('텍스트 기본');
       if (state === '편집 40') applyState('편집 적용 후');
     });
 
