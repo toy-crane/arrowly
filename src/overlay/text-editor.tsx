@@ -82,6 +82,7 @@ export function TextEditor({
     }
     if (e.metaKey && !e.altKey && !e.ctrlKey && e.code === "KeyZ") {
       e.preventDefault();
+      if (e.shiftKey) return;
       finish(onCancel);
       return;
     }

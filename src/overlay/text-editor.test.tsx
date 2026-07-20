@@ -107,6 +107,8 @@ describe("TextEditor", () => {
     const { input, onCommit, onCancel } = renderEditor();
     fireEvent.change(input, { target: { value: "버려질 텍스트" } });
     fireEvent.keyDown(input, { code: "KeyZ", metaKey: true, shiftKey: true });
+    expect(onCancel).not.toHaveBeenCalled();
+    fireEvent.keyDown(input, { code: "KeyZ", metaKey: true });
     expect(onCancel).toHaveBeenCalledOnce();
     expect(onCommit).not.toHaveBeenCalled();
   });
