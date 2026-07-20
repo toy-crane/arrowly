@@ -50,6 +50,7 @@ export function Marker({
 }: Props) {
   const [panel, setPanel] = useState<Panel>("collapsed");
   const [pos, setPosState] = useState<MarkerPos>(sessionPos ?? DEFAULT_POS);
+  const [openBelow, setOpenBelow] = useState(false);
   const [viewportRevision, setViewportRevision] = useState(0);
   const rootRef = useRef<HTMLDivElement>(null);
   const popRef = useRef<HTMLDivElement>(null);
@@ -111,17 +112,19 @@ export function Marker({
 
     const rootRect = root.getBoundingClientRect();
     const anchorRect = anchor.getBoundingClientRect();
-    const panelWidth = pop.getBoundingClientRect().width;
+    const panelRect = pop.getBoundingClientRect();
     const { panelLeft, arrowLeft } = calculateInspectorLayout({
       anchorLeft: anchorRect.left,
       anchorWidth: anchorRect.width,
-      panelWidth,
+      panelWidth: panelRect.width,
       viewportWidth: window.innerWidth,
     });
+    const nextOpenBelow = rootRect.top - 8 - panelRect.height < SAFE_MARGIN;
 
     pop.style.left = `${panelLeft - rootRect.left}px`;
     pop.style.transform = "none";
     arrow.style.left = `${arrowLeft}px`;
+    setOpenBelow((current) => (current === nextOpenBelow ? current : nextOpenBelow));
   }, [panel, pos, viewportRevision]);
 
   const onPointerDown = (e: React.PointerEvent) => {
@@ -179,9 +182,6 @@ export function Marker({
     onTextSizeChange(size);
     setPanel("collapsed");
   };
-
-  // 최상단 근처에서는 팝오버를 아래로 뒤집는다
-  const openBelow = pos.yRatio * window.innerHeight < 64;
 
   return (
     <div
