@@ -140,7 +140,7 @@
       width: 24px; height: 22px; display: block; fill: none; stroke: var(--ink);
       stroke-width: var(--icon-stroke-width); stroke-linecap: round; stroke-linejoin: round;
     }
-    .text-icon { font-size: 19px; font-weight: 650 }
+    .text-icon { font-size: 17px; font-weight: 650 }
     .board-icon {
       width: 20px; height: 20px; fill: none; stroke: currentColor;
       stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;
@@ -246,7 +246,7 @@
           <h1>플로팅 마커 최종 확정</h1>
           <p>1층은 도구, 2층은 활성 도구의 속성입니다.</p>
         </div>
-        <div class="approved"><b>확정 · 최소 보정 간격</b>캡슐은 8·4·8, 레이블 없는 ToolInspector는 8·4·4 간격을 사용합니다.</div>
+        <div class="approved"><b>확정 · 간격 + compact T</b>캡슐·인스펙터 간격을 유지하고 접힌 T는 현재 크기를 15–24px로 반영합니다.</div>
       </div>
 
       <div class="desktop">
@@ -308,7 +308,7 @@
         <div class="state-note"><b>동작 규칙</b><br>비활성 도구 클릭: 도구 전환<br>활성 도구 재클릭: 속성 열기·닫기<br>값 선택·바깥 클릭: 적용 후 닫기</div>
       </div>
 
-      <div class="component-key"><span>reuse · Marker position & drag</span><span>new · FreehandToolLiveStrokeIcon</span><span>new · ToolInspector</span></div>
+      <div class="component-key"><span>reuse · Marker position & drag</span><span>new · FreehandToolLiveStrokeIcon</span><span>new · LiveTextSizeIcon</span><span>new · ToolInspector</span></div>
     </section>
   </main>
 
@@ -322,11 +322,13 @@
     const penButton = finalScreen.querySelector('.tool-pen');
     const textButton = finalScreen.querySelector('.tool-text');
     const boardButton = finalScreen.querySelector('.tool-board');
+    const textIcon = finalScreen.querySelector('.text-icon');
     const draft = finalScreen.querySelector('.text-draft');
     const desktop = finalScreen.querySelector('.desktop');
     const markerWrap = finalScreen.querySelector('.marker-wrap');
     let current = null;
     let boardTool = 'pen';
+    const textIconSizes = { 24: 15, 32: 17, 44: 19, 60: 22, 80: 24 };
 
     screens.forEach(screen => {
       const button = document.createElement('button');
@@ -423,6 +425,7 @@
     function selectSize(size, close = true) {
       finalScreen.querySelectorAll('.size-choice').forEach(choice => choice.classList.toggle('selected', Number(choice.dataset.size) === size));
       draft.style.fontSize = size + 'px';
+      textIcon.style.fontSize = textIconSizes[size] + 'px';
       if (!close) return;
       const editing = finalScreen.dataset.state?.startsWith('편집');
       applyState(editing ? '편집 적용 후' : '텍스트 기본');
