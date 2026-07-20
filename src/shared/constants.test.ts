@@ -28,11 +28,11 @@ describe("drawing constants", () => {
   });
 
   it("keeps text size independent as five fixed pixel steps", () => {
-    expect(TEXT_SIZES).toEqual({ xsmall: 16, small: 22, medium: 30, large: 40, xlarge: 54 });
+    expect(TEXT_SIZES).toEqual({ xsmall: 24, small: 32, medium: 44, large: 60, xlarge: 80 });
     expect(TEXT_SIZE_KEYS).toEqual(["xsmall", "small", "medium", "large", "xlarge"]);
-    expect(DEFAULT_TEXT_SIZE).toBe("medium");
-    expect(textSizePx("xsmall")).toBe(16);
-    expect(textSizePx("xlarge")).toBe(54);
+    expect(DEFAULT_TEXT_SIZE).toBe("small");
+    expect(textSizePx("xsmall")).toBe(24);
+    expect(textSizePx("xlarge")).toBe(80);
   });
 
   it("steps text size and clamps silently at both ends", () => {

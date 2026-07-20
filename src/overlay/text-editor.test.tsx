@@ -68,7 +68,7 @@ describe("TextEditor", () => {
     expect(input).toHaveFocus();
     expect(input.selectionStart).toBe(2);
     expect(input.style.color).toBe("rgb(255, 45, 149)");
-    expect(input.style.font).toContain("30px");
+    expect(input.style.font).toContain("44px");
     expect(input.style.left).toBe("40px");
     expect(input.style.top).toBe("60px");
     expect(input.style.outlineStyle).toBe("dashed");
@@ -83,8 +83,8 @@ describe("TextEditor", () => {
     expect(latest.measureText).toHaveBeenCalledWith(" ");
     expect(latest.font).toBe(fontString("medium"));
     expect(input.style.width).toBe("18px");
-    expect(input.style.height).toBe("144px");
-    expect(input.style.lineHeight).toBe("36px");
+    expect(input.style.height).toBe("211.2px");
+    expect(input.style.lineHeight).toBe("52.8px");
     expect(input).toHaveAttribute("data-text-line-count", "4");
     expect(input).toHaveAttribute("wrap", "off");
   });
@@ -117,11 +117,11 @@ describe("TextEditor", () => {
     const { input, onStepSize } = renderEditor();
     fireEvent.keyDown(input, { code: "Equal", metaKey: true, shiftKey: true });
     expect(onStepSize).toHaveBeenLastCalledWith(1);
-    expect(input.style.font).toContain("40px");
+    expect(input.style.font).toContain("60px");
 
     fireEvent.keyDown(input, { code: "Minus", metaKey: true });
     expect(onStepSize).toHaveBeenLastCalledWith(-1);
-    expect(input.style.font).toContain("30px");
+    expect(input.style.font).toContain("44px");
   });
 
   it("reports outside pointerdown but ignores the input and marker", () => {

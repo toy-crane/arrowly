@@ -54,6 +54,16 @@ export function TextEditor({
     input?.setSelectionRange(initialCaret, initialCaret);
   }, [initialCaret, sessionKey]);
 
+  // 속성 패널에서 크기를 고르면 버튼이 잠시 포커스를 가져간다. 같은 편집 세션의
+  // 선택 범위를 보존한 채 textarea로 돌려 보내 타이핑을 바로 이어갈 수 있게 한다.
+  useLayoutEffect(() => {
+    const input = inputRef.current;
+    if (!input || document.activeElement === input) return;
+    const { selectionStart, selectionEnd, selectionDirection } = input;
+    input.focus();
+    input.setSelectionRange(selectionStart, selectionEnd, selectionDirection);
+  }, [sizeKey]);
+
   useEffect(() => {
     const onPointerDown = (e: PointerEvent) => {
       const target = e.target as Element | null;

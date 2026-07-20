@@ -40,7 +40,7 @@ describe("settings", () => {
     await expect(loadTool()).resolves.toEqual({
       color: "#FF2D95",
       width: "medium",
-      textSize: "medium",
+      textSize: "small",
     });
 
     mocks.values.set("color", "#00AEEF");
@@ -59,7 +59,7 @@ describe("settings", () => {
     await expect(loadTool()).resolves.toEqual({
       color: "#FF2D95",
       width: "medium",
-      textSize: "medium",
+      textSize: "small",
     });
   });
 
