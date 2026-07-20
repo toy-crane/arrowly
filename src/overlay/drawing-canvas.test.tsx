@@ -216,6 +216,34 @@ describe("DrawingCanvas", () => {
     expect(onChange).toHaveBeenLastCalledWith(false);
   });
 
+  it("does not reopen the editor when text mode turns off before Rust accepts editing", async () => {
+    let acceptEditing!: () => void;
+    const pendingEditing = new Promise<void>((resolve) => {
+      acceptEditing = resolve;
+    });
+    const editingStates: boolean[] = [];
+    mockIPC((cmd, args) => {
+      if (cmd !== "set_text_editing") return undefined;
+      const editing = (args as { editing: boolean }).editing;
+      editingStates.push(editing);
+      return editing ? pendingEditing : undefined;
+    }, { shouldMockEvents: true });
+
+    const { container } = render(<Harness initialTextMode />);
+    const live = container.querySelectorAll("canvas")[1];
+    fireEvent.pointerDown(live, { button: 0, clientX: 30, clientY: 40, pointerId: 1 });
+    fireEvent.click(screen.getByTestId("force-off"));
+
+    await act(async () => {
+      acceptEditing();
+      await pendingEditing;
+    });
+
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+    expect(editingStates[0]).toBe(true);
+    expect(editingStates).toContain(false);
+  });
+
   it("cancels an in-progress stroke when the text key is pressed mid-drag", () => {
     const onChange = vi.fn();
     const { container } = render(<Harness onChange={onChange} />);
