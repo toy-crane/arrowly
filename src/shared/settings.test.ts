@@ -53,8 +53,9 @@ describe("settings", () => {
     });
 
     mocks.values.set("color", "invalid");
-    mocks.values.set("width", "giant");
-    mocks.values.set("textSize", "giant");
+    // 프로토타입 상속 키도 설정 스키마의 유효한 키로 오인하면 안 된다.
+    mocks.values.set("width", "constructor");
+    mocks.values.set("textSize", "__proto__");
     await expect(loadTool()).resolves.toEqual({
       color: "#FF2D95",
       width: "medium",

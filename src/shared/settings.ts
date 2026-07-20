@@ -5,7 +5,7 @@ import {
   DEFAULT_COLOR,
   DEFAULT_TEXT_SIZE,
   DEFAULT_WIDTH,
-  TEXT_SIZES,
+  TEXT_SIZE_KEYS,
   TextSizeKey,
   WIDTHS,
   WidthKey,
@@ -30,8 +30,8 @@ export async function loadTool(): Promise<{
   const textSize = await store.get<TextSizeKey>("textSize");
   return {
     color: color && COLORS.includes(color) ? color : DEFAULT_COLOR,
-    width: width && width in WIDTHS ? width : DEFAULT_WIDTH,
-    textSize: textSize && textSize in TEXT_SIZES ? textSize : DEFAULT_TEXT_SIZE,
+    width: width && Object.prototype.hasOwnProperty.call(WIDTHS, width) ? width : DEFAULT_WIDTH,
+    textSize: textSize && TEXT_SIZE_KEYS.includes(textSize) ? textSize : DEFAULT_TEXT_SIZE,
   };
 }
 
