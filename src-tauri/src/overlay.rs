@@ -298,8 +298,8 @@ pub fn open_onboarding(app: &AppHandle) {
 
 /// 단축키 설정 창
 pub fn open_settings(app: &AppHandle) {
-    // 재설정 4행 + 고정 4행 + 타이틀·패딩 크롬 — 스크롤 없이 보이는 여유 높이
-    open_util_window(app, "settings", "#/settings", 380.0, 460.0);
+    // 행당 약 56px인 재설정 4행 + 고정 4행 + 타이틀·패딩 크롬을 스크롤 없이 표시한다.
+    open_util_window(app, "settings", "#/settings", 380.0, 560.0);
 }
 
 pub fn toggle(app: &AppHandle) {
