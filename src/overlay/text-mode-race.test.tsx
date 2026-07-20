@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { mockIPC } from "@tauri-apps/api/mocks";
 import { act, fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { installCanvasMock } from "../../test/canvas";
 import { type TextSizeKey } from "../shared/constants";
@@ -118,15 +119,18 @@ describe("text mode and marker interplay", () => {
   });
 
   it("changes the active editor size from text properties without closing the draft", async () => {
+    const user = userEvent.setup();
     const { container } = render(<Harness />);
-    await openEditorWithDraft(container);
+    const input = await openEditorWithDraft(container);
+    input.setSelectionRange(1, 1);
 
-    fireEvent.click(screen.getByRole("button", { name: "Text tool" }));
-    fireEvent.click(screen.getByRole("button", { name: "Text size 80px" }));
+    await user.click(screen.getByRole("button", { name: "Text tool" }));
+    await user.click(screen.getByRole("button", { name: "Text size 80px" }));
 
-    const input = screen.getByRole("textbox");
     expect(input).toHaveAttribute("data-text-size-px", "80");
     expect(input).toHaveValue("초안");
+    expect(input).toHaveFocus();
+    expect(input.selectionStart).toBe(1);
     expect(screen.queryByRole("group", { name: "Text properties" })).not.toBeInTheDocument();
   });
 });
