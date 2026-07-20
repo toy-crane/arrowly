@@ -122,10 +122,10 @@ describe("text mode and marker interplay", () => {
     await openEditorWithDraft(container);
 
     fireEvent.click(screen.getByRole("button", { name: "Text tool" }));
-    fireEvent.click(screen.getByRole("button", { name: "Text size 54px" }));
+    fireEvent.click(screen.getByRole("button", { name: "Text size 80px" }));
 
     const input = screen.getByRole("textbox");
-    expect(input).toHaveAttribute("data-text-size-px", "54");
+    expect(input).toHaveAttribute("data-text-size-px", "80");
     expect(input).toHaveValue("초안");
     expect(screen.queryByRole("group", { name: "Text properties" })).not.toBeInTheDocument();
   });

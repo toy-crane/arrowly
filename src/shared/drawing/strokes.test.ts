@@ -190,8 +190,8 @@ describe("layoutText", () => {
       { text: "끝", start: 5, end: 6 },
       { text: "", start: 7, end: 7 },
     ]);
-    expect(layout.lineHeight).toBe(36);
-    expect(layout.height).toBe(144);
+    expect(layout.lineHeight).toBe(52.8);
+    expect(layout.height).toBe(211.2);
   });
 });
 
@@ -227,9 +227,9 @@ describe("text hit testing", () => {
       return context;
     });
     const mark = { ...textMark, text: "긴 첫 줄\nB😀" };
-    expect(findTextMarkAt([mark], { x: 45, y: 98 })).toEqual({ index: 0, mark });
-    expect(findTextMarkAt([mark], { x: 90, y: 98 })).toBeNull();
-    expect(textCaretOffsetAt(mark, { x: 66, y: 100 })).toBe(9);
+    expect(findTextMarkAt([mark], { x: 45, y: 120 })).toEqual({ index: 0, mark });
+    expect(findTextMarkAt([mark], { x: 90, y: 120 })).toBeNull();
+    expect(textCaretOffsetAt(mark, { x: 66, y: 122 })).toBe(9);
   });
 });
 
@@ -255,7 +255,7 @@ describe("drawMark", () => {
     const ctx = createCanvasContext();
     drawMark(ctx, textMark);
     expect(ctx.fillStyle).toBe("#FFD400");
-    expect(ctx.font).toBe(`30px ${TEXT_FONT_FAMILY}`);
+    expect(ctx.font).toBe(`44px ${TEXT_FONT_FAMILY}`);
     expect(ctx.textBaseline).toBe("top");
     expect(ctx.fillText).toHaveBeenCalledOnce();
     expect(ctx.fillText).toHaveBeenCalledWith("재시도", 40, 60);
@@ -268,7 +268,7 @@ describe("drawMark", () => {
     drawMark(ctx, { ...textMark, text: "첫 줄\n\n셋째" });
     expect(ctx.fillText).toHaveBeenCalledTimes(2);
     expect(ctx.fillText).toHaveBeenNthCalledWith(1, "첫 줄", 40, 60);
-    expect(ctx.fillText).toHaveBeenNthCalledWith(2, "셋째", 40, 132);
+    expect(ctx.fillText).toHaveBeenNthCalledWith(2, "셋째", 40, 165.6);
   });
 
   it("renders rect and ellipse with round-cap ink style", () => {

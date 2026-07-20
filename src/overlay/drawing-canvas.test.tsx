@@ -413,7 +413,7 @@ describe("DrawingCanvas", () => {
       expect(input.value).toBe("원본");
       fireEvent.change(input, { target: { value: "수정" } });
       fireEvent.keyDown(input, { code: "Equal", metaKey: true });
-      expect(input).toHaveAttribute("data-text-size-px", "40");
+      expect(input).toHaveAttribute("data-text-size-px", "60");
       fireEvent.keyDown(input, { key: "Enter" });
       expect(onNewTextSizeCommit).toHaveBeenCalledTimes(1);
       expect(baseCtx.fillText).toHaveBeenLastCalledWith("수정", 100, 100);
@@ -482,17 +482,17 @@ describe("DrawingCanvas", () => {
       fireEvent.pointerDown(live, { button: 0, clientX: 105, clientY: 105, pointerId: 2 });
       fireEvent.pointerMove(live, { clientX: 135, clientY: 125, pointerId: 2 });
       expect(liveCtx.fillText).toHaveBeenCalledWith("이동", 130, 120);
-      expect(liveCtx.fillText).toHaveBeenCalledWith("대상", 130, 156);
+      expect(liveCtx.fillText).toHaveBeenCalledWith("대상", 130, 172.8);
 
       fireEvent.pointerUp(live, { clientX: 145, clientY: 135, pointerId: 2 });
-      expect(baseCtx.fillText).toHaveBeenLastCalledWith("대상", 140, 166);
+      expect(baseCtx.fillText).toHaveBeenLastCalledWith("대상", 140, 182.8);
       expect(onChange).toHaveBeenLastCalledWith(false);
       expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
 
       fireEvent.keyDown(window, { code: "KeyZ", metaKey: true });
-      expect(baseCtx.fillText).toHaveBeenLastCalledWith("대상", 100, 136);
+      expect(baseCtx.fillText).toHaveBeenLastCalledWith("대상", 100, 152.8);
       fireEvent.keyDown(window, { code: "KeyZ", metaKey: true, shiftKey: true });
-      expect(baseCtx.fillText).toHaveBeenLastCalledWith("대상", 140, 166);
+      expect(baseCtx.fillText).toHaveBeenLastCalledWith("대상", 140, 182.8);
     });
 
     it("treats a sub-threshold text gesture as editing and restores a cancelled move", async () => {
@@ -645,8 +645,8 @@ describe("DrawingCanvas", () => {
 
     fireEvent.keyDown(input, { key: "Enter" });
     expect(baseCtx.fillText).toHaveBeenCalledOnce();
-    // 해상도와 무관한 medium 30px — 리사이즈 후에도 표시된 고정 크기로 커밋된다
-    expect(String(baseCtx.font)).toContain("30px");
+    // 해상도와 무관한 medium 44px — 리사이즈 후에도 표시된 고정 크기로 커밋된다
+    expect(String(baseCtx.font)).toContain("44px");
   });
 
   it("absorbs shortcuts via editingRef even when the event target is not an editable element", async () => {

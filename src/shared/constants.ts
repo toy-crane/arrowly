@@ -21,15 +21,15 @@ export function strokeWidthPx(key: WidthKey, screenShortSide: number): number {
 
 /** 텍스트 크기 5단계 — 펜 굵기·화면 해상도와 독립적인 고정 CSS px. */
 export const TEXT_SIZES = {
-  xsmall: 16,
-  small: 22,
-  medium: 30,
-  large: 40,
-  xlarge: 54,
+  xsmall: 24,
+  small: 32,
+  medium: 44,
+  large: 60,
+  xlarge: 80,
 } as const;
 export type TextSizeKey = keyof typeof TEXT_SIZES;
 export const TEXT_SIZE_KEYS = Object.keys(TEXT_SIZES) as TextSizeKey[];
-export const DEFAULT_TEXT_SIZE: TextSizeKey = "medium";
+export const DEFAULT_TEXT_SIZE: TextSizeKey = "small";
 
 export function textSizePx(key: TextSizeKey): number {
   return TEXT_SIZES[key];
