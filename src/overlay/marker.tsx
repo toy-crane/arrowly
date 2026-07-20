@@ -8,7 +8,7 @@ import {
   WidthKey,
   WIDTHS,
 } from "../shared/constants";
-import { t } from "../shared/i18n";
+import { t, type Key } from "../shared/i18n";
 import { loadMarkerPos, MarkerPos, saveMarkerPos } from "../shared/settings";
 
 type Panel = "collapsed" | "pen" | "text";
@@ -32,6 +32,20 @@ const BAR_HEIGHTS: Record<WidthKey, number> = { xthin: 3, thin: 5, medium: 7, th
 const NEUTRAL = "#E8EAF0";
 const SAFE_MARGIN = 6;
 const ARROW_HALF_SIZE = 4.5;
+const COLOR_NAME_KEYS: Record<Color, Key> = {
+  "#FFD400": "marker.colorName.yellow",
+  "#FF7A00": "marker.colorName.orange",
+  "#FF2D95": "marker.colorName.pink",
+  "#2ED573": "marker.colorName.green",
+  "#00AEEF": "marker.colorName.blue",
+};
+const WIDTH_NAME_KEYS: Record<WidthKey, Key> = {
+  xthin: "marker.widthName.xthin",
+  thin: "marker.widthName.thin",
+  medium: "marker.widthName.medium",
+  thick: "marker.widthName.thick",
+  xthick: "marker.widthName.xthick",
+};
 
 // 마커는 모드 토글마다 언마운트되므로, 세션 내 위치는 모듈 레벨로 기억한다
 let sessionPos: MarkerPos | null = null;
@@ -293,7 +307,7 @@ export function Marker({
                     <button
                       key={c}
                       style={{ ...choice, ...(c === color ? activeCell : undefined) }}
-                      aria-label={t("marker.colorValue", { value: c })}
+                      aria-label={t("marker.colorValue", { value: t(COLOR_NAME_KEYS[c]) })}
                       aria-pressed={c === color}
                       onClick={() => pickColor(c)}
                     >
@@ -309,7 +323,7 @@ export function Marker({
                     <button
                       key={w}
                       style={{ ...choice, ...(w === widthKey ? activeCell : undefined) }}
-                      aria-label={t("marker.widthValue", { value: w })}
+                      aria-label={t("marker.widthValue", { value: t(WIDTH_NAME_KEYS[w]) })}
                       aria-pressed={w === widthKey}
                       onClick={() => pickWidth(w)}
                     >

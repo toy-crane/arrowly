@@ -195,7 +195,8 @@ describe("Marker", () => {
 
     await user.click(freehand);
     expect(screen.getByRole("group", { name: "Freehand properties" })).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Color #00AEEF" }));
+    expect(screen.getByRole("button", { name: "Thickness extra thin" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Color blue" }));
     expect(onColorChange).toHaveBeenCalledWith("#00AEEF");
     expect(screen.queryByRole("group", { name: "Freehand properties" })).not.toBeInTheDocument();
 
