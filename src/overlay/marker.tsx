@@ -1,4 +1,4 @@
-import { CSSProperties, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { CSSProperties, useEffect, useRef, useState } from "react";
 import {
   Color,
   COLORS,
@@ -10,6 +10,7 @@ import {
 } from "../shared/constants";
 import { t, type Key } from "../shared/i18n";
 import { loadMarkerPos, MarkerPos, saveMarkerPos } from "../shared/settings";
+import { ToolInspector } from "./tool-inspector";
 
 type Panel = "collapsed" | "pen" | "text";
 
@@ -30,8 +31,6 @@ type Props = {
 const DEFAULT_POS: MarkerPos = { xRatio: 0.04, yRatio: 0.92 };
 const BAR_HEIGHTS: Record<WidthKey, number> = { xthin: 3, thin: 5, medium: 7, thick: 9, xthick: 12 };
 const NEUTRAL = "#E8EAF0";
-const SAFE_MARGIN = 6;
-const ARROW_HALF_SIZE = 4.5;
 const COLOR_NAME_KEYS: Record<Color, Key> = {
   "#FFD400": "marker.colorName.yellow",
   "#FF7A00": "marker.colorName.orange",
@@ -64,13 +63,9 @@ export function Marker({
 }: Props) {
   const [panel, setPanel] = useState<Panel>("collapsed");
   const [pos, setPosState] = useState<MarkerPos>(sessionPos ?? DEFAULT_POS);
-  const [openBelow, setOpenBelow] = useState(false);
-  const [viewportRevision, setViewportRevision] = useState(0);
   const rootRef = useRef<HTMLDivElement>(null);
-  const popRef = useRef<HTMLDivElement>(null);
   const penButtonRef = useRef<HTMLButtonElement>(null);
   const textButtonRef = useRef<HTMLButtonElement>(null);
-  const arrowRef = useRef<HTMLSpanElement>(null);
   const dragRef = useRef<{
     startX: number;
     startY: number;
@@ -109,37 +104,6 @@ export function Marker({
   useEffect(() => {
     setPanel("collapsed");
   }, [textMode, board]);
-
-  useEffect(() => {
-    const onResize = () => setViewportRevision((revision) => revision + 1);
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, []);
-
-  // 패널은 화면 안으로 클램프하고, 화살표는 이동한 패널 안에서 활성 도구 중심을 다시 가리킨다.
-  useLayoutEffect(() => {
-    const pop = popRef.current;
-    const root = rootRef.current;
-    const arrow = arrowRef.current;
-    const anchor = panel === "pen" ? penButtonRef.current : textButtonRef.current;
-    if (!pop || !root || !arrow || !anchor || panel === "collapsed") return;
-
-    const rootRect = root.getBoundingClientRect();
-    const anchorRect = anchor.getBoundingClientRect();
-    const panelRect = pop.getBoundingClientRect();
-    const { panelLeft, arrowLeft } = calculateInspectorLayout({
-      anchorLeft: anchorRect.left,
-      anchorWidth: anchorRect.width,
-      panelWidth: panelRect.width,
-      viewportWidth: window.innerWidth,
-    });
-    const nextOpenBelow = rootRect.top - 8 - panelRect.height < SAFE_MARGIN;
-
-    pop.style.left = `${panelLeft - rootRect.left}px`;
-    pop.style.transform = "none";
-    arrow.style.left = `${arrowLeft}px`;
-    setOpenBelow((current) => (current === nextOpenBelow ? current : nextOpenBelow));
-  }, [panel, pos, viewportRevision]);
 
   const onPointerDown = (e: React.PointerEvent) => {
     e.stopPropagation(); // 마커 위에서 획이 시작되면 안 된다
@@ -280,24 +244,11 @@ export function Marker({
       </button>
 
       {panel !== "collapsed" && (
-        <div
-          ref={popRef}
-          role="group"
-          aria-label={panel === "pen" ? t("marker.freehandProperties") : t("marker.textProperties")}
-          style={{
-            ...popover,
-            ...(openBelow ? { top: "calc(100% + 8px)" } : { bottom: "calc(100% + 8px)" }),
-          }}
+        <ToolInspector
+          markerRef={rootRef}
+          anchorRef={panel === "pen" ? penButtonRef : textButtonRef}
+          ariaLabel={panel === "pen" ? t("marker.freehandProperties") : t("marker.textProperties")}
         >
-          <span
-            ref={arrowRef}
-            data-arrowly-inspector-arrow=""
-            aria-hidden="true"
-            style={{
-              ...inspectorArrow,
-              ...(openBelow ? inspectorArrowAbove : inspectorArrowBelow),
-            }}
-          />
           {panel === "pen" && (
             <>
               <div style={inspectorRow}>
@@ -359,7 +310,7 @@ export function Marker({
               </div>
             </div>
           )}
-        </div>
+        </ToolInspector>
       )}
     </div>
   );
@@ -385,46 +336,6 @@ const capsule: CSSProperties = {
   position: "fixed",
   cursor: "default",
   touchAction: "none",
-};
-
-// 캡슐 위(또는 아래)에 뜨는 선택지 — 캡슐 자체는 위치·크기 불변
-const popover: CSSProperties = {
-  position: "absolute",
-  left: "50%",
-  transform: "translateX(-50%)",
-  display: "grid",
-  minWidth: 306,
-  padding: "8px 9px",
-  borderRadius: 14,
-  color: NEUTRAL,
-  background: "rgba(24,26,32,0.97)",
-  border: "1px solid rgba(255,255,255,0.14)",
-  boxShadow: "0 4px 18px rgba(0,0,0,0.35)",
-  boxSizing: "border-box",
-  backdropFilter: "blur(16px)",
-  WebkitBackdropFilter: "blur(16px)",
-  fontFamily: "-apple-system, BlinkMacSystemFont, 'SF Pro Display', system-ui, sans-serif",
-};
-
-const inspectorArrow: CSSProperties = {
-  position: "absolute",
-  width: 9,
-  height: 9,
-  background: "rgba(24,26,32,0.97)",
-};
-
-const inspectorArrowBelow: CSSProperties = {
-  bottom: -5,
-  borderRight: "1px solid rgba(255,255,255,0.14)",
-  borderBottom: "1px solid rgba(255,255,255,0.14)",
-  transform: "rotate(45deg)",
-};
-
-const inspectorArrowAbove: CSSProperties = {
-  top: -5,
-  borderRight: "1px solid rgba(255,255,255,0.14)",
-  borderBottom: "1px solid rgba(255,255,255,0.14)",
-  transform: "rotate(225deg)",
 };
 
 // 셀은 고정폭 42(최대 내용물인 굵기 획 34 + 좌우 4) — 캡슐 셀과 팝오버 셀이 모두 같은 폭으로 정렬된다
@@ -521,26 +432,3 @@ const bar = (w: WidthKey): CSSProperties => ({
   display: "block",
   boxSizing: "border-box",
 });
-
-function calculateInspectorLayout({
-  anchorLeft,
-  anchorWidth,
-  panelWidth,
-  viewportWidth,
-}: {
-  anchorLeft: number;
-  anchorWidth: number;
-  panelWidth: number;
-  viewportWidth: number;
-}) {
-  const anchorCenter = anchorLeft + anchorWidth / 2;
-  const rightmostPanelLeft = Math.max(SAFE_MARGIN, viewportWidth - panelWidth - SAFE_MARGIN);
-  const panelLeft = Math.min(
-    Math.max(anchorCenter - panelWidth / 2, SAFE_MARGIN),
-    rightmostPanelLeft,
-  );
-  return {
-    panelLeft,
-    arrowLeft: anchorCenter - panelLeft - ARROW_HALF_SIZE,
-  };
-}
