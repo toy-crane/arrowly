@@ -295,7 +295,7 @@
 
 ### 마크 모델 (M11.2)
 
-`strokes.ts`의 `Stroke`를 discriminated union `Mark`로 확장: `PenMark`(kind "pen", 기존 구조) / `TextMark`(kind "text", x·y·text·color·size) / `ShapeMark`(kind "shape", rect|ellipse|arrow geometry·color·width). undo 단위 = 마크 1개. `StrokeStore.push(mark)`는 redoStack을 비운다(commitLive와 동일 불변식). `retractLast()`는 redo에 넣지 않고 회수(더블클릭 점 회수 전용). `drawStroke`→`drawMark` 디스패치.
+`strokes.ts`의 `Stroke`를 discriminated union `Mark`로 확장: `PenMark`(kind "pen", 기존 구조) / `TextMark`(kind "text", x·y·text·color·size) / `ShapeMark`(kind "shape", rect|ellipse|line geometry·color·width). undo 단위 = 마크 1개. `StrokeStore.push(mark)`는 redoStack을 비운다(commitLive와 동일 불변식). `retractLast()`는 redo에 넣지 않고 회수(더블클릭 점 회수 전용). `drawStroke`→`drawMark` 디스패치.
 
 ### 텍스트 상태 머신 (M11.3)
 
@@ -312,9 +312,9 @@
 
 `DBLCLICK_MS=350 / DBLCLICK_SLOP_PX=6 / CLICK_SLOP_PX=4`. 두 번째 클릭이 조건 충족 시 획을 시작하지 않고 pointerUp에서 직전 클릭 점 마크를 `retractLast()`로 회수 후 에디터를 연다. 트레이드오프: 첫 클릭 점이 최대 350ms 보였다 사라짐 — 거슬리면 대안(점 커밋 지연)으로 교체.
 
-### 도형 홀드 스냅 (M11.7–8)
+### 홀드 보정 (M11.7–8)
 
-`shapes.ts` 순수 분류기 상수: `HOLD_MS=600 / RING_DELAY_MS=200 / STILL_RADIUS_PX=3.5 / MIN_SNAP_DIAG_PX=24 / CLOSED_GAP_RATIO=0.25 / MIN_CLOSED_PATH_RATIO=1.2 / CORNER_TURN_DEG=55 / MIN_RECT_CORNERS=3`. 파이프라인: bbox 최소치 → 호길이 리샘플 → 닫힘 판정 → 모서리 카운트 → rect(축정렬 bbox) / ellipse(bbox 내접) / arrow(시작→최원점). 직선 스냅 없음. 감도 튜닝은 사용자 Mac 체크리스트가 게이트.
+`shapes.ts` 순수 분류기 상수: `HOLD_MS=450 / RING_DELAY_MS=150 / STILL_RADIUS_PX=3.5 / MIN_SNAP_DIAG_PX=24 / CLOSED_GAP_RATIO=0.25 / MIN_CLOSED_PATH_RATIO=1.2 / CORNER_TURN_DEG=55 / MIN_RECT_CORNERS=3`. 파이프라인: bbox 최소치 → 호길이 리샘플 → 닫힘 판정 → 닫힌 획은 모서리 카운트 후 rect(축정렬 bbox) / ellipse(bbox 내접), 열린 획은 시작점을 고정한 line. 직선 잠금 뒤 포인터 이동은 끝점을 따라가고 <kbd>Shift</kbd>는 방향을 45° 단위로 제한한다. 화살표는 분류·자동 보정하지 않는다. 감도 튜닝은 사용자 Mac 체크리스트가 게이트이며, 세부 계약은 `docs/specs/line-lock-gesture/spec.md`를 따른다.
 
 ### ⭐ M11.3 IME 판정 게이트 (M2 방식 Go/No-Go)
 
