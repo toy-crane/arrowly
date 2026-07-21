@@ -153,7 +153,7 @@ describe("DrawingCanvas", () => {
     fireEvent.pointerDown(live, { button: 0, clientX: 120, clientY: 90, pointerId: 1 });
     await flushTextEditingStart();
     const input = screen.getByRole("textbox") as HTMLInputElement;
-    expect(liveCtx.stroke).not.toHaveBeenCalled(); // 텍스트 모드 클릭은 획을 시작하지 않는다
+    expect(liveCtx.stroke).not.toHaveBeenCalled(); // 텍스트 도구 클릭은 획을 시작하지 않는다
 
     fireEvent.change(input, { target: { value: "서버 캐시" } });
     fireEvent.keyDown(input, { key: "Enter" });
@@ -252,7 +252,7 @@ describe("DrawingCanvas", () => {
     fireEvent.pointerDown(live, { button: 0, clientX: 10, clientY: 10, pointerId: 1 });
     fireEvent.pointerMove(live, { clientX: 60, clientY: 60, pointerId: 1 });
 
-    fireEvent.keyDown(window, { code: "KeyT" }); // 그리던 획을 끊고 텍스트 모드로
+    fireEvent.keyDown(window, { code: "KeyT" }); // 그리던 획을 끊고 텍스트 도구로
     expect(onChange).toHaveBeenLastCalledWith(true);
 
     fireEvent.pointerUp(live, { clientX: 80, clientY: 80, pointerId: 1 });
