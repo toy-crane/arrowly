@@ -55,7 +55,7 @@ export function OverlayApp() {
     const unMode = onModeChanged((p) => {
       setDrawing(p.drawing);
       setBoard(p.board);
-      if (!p.drawing) setTextMode(false); // Esc·토글로 나가면 텍스트 모드도 폐기
+      if (!p.drawing) setTextMode(false); // Esc·토글로 나가면 텍스트 도구 선택도 폐기
     });
     const unBoard = onBoardChanged((p) => setBoard(p.on));
     const unMarker = onMarkerHiddenChanged((p) => setMarkerHidden(p.hidden));

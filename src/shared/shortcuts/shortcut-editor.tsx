@@ -20,7 +20,7 @@ function localValidationError(id: FieldId, accel: string, shortcuts: Shortcuts):
   const parts = accel.split("+");
   const code = parts[parts.length - 1];
   if (code === "Escape") return t("shortcut.error.reservedEsc");
-  // text는 전역 미등록 로컬 키라 수식키 없는 단독 키를 허용한다 (REQUIREMENTS 확정)
+  // text는 앱 셸 스펙상 전역 미등록 로컬 키라 수식키 없는 단독 키를 허용한다.
   if (parts.length < 2 && id !== "text") return t("shortcut.error.modifierRequired");
   if (UNDO_ACCELS.has(accel)) return t("shortcut.error.undo");
   if (Object.entries(shortcuts).some(([other, value]) => other !== id && value === accel)) {

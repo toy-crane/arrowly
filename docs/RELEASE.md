@@ -1,6 +1,6 @@
 # Arrowly 릴리스 가이드 (macOS DMG)
 
-v1 배포는 **DMG 직접 배포**로 확정 (App Store는 비공개 API·비샌드박스 구조라 불가 — REQUIREMENTS 배포 절 참조).
+v1 배포는 **DMG 직접 배포**로 확정했다. 투명 웹뷰가 macOS 비공개 API에 의존하고 현재 앱이 비샌드박스 구조라 App Store에는 배포하지 않는다.
 자동 업데이트 없음 — 새 버전은 재다운로드.
 서명·공증이 왜 필요하고 어떻게 구성돼 있는지는 `SIGNING.md` 참조.
 

@@ -33,7 +33,7 @@
 - 그리기 중 좌하단 마커에서 색·펜 굵기·텍스트 크기를 각각 5단계로 바꿉니다. 드래그로 옮길 수 있습니다.
 - 기존 텍스트를 더블클릭하면 내용과 크기를 다시 고칠 수 있습니다. T를 누른 뒤 드래그하면 위치를 옮길 수 있으며 색은 유지됩니다.
 - 그리기를 끄면 그림은 숨겨지고, 다시 켜면 복원됩니다. 삭제는 ⌘Z·⌥⌫로만 됩니다.
-- 그리기·블랙보드·전체 지우기 단축키 변경, 마커 숨기기, 튜토리얼 다시 보기는 메뉴바 아이콘 메뉴에 있습니다.
+- 그리기·블랙보드·전체 지우기·텍스트 단축키 변경, 마커 숨기기, 튜토리얼 다시 보기는 메뉴바 아이콘 메뉴에 있습니다.
 - 접근성 권한이 필요 없습니다. 그리는 동안에도 아래 앱은 활성 상태로 유지됩니다.
 
 ## 제약 (오픈 베타)
@@ -57,4 +57,4 @@ bun run test:all
 ```
 
 Tauri v2 + React/TypeScript + Bun.
-요구사항 [docs/REQUIREMENTS.md](docs/REQUIREMENTS.md) · 테스트 [docs/TESTING.md](docs/TESTING.md) · 릴리스 절차 [docs/RELEASE.md](docs/RELEASE.md)
+제품 경계 [docs/specs/product-boundary/spec.md](docs/specs/product-boundary/spec.md) · 기능 스펙 [docs/specs](docs/specs) · 릴리스 절차 [docs/RELEASE.md](docs/RELEASE.md)

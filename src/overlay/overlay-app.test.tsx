@@ -157,7 +157,7 @@ describe("OverlayApp", () => {
     expect(screen.getByTestId("marker")).toHaveAttribute("data-textmode", "true");
     fireEvent.click(screen.getByRole("button", { name: "marker-text" }));
 
-    // 텍스트 모드 해제 후 → 펜 커서 복귀 (직전 클릭으로 이미 해제 상태)
+    // 텍스트 도구 해제 후 → 펜 커서 복귀 (직전 클릭으로 이미 해제 상태)
     mocks.applyPenCursor.mockClear();
     fireEvent.click(screen.getByRole("button", { name: "text-toggle" }));
     expect(mocks.applyTextCursor.mock.calls.length).toBeGreaterThanOrEqual(1);
@@ -170,7 +170,7 @@ describe("OverlayApp", () => {
     });
     expect(screen.getByTestId("canvas")).toHaveAttribute("data-textmode", "true");
 
-    // 그리기 종료는 텍스트 모드도 함께 폐기한다
+    // 그리기 종료는 텍스트 도구 선택도 함께 폐기한다
     await act(async () => {
       await emit("mode-changed", { drawing: false, board: false });
     });

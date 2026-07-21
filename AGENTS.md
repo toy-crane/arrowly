@@ -1,6 +1,6 @@
 # Arrowly
 
-macOS 화면 주석 오버레이 앱. 요구사항은 `docs/REQUIREMENTS.md` 참고.
+macOS 화면 주석 오버레이 앱. 제품 경계는 `docs/specs/product-boundary/spec.md`, 기능 동작은 `docs/specs/`의 각 스펙을 참고한다.
 
 ## 스택
 
