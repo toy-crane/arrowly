@@ -9,6 +9,7 @@ import {
   MIN_ELLIPSE_MINOR_PX,
   MIN_RECT_CORNERS,
   MIN_SNAP_DIAG_PX,
+  projectLineEndpoint,
   RING_DELAY_MS,
   STILL_RADIUS_PX,
 } from "./shapes";
@@ -85,28 +86,23 @@ describe("classifyStroke", () => {
     expect(classifyStroke(open)?.shape).toBe("rect");
   });
 
-  it("snaps an open wobbly stroke to an arrow from start to the farthest point", () => {
-    const result = classifyStroke(jitter(linePath({ x: 10, y: 200 }, { x: 180, y: 60 })));
-    expect(result?.shape).toBe("arrow");
-    if (result?.shape !== "arrow") return;
-    expect(result.geometry.from.x).toBeCloseTo(10, 0);
-    expect(result.geometry.to.x).toBeGreaterThan(160);
+  it("locks an open wobbly stroke to a line from its first point to its last point", () => {
+    const points = jitter(linePath({ x: 10, y: 200 }, { x: 180, y: 60 }));
+    const result = classifyStroke(points);
+    expect(result?.shape).toBe("line");
+    if (result?.shape !== "line") return;
+    expect(result.geometry.from).toEqual(points[0]);
+    expect(result.geometry.to).toEqual(points[points.length - 1]);
   });
 
-  it("treats a drawn arrowhead backtrack as part of the arrow, tip at the farthest point", () => {
-    // 축 + 촉을 한 획으로: 끝에서 꺾어 되돌아온 자국이 있어도 최원점이 촉이 된다
+  it("uses the final point even when an open stroke looks like a hand-drawn arrow", () => {
     const shaft = linePath({ x: 0, y: 0 }, { x: 150, y: 0 });
     const head = linePath({ x: 150, y: 0 }, { x: 132, y: -12 }, 4);
     const result = classifyStroke([...shaft, ...head]);
-    expect(result?.shape).toBe("arrow");
-    if (result?.shape !== "arrow") return;
-    expect(result.geometry.to.x).toBeCloseTo(150, 0);
-    expect(result.geometry.to.y).toBeCloseTo(0, 0);
-  });
-
-  it("classifies an open V as an arrow, never a rect", () => {
-    const v = [...linePath({ x: 0, y: 0 }, { x: 60, y: 80 }, 10), ...linePath({ x: 60, y: 80 }, { x: 120, y: 0 }, 10)];
-    expect(classifyStroke(v)?.shape).toBe("arrow");
+    expect(result).toEqual({
+      shape: "line",
+      geometry: { from: { x: 0, y: 0 }, to: { x: 132, y: -12 } },
+    });
   });
 
   it("refuses to snap a straight out-and-back stroke as a degenerate ellipse", () => {
@@ -127,8 +123,8 @@ describe("classifyStroke", () => {
   });
 
   it("locks the tuning constants that DrawingCanvas depends on", () => {
-    expect(HOLD_MS).toBe(600);
-    expect(RING_DELAY_MS).toBe(200);
+    expect(HOLD_MS).toBe(450);
+    expect(RING_DELAY_MS).toBe(150);
     expect(STILL_RADIUS_PX).toBe(3.5);
     expect(MIN_SNAP_DIAG_PX).toBe(24);
     expect(CLOSED_GAP_RATIO).toBe(0.25);
@@ -136,5 +132,19 @@ describe("classifyStroke", () => {
     expect(CORNER_TURN_DEG).toBe(55);
     expect(MIN_RECT_CORNERS).toBe(3);
     expect(MIN_ELLIPSE_MINOR_PX).toBe(8);
+  });
+});
+
+describe("projectLineEndpoint", () => {
+  it("projects a 3-4-5 endpoint to the nearest 45 degree direction without changing its distance", () => {
+    const projected = projectLineEndpoint({ x: 10, y: 20 }, { x: 13, y: 24 });
+    expect(projected.x).toBeCloseTo(10 + Math.SQRT1_2 * 5, 8);
+    expect(projected.y).toBeCloseTo(20 + Math.SQRT1_2 * 5, 8);
+  });
+
+  it("projects negative directions to the nearest 45 degree direction", () => {
+    const projected = projectLineEndpoint({ x: 0, y: 0 }, { x: -3, y: -4 });
+    expect(projected.x).toBeCloseTo(-Math.SQRT1_2 * 5, 8);
+    expect(projected.y).toBeCloseTo(-Math.SQRT1_2 * 5, 8);
   });
 });

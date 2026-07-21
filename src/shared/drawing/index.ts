@@ -12,8 +12,8 @@ export {
   TEXT_LINE_HEIGHT_RATIO,
 } from "./strokes";
 export type {
-  ArrowGeometry,
   EllipseGeometry,
+  LineGeometry,
   Mark,
   PenMark,
   RectGeometry,

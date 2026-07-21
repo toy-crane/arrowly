@@ -28,7 +28,13 @@ import {
   setTextEditing,
 } from "../shared/ipc";
 import { matchesAccelerator } from "../shared/shortcuts";
-import { classifyStroke, HOLD_MS, RING_DELAY_MS, STILL_RADIUS_PX } from "./shapes";
+import {
+  classifyStroke,
+  HOLD_MS,
+  projectLineEndpoint,
+  RING_DELAY_MS,
+  STILL_RADIUS_PX,
+} from "./shapes";
 import { TextEditor } from "./text-editor";
 
 type Props = {
@@ -284,18 +290,35 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       }
     };
 
-    // ---- 홀드 스냅: 버튼을 누른 채 STILL_RADIUS_PX 안에서 HOLD_MS 멈추면 도형으로 치환 ----
+    // ---- 홀드 보정: 버튼을 누른 채 STILL_RADIUS_PX 안에서 HOLD_MS 멈추면 도형·직선으로 치환 ----
     const HOLD_TICK_MS = 50;
     let holdAnchor: Point | null = null;
     let holdStart = 0;
     let holdTimer = 0;
     let snapped: ShapeMark | null = null;
+    let lineRawEndpoint: Point | null = null;
+    let lineShiftHeld = false;
+    let ringVisible = false;
     let ringProgress = 0;
+
+    const updateLockedLine = () => {
+      if (!snapped || snapped.shape !== "line" || !lineRawEndpoint) return false;
+      const from = snapped.geometry.from;
+      snapped = {
+        ...snapped,
+        geometry: {
+          from,
+          to: lineShiftHeld ? projectLineEndpoint(from, lineRawEndpoint) : lineRawEndpoint,
+        },
+      };
+      return true;
+    };
 
     const stopHold = () => {
       if (holdTimer) window.clearInterval(holdTimer);
       holdTimer = 0;
       holdAnchor = null;
+      ringVisible = false;
       ringProgress = 0;
     };
 
@@ -326,7 +349,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       }
       if (store.live) {
         drawMark(liveCtx, store.live);
-        if (ringProgress > 0) {
+        if (ringVisible) {
           drawHoldRing(liveCtx, store.live.points[store.live.points.length - 1], ringProgress);
         }
       }
@@ -345,17 +368,30 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
             color,
             width: strokeWidthPx(widthKey, Math.min(window.innerWidth, window.innerHeight)),
           } as ShapeMark;
+          if (snapped.shape === "line") {
+            lineRawEndpoint = snapped.geometry.to;
+            updateLockedLine();
+          }
           stopHold();
         } else {
-          holdStart = Date.now(); // 과소 획 — 재무장
-          ringProgress = 0;
+          armHold(store.live.points[store.live.points.length - 1]); // 과소 획 — 재무장
         }
         scheduleLive();
       } else if (still >= RING_DELAY_MS) {
+        ringVisible = true;
         ringProgress = (still - RING_DELAY_MS) / (HOLD_MS - RING_DELAY_MS);
         scheduleLive();
       }
     };
+
+    function armHold(anchor: Point) {
+      if (holdTimer) window.clearInterval(holdTimer);
+      holdAnchor = anchor;
+      holdStart = Date.now();
+      ringVisible = false;
+      ringProgress = 0;
+      holdTimer = window.setInterval(holdTick, HOLD_TICK_MS);
+    }
 
     // Retina 백킹: 물리 픽셀 크기 + dpr 스케일 (setTransform이라 재호출 누적 없음)
     const setupBacking = () => {
@@ -409,6 +445,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       dblPending = null;
       stopHold();
       snapped = null;
+      lineRawEndpoint = null;
+      lineShiftHeld = false;
       textGesture = null;
       movingText = null;
       movingTextIndex = -1;
@@ -462,9 +500,9 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       live.setPointerCapture(e.pointerId);
       activePointerId = e.pointerId;
       snapped = null;
-      holdAnchor = p;
-      holdStart = Date.now();
-      holdTimer = window.setInterval(holdTick, HOLD_TICK_MS);
+      lineRawEndpoint = null;
+      lineShiftHeld = e.shiftKey;
+      armHold(p);
       scheduleLive();
     };
 
@@ -489,17 +527,24 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
         }
         return;
       }
-      if (snapped) return; // 스냅 후에는 떼기 전까지 도형이 고정된다
+      if (snapped) {
+        if (snapped.shape === "line") {
+          lineRawEndpoint = toPoint(e);
+          lineShiftHeld = e.shiftKey;
+          updateLockedLine();
+          scheduleLive();
+        }
+        return;
+      }
       if (!store.live) return;
       const coalesced = e.getCoalescedEvents?.() ?? [];
       // 일부 구현은 빈 배열을 반환한다 — 이벤트 자신으로 폴백
       const points = (coalesced.length ? coalesced : [e]).map(toPoint);
       store.extendLive(points);
-      const last = points[points.length - 1];
-      if (holdAnchor && Math.hypot(last.x - holdAnchor.x, last.y - holdAnchor.y) > STILL_RADIUS_PX) {
-        holdAnchor = last; // 유의미한 이동 — 홀드 리셋
-        holdStart = Date.now();
-        ringProgress = 0;
+      for (const point of points) {
+        if (holdAnchor && Math.hypot(point.x - holdAnchor.x, point.y - holdAnchor.y) > STILL_RADIUS_PX) {
+          armHold(point); // coalesced 중간 표본도 유의미한 이동이면 홀드 리셋
+        }
       }
       scheduleLive();
     };
@@ -551,9 +596,16 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       }
       stopHold();
       if (snapped) {
+        if (snapped.shape === "line") {
+          lineRawEndpoint = toPoint(e);
+          lineShiftHeld = e.shiftKey;
+          updateLockedLine();
+        }
         // 스냅 확정: 손그림 live를 버리고 도형 마크를 커밋한다 (undo 1단위)
         const mark = snapped;
         snapped = null;
+        lineRawEndpoint = null;
+        lineShiftHeld = false;
         activePointerId = null;
         store.cancelLive();
         store.push(mark);
@@ -592,6 +644,11 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
     };
 
     const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Shift") {
+        lineShiftHeld = true;
+        if (updateLockedLine()) scheduleLive();
+        return;
+      }
       const sizeDelta =
         e.metaKey &&
         !e.altKey &&
@@ -633,9 +690,16 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       }
     };
 
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.key !== "Shift") return;
+      lineShiftHeld = e.shiftKey;
+      if (updateLockedLine()) scheduleLive();
+    };
+
     setupBacking();
     window.addEventListener("resize", setupBacking);
     window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
     live.addEventListener("pointerdown", onPointerDown);
     live.addEventListener("pointermove", onPointerMove);
     live.addEventListener("pointerup", onPointerUp);
@@ -657,6 +721,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
     return () => {
       window.removeEventListener("resize", setupBacking);
       window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
       live.removeEventListener("pointerdown", onPointerDown);
       live.removeEventListener("pointermove", onPointerMove);
       live.removeEventListener("pointerup", onPointerUp);
