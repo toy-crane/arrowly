@@ -16,12 +16,12 @@ export type TextMark = {
 
 export type RectGeometry = { x: number; y: number; w: number; h: number };
 export type EllipseGeometry = { cx: number; cy: number; rx: number; ry: number };
-export type ArrowGeometry = { from: Point; to: Point };
-/** 홀드 스냅으로 정리된 도형 — 스냅 결과도 마크다. */
+export type LineGeometry = { from: Point; to: Point };
+/** 홀드 보정으로 정리된 도형·직선 — 보정 결과도 마크다. */
 export type ShapeMark =
   | { kind: "shape"; shape: "rect"; geometry: RectGeometry; color: string; width: number }
   | { kind: "shape"; shape: "ellipse"; geometry: EllipseGeometry; color: string; width: number }
-  | { kind: "shape"; shape: "arrow"; geometry: ArrowGeometry; color: string; width: number };
+  | { kind: "shape"; shape: "line"; geometry: LineGeometry; color: string; width: number };
 
 export type Mark = PenMark | TextMark | ShapeMark;
 
@@ -351,15 +351,6 @@ export function drawMark(ctx: CanvasRenderingContext2D, m: Mark) {
     ctx.beginPath();
     ctx.moveTo(from.x, from.y);
     ctx.lineTo(to.x, to.y);
-    ctx.stroke();
-    const shaft = Math.hypot(to.x - from.x, to.y - from.y);
-    const head = Math.min(Math.max(12, m.width * 3.5), shaft * 0.4);
-    const ang = Math.atan2(to.y - from.y, to.x - from.x);
-    ctx.beginPath();
-    ctx.moveTo(to.x, to.y);
-    ctx.lineTo(to.x - head * Math.cos(ang - Math.PI / 6), to.y - head * Math.sin(ang - Math.PI / 6));
-    ctx.moveTo(to.x, to.y);
-    ctx.lineTo(to.x - head * Math.cos(ang + Math.PI / 6), to.y - head * Math.sin(ang + Math.PI / 6));
     ctx.stroke();
   }
 }

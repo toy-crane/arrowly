@@ -551,12 +551,17 @@ describe("DrawingCanvas", () => {
       for (const [px, py] of sides) fireEvent.pointerMove(live, { clientX: px, clientY: py, pointerId });
     }
 
+    function traceOpenStroke(live: Element, from: [number, number], to: [number, number], pointerId = 1) {
+      fireEvent.pointerDown(live, { button: 0, clientX: from[0], clientY: from[1], pointerId });
+      fireEvent.pointerMove(live, { clientX: to[0], clientY: to[1], pointerId });
+    }
+
     it("snaps a held closed stroke to a rectangle committed as one undoable mark", () => {
       const { live, baseCtx, liveCtx } = renderCanvas();
       traceSquare(live, 100, 100, 120);
       expect(liveCtx.rect).not.toHaveBeenCalled();
 
-      vi.advanceTimersByTime(700); // HOLD_MS 도달 → 스냅 미리보기
+      vi.advanceTimersByTime(450); // HOLD_MS 도달 → 스냅 미리보기
       expect(liveCtx.rect).toHaveBeenCalled();
       expect(baseCtx.rect).not.toHaveBeenCalled();
 
@@ -568,29 +573,180 @@ describe("DrawingCanvas", () => {
       expect(baseCtx.rect).toHaveBeenCalledTimes(1); // renderBase 재실행에서 재호출 없음
     });
 
-    it("shows the progress ring only after the delay", () => {
+    it("shows the progress ring at 150ms and locks an open stroke to a line at 450ms", () => {
       const { live, liveCtx } = renderCanvas();
-      fireEvent.pointerDown(live, { button: 0, clientX: 50, clientY: 50, pointerId: 1 });
+      traceOpenStroke(live, [50, 50], [170, 90]);
+      vi.mocked(liveCtx.arc).mockClear();
 
-      vi.advanceTimersByTime(100); // RING_DELAY_MS 이전
+      vi.advanceTimersByTime(149);
       expect(liveCtx.arc).not.toHaveBeenCalled();
 
-      vi.advanceTimersByTime(200); // 링 표시 구간
+      vi.advanceTimersByTime(1);
       expect(liveCtx.arc).toHaveBeenCalled();
-      fireEvent.pointerUp(live, { clientX: 50, clientY: 50, pointerId: 1 });
+
+      vi.advanceTimersByTime(299);
+      vi.mocked(liveCtx.moveTo).mockClear();
+      vi.mocked(liveCtx.lineTo).mockClear();
+      vi.advanceTimersByTime(1);
+      expect(liveCtx.moveTo).toHaveBeenCalledWith(50, 50);
+      expect(liveCtx.lineTo).toHaveBeenCalledOnce();
+      expect(liveCtx.lineTo).toHaveBeenCalledWith(170, 90);
+
+      fireEvent.pointerUp(live, { clientX: 170, clientY: 90, pointerId: 1 });
     });
 
-    it("resets the hold when the pointer moves, committing freehand on release", () => {
+    it("keeps the start fixed while the locked line endpoint follows the pointer", () => {
+      const { live, liveCtx } = renderCanvas();
+      traceOpenStroke(live, [20, 30], [120, 70]);
+      vi.advanceTimersByTime(450);
+      vi.mocked(liveCtx.moveTo).mockClear();
+      vi.mocked(liveCtx.lineTo).mockClear();
+
+      fireEvent.pointerMove(live, { clientX: 260, clientY: 190, pointerId: 1 });
+
+      expect(liveCtx.moveTo).toHaveBeenCalledOnce();
+      expect(liveCtx.moveTo).toHaveBeenCalledWith(20, 30);
+      expect(liveCtx.lineTo).toHaveBeenCalledOnce();
+      expect(liveCtx.lineTo).toHaveBeenCalledWith(260, 190);
+      fireEvent.pointerUp(live, { clientX: 260, clientY: 190, pointerId: 1 });
+    });
+
+    it("switches a locked line between 45 degree constraint and its raw endpoint without pointer movement", () => {
+      const { live, liveCtx } = renderCanvas();
+      traceOpenStroke(live, [20, 30], [120, 90]);
+      vi.advanceTimersByTime(450);
+      vi.mocked(liveCtx.moveTo).mockClear();
+      vi.mocked(liveCtx.lineTo).mockClear();
+
+      fireEvent.keyDown(window, { key: "Shift", code: "ShiftLeft", shiftKey: true });
+      const projectedOffset = Math.hypot(100, 60) * Math.SQRT1_2;
+      expect(liveCtx.moveTo).toHaveBeenCalledWith(20, 30);
+      expect(liveCtx.lineTo).toHaveBeenCalledOnce();
+      const [projectedX, projectedY] = vi.mocked(liveCtx.lineTo).mock.calls[0];
+      expect(projectedX).toBeCloseTo(20 + projectedOffset, 8);
+      expect(projectedY).toBeCloseTo(30 + projectedOffset, 8);
+
+      vi.mocked(liveCtx.moveTo).mockClear();
+      vi.mocked(liveCtx.lineTo).mockClear();
+      fireEvent.keyUp(window, { key: "Shift", code: "ShiftLeft" });
+      expect(liveCtx.moveTo).toHaveBeenCalledWith(20, 30);
+      expect(liveCtx.lineTo).toHaveBeenCalledWith(120, 90);
+
+      fireEvent.pointerUp(live, { clientX: 120, clientY: 90, pointerId: 1 });
+    });
+
+    it("keeps the angle constraint while either Shift key remains held", () => {
+      const { live, liveCtx } = renderCanvas();
+      traceOpenStroke(live, [0, 0], [100, 60]);
+      vi.advanceTimersByTime(450);
+      fireEvent.keyDown(window, { key: "Shift", code: "ShiftLeft", shiftKey: true });
+      fireEvent.keyDown(window, { key: "Shift", code: "ShiftRight", shiftKey: true });
+      vi.mocked(liveCtx.lineTo).mockClear();
+
+      fireEvent.keyUp(window, { key: "Shift", code: "ShiftLeft", shiftKey: true });
+      const projected = Math.hypot(100, 60) * Math.SQRT1_2;
+      expect(liveCtx.lineTo).toHaveBeenCalledOnce();
+      const [projectedX, projectedY] = vi.mocked(liveCtx.lineTo).mock.calls[0];
+      expect(projectedX).toBeCloseTo(projected, 8);
+      expect(projectedY).toBeCloseTo(projected, 8);
+
+      vi.mocked(liveCtx.lineTo).mockClear();
+      fireEvent.keyUp(window, { key: "Shift", code: "ShiftRight", shiftKey: false });
+      expect(liveCtx.lineTo).toHaveBeenCalledWith(100, 60);
+      fireEvent.pointerUp(live, { clientX: 100, clientY: 60, pointerId: 1 });
+    });
+
+    it("commits the pointerup endpoint as one undoable and redoable line mark", () => {
+      const { live, baseCtx } = renderCanvas();
+      traceOpenStroke(live, [10, 10], [100, 40]);
+      vi.advanceTimersByTime(450);
+
+      fireEvent.pointerUp(live, { clientX: 220, clientY: 140, pointerId: 1 });
+      expect(baseCtx.moveTo).toHaveBeenCalledWith(10, 10);
+      expect(baseCtx.lineTo).toHaveBeenCalledOnce();
+      expect(baseCtx.lineTo).toHaveBeenCalledWith(220, 140);
+
+      fireEvent.keyDown(window, { code: "KeyZ", metaKey: true });
+      expect(baseCtx.lineTo).toHaveBeenCalledOnce();
+
+      fireEvent.keyDown(window, { code: "KeyZ", metaKey: true, shiftKey: true });
+      expect(baseCtx.lineTo).toHaveBeenCalledTimes(2);
+      expect(baseCtx.lineTo).toHaveBeenLastCalledWith(220, 140);
+    });
+
+    it("commits the constrained endpoint when Shift remains held on pointerup", () => {
+      const { live, baseCtx } = renderCanvas();
+      traceOpenStroke(live, [0, 0], [100, 60]);
+      vi.advanceTimersByTime(450);
+      fireEvent.keyDown(window, { key: "Shift", code: "ShiftLeft", shiftKey: true });
+
+      fireEvent.pointerUp(live, { clientX: 150, clientY: 90, pointerId: 1, shiftKey: true });
+
+      const projected = Math.hypot(150, 90) * Math.SQRT1_2;
+      expect(baseCtx.lineTo).toHaveBeenCalledOnce();
+      const [x, y] = vi.mocked(baseCtx.lineTo).mock.calls[0];
+      expect(x).toBeCloseTo(projected, 8);
+      expect(y).toBeCloseTo(projected, 8);
+    });
+
+    it("restarts the full 450ms hold window after meaningful pointer movement", () => {
+      const { live, liveCtx } = renderCanvas();
+      traceOpenStroke(live, [0, 0], [100, 100]);
+      vi.advanceTimersByTime(425);
+      fireEvent.pointerMove(live, { clientX: 140, clientY: 120, pointerId: 1 });
+
+      vi.advanceTimersByTime(449);
+      vi.mocked(liveCtx.moveTo).mockClear();
+      vi.mocked(liveCtx.lineTo).mockClear();
+      vi.advanceTimersByTime(1);
+
+      expect(liveCtx.moveTo).toHaveBeenCalledWith(0, 0);
+      expect(liveCtx.lineTo).toHaveBeenCalledOnce();
+      expect(liveCtx.lineTo).toHaveBeenCalledWith(140, 120);
+      fireEvent.pointerUp(live, { clientX: 140, clientY: 120, pointerId: 1 });
+    });
+
+    it("restarts the hold when an intermediate coalesced sample leaves the still radius", () => {
+      const { live, liveCtx } = renderCanvas();
+      traceOpenStroke(live, [0, 0], [100, 0]);
+      vi.advanceTimersByTime(425);
+
+      const move = new Event("pointermove") as PointerEvent;
+      Object.defineProperties(move, {
+        clientX: { value: 100 },
+        clientY: { value: 0 },
+        pointerId: { value: 1 },
+        getCoalescedEvents: {
+          value: () => [
+            { clientX: 150, clientY: 0 },
+            { clientX: 100, clientY: 0 },
+          ],
+        },
+      });
+      live.dispatchEvent(move);
+
+      vi.mocked(liveCtx.moveTo).mockClear();
+      vi.mocked(liveCtx.lineTo).mockClear();
+      vi.advanceTimersByTime(25);
+      expect(liveCtx.lineTo).not.toHaveBeenCalled();
+
+      vi.advanceTimersByTime(424);
+      vi.advanceTimersByTime(1);
+      expect(liveCtx.moveTo).toHaveBeenCalledWith(0, 0);
+      expect(liveCtx.lineTo).toHaveBeenCalledWith(100, 0);
+      fireEvent.pointerUp(live, { clientX: 100, clientY: 0, pointerId: 1 });
+    });
+
+    it("keeps a hand-drawn arrow freehand when released before the hold completes", () => {
       const { live, baseCtx } = renderCanvas();
       fireEvent.pointerDown(live, { button: 0, clientX: 0, clientY: 0, pointerId: 1 });
-      vi.advanceTimersByTime(500);
-      fireEvent.pointerMove(live, { clientX: 100, clientY: 100, pointerId: 1 }); // 홀드 리셋
-      vi.advanceTimersByTime(300); // 리셋 이후 300ms — 스냅 안 됨
-      fireEvent.pointerUp(live, { clientX: 120, clientY: 120, pointerId: 1 });
+      fireEvent.pointerMove(live, { clientX: 120, clientY: 0, pointerId: 1 });
+      fireEvent.pointerMove(live, { clientX: 96, clientY: -18, pointerId: 1 });
+      fireEvent.pointerUp(live, { clientX: 120, clientY: 0, pointerId: 1 });
 
-      expect(baseCtx.rect).not.toHaveBeenCalled();
-      expect(baseCtx.ellipse).not.toHaveBeenCalled();
-      expect(baseCtx.stroke).toHaveBeenCalledTimes(1); // 프리핸드 유지
+      expect(baseCtx.bezierCurveTo).toHaveBeenCalled();
+      expect(baseCtx.lineTo).not.toHaveBeenCalled();
+      expect(baseCtx.stroke).toHaveBeenCalledOnce();
     });
 
     it("never snaps strokes below the minimum size", () => {
@@ -605,28 +761,39 @@ describe("DrawingCanvas", () => {
       expect(baseCtx.stroke).toHaveBeenCalledTimes(1);
     });
 
-    it("discards a pending snapped shape on Clear All instead of committing it on release", () => {
+    it("discards a locked line on Clear All instead of committing it on release", () => {
       const { live, baseCtx, liveCtx } = renderCanvas();
-      traceSquare(live, 100, 100, 120);
-      vi.advanceTimersByTime(700);
-      expect(liveCtx.rect).toHaveBeenCalled(); // 스냅 미리보기 상태
+      traceOpenStroke(live, [100, 100], [220, 160]);
+      vi.advanceTimersByTime(450);
+      expect(liveCtx.lineTo).toHaveBeenCalled();
 
       fireEvent.keyDown(window, { code: "Backspace", altKey: true }); // 전체 지우기
-      fireEvent.pointerUp(live, { clientX: 100, clientY: 100, pointerId: 1 });
-      expect(baseCtx.rect).not.toHaveBeenCalled(); // 지운 판에 도형이 커밋되지 않는다
+      fireEvent.pointerUp(live, { clientX: 260, clientY: 180, pointerId: 1 });
+      expect(baseCtx.lineTo).not.toHaveBeenCalled();
     });
 
-    it("clears pending snap state on mode-changed without committing", async () => {
+    it("clears a locked line on mode-changed without committing", async () => {
       const { live, baseCtx, liveCtx } = renderCanvas();
-      traceSquare(live, 100, 100, 120);
-      vi.advanceTimersByTime(700);
-      expect(liveCtx.rect).toHaveBeenCalled(); // 스냅 미리보기 상태
+      traceOpenStroke(live, [100, 100], [220, 160]);
+      vi.advanceTimersByTime(450);
+      expect(liveCtx.lineTo).toHaveBeenCalled();
 
       await act(async () => {
         await emit("mode-changed", { drawing: false });
       });
-      fireEvent.pointerUp(live, { clientX: 100, clientY: 100, pointerId: 1 });
-      expect(baseCtx.rect).not.toHaveBeenCalled(); // 아무것도 커밋되지 않았다
+      fireEvent.pointerUp(live, { clientX: 260, clientY: 180, pointerId: 1 });
+      expect(baseCtx.lineTo).not.toHaveBeenCalled();
+    });
+
+    it("clears a locked line on pointer cancel without committing", () => {
+      const { live, baseCtx, liveCtx } = renderCanvas();
+      traceOpenStroke(live, [100, 100], [220, 160]);
+      vi.advanceTimersByTime(450);
+      expect(liveCtx.lineTo).toHaveBeenCalled();
+
+      fireEvent.pointerCancel(live, { pointerId: 1 });
+      fireEvent.pointerUp(live, { clientX: 260, clientY: 180, pointerId: 1 });
+      expect(baseCtx.lineTo).not.toHaveBeenCalled();
     });
   });
 

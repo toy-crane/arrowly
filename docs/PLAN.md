@@ -314,7 +314,7 @@
 
 ### 홀드 보정 (M11.7–8)
 
-`shapes.ts` 순수 분류기 상수: `HOLD_MS=450 / RING_DELAY_MS=150 / STILL_RADIUS_PX=3.5 / MIN_SNAP_DIAG_PX=24 / CLOSED_GAP_RATIO=0.25 / MIN_CLOSED_PATH_RATIO=1.2 / CORNER_TURN_DEG=55 / MIN_RECT_CORNERS=3`. 파이프라인: bbox 최소치 → 호길이 리샘플 → 닫힘 판정 → 닫힌 획은 모서리 카운트 후 rect(축정렬 bbox) / ellipse(bbox 내접), 열린 획은 시작점을 고정한 line. 직선 잠금 뒤 포인터 이동은 끝점을 따라가고 <kbd>Shift</kbd>는 방향을 45° 단위로 제한한다. 화살표는 분류·자동 보정하지 않는다. 감도 튜닝은 사용자 Mac 체크리스트가 게이트이며, 세부 계약은 `docs/specs/line-lock-gesture/spec.md`를 따른다.
+`shapes.ts` 순수 분류기 상수: `HOLD_MS=450 / RING_DELAY_MS=150 / STILL_RADIUS_PX=3.5 / MIN_SNAP_DIAG_PX=24 / CLOSED_GAP_RATIO=0.25 / MIN_CLOSED_PATH_RATIO=1.2 / CORNER_TURN_DEG=55 / MIN_RECT_CORNERS=3`. 파이프라인: bbox 최소치 → 호길이 리샘플 → 닫힘 판정 → 닫힌 획은 모서리 카운트 후 rect(축정렬 bbox) / ellipse(bbox 내접), 유효한 열린 획은 시작점과 현재 끝점을 잇는 line. 직선 잠금 뒤 포인터 이동은 끝점을 따라가고 <kbd>Shift</kbd>는 방향을 45° 단위로 제한한다. 화살표 결과·머리 렌더링·전용 도구는 없으며, 화살표처럼 그린 열린 획도 홀드하면 line 계약을 따른다. 감도 튜닝은 사용자 Mac 체크리스트가 게이트이며, 세부 계약은 `docs/specs/line-lock-gesture/spec.md`를 따른다.
 
 ### ⭐ M11.3 IME 판정 게이트 (M2 방식 Go/No-Go)
 

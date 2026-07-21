@@ -1,10 +1,10 @@
-import type { ArrowGeometry, EllipseGeometry, Point, RectGeometry } from "../shared/drawing";
+import type { EllipseGeometry, LineGeometry, Point, RectGeometry } from "../shared/drawing";
 
-// 홀드 스냅 파라미터 — 감도 튜닝은 이 상수들로만 한다 (Mac 수동 체크리스트가 게이트).
-/** 이 시간 동안 버튼을 누른 채 멈추면 스냅한다. */
-export const HOLD_MS = 600;
+// 홀드 보정 파라미터 — 감도 튜닝은 이 상수들로만 한다 (Mac 수동 체크리스트가 게이트).
+/** 이 시간 동안 버튼을 누른 채 멈추면 보정한다. */
+export const HOLD_MS = 450;
 /** 멈춘 뒤 진행 링이 보이기 시작하는 시점. */
-export const RING_DELAY_MS = 200;
+export const RING_DELAY_MS = 150;
 /** 이 반경 안의 움직임은 "멈춤"으로 친다. */
 export const STILL_RADIUS_PX = 3.5;
 /** bbox 대각선이 이보다 작은 획은 스냅하지 않는다(낙서·점). */
@@ -24,7 +24,22 @@ export const MIN_ELLIPSE_MINOR_PX = 8; // MIN_SNAP_DIAG_PX / 3
 export type SnapResult =
   | { shape: "rect"; geometry: RectGeometry }
   | { shape: "ellipse"; geometry: EllipseGeometry }
-  | { shape: "arrow"; geometry: ArrowGeometry };
+  | { shape: "line"; geometry: LineGeometry };
+
+const LINE_ANGLE_STEP_RAD = Math.PI / 4;
+
+/** 시작점과의 거리는 유지하면서 끝점 방향을 가장 가까운 45° 단위로 제한한다. */
+export function projectLineEndpoint(from: Point, rawTo: Point): Point {
+  const dx = rawTo.x - from.x;
+  const dy = rawTo.y - from.y;
+  const length = Math.hypot(dx, dy);
+  if (length === 0) return rawTo;
+  const angle = Math.round(Math.atan2(dy, dx) / LINE_ANGLE_STEP_RAD) * LINE_ANGLE_STEP_RAD;
+  return {
+    x: from.x + Math.cos(angle) * length,
+    y: from.y + Math.sin(angle) * length,
+  };
+}
 
 const dist = (a: Point, b: Point) => Math.hypot(a.x - b.x, a.y - b.y);
 
@@ -90,7 +105,7 @@ function countCorners(rs: Point[]): number {
 
 /**
  * 홀드된 획을 도형으로 분류한다. 닫힌 획 → 모서리 수로 사각형/타원,
- * 열린 획 → 시작점→최원점 화살표. 직선 스냅은 없다(REQUIREMENTS).
+ * 열린 획 → 시작점과 현재 끝점을 잇는 직선.
  * 스냅 불가(과소)면 null — 호출자는 손그림을 유지한다.
  */
 export function classifyStroke(points: Point[]): SnapResult | null {
@@ -117,16 +132,5 @@ export function classifyStroke(points: Point[]): SnapResult | null {
     };
   }
 
-  // 열린 획: 화살촉을 직접 그렸어도(끝에서 되돌아온 자국) 최원점이 촉 끝이 된다
-  let tip = points[0];
-  let best = 0;
-  for (const p of points) {
-    const d = dist(points[0], p);
-    if (d > best) {
-      best = d;
-      tip = p;
-    }
-  }
-  if (best < MIN_SNAP_DIAG_PX) return null;
-  return { shape: "arrow", geometry: { from: points[0], to: tip } };
+  return { shape: "line", geometry: { from: points[0], to: points[points.length - 1] } };
 }

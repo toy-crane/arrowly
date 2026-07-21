@@ -12,6 +12,7 @@ import {
   TEXT_FONT_FAMILY,
   TextMark,
 } from "./strokes";
+import type { LineGeometry } from "./strokes";
 
 const textMark: TextMark = {
   kind: "text",
@@ -293,27 +294,21 @@ describe("drawMark", () => {
     expect(ellipseCtx.stroke).toHaveBeenCalledOnce();
   });
 
-  it("renders an arrow as a shaft plus two head segments", () => {
+  it("renders a line as exactly one straight shaft", () => {
     const ctx = createCanvasContext();
+    const geometry: LineGeometry = { from: { x: 8, y: 12 }, to: { x: 100, y: 64 } };
     drawMark(ctx, {
       kind: "shape",
-      shape: "arrow",
-      geometry: { from: { x: 0, y: 0 }, to: { x: 100, y: 0 } },
+      shape: "line",
+      geometry,
       color: "#FF2D95",
       width: 5,
     });
-    // 축 1 + 촉의 꼭짓점 복귀 1 = moveTo 3회 (축 시작, 촉 2선의 시작)
-    expect(ctx.moveTo).toHaveBeenCalledTimes(3);
-    expect(ctx.lineTo).toHaveBeenCalledTimes(3);
-    expect(ctx.moveTo).toHaveBeenNthCalledWith(2, 100, 0);
-    expect(ctx.moveTo).toHaveBeenNthCalledWith(3, 100, 0);
-    // 촉 길이 = max(12, 5*3.5) = 17.5, ±30°
-    const head = 17.5;
-    const calls = (ctx.lineTo as unknown as { mock: { calls: [number, number][] } }).mock.calls;
-    expect(calls[1][0]).toBeCloseTo(100 - head * Math.cos(Math.PI / 6));
-    expect(calls[1][1]).toBeCloseTo(head * Math.sin(Math.PI / 6));
-    expect(calls[2][0]).toBeCloseTo(100 - head * Math.cos(Math.PI / 6));
-    expect(calls[2][1]).toBeCloseTo(-head * Math.sin(Math.PI / 6));
-    expect(ctx.stroke).toHaveBeenCalledTimes(2);
+    expect(ctx.beginPath).toHaveBeenCalledOnce();
+    expect(ctx.moveTo).toHaveBeenCalledOnce();
+    expect(ctx.moveTo).toHaveBeenCalledWith(8, 12);
+    expect(ctx.lineTo).toHaveBeenCalledOnce();
+    expect(ctx.lineTo).toHaveBeenCalledWith(100, 64);
+    expect(ctx.stroke).toHaveBeenCalledOnce();
   });
 });
