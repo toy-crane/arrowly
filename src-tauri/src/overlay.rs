@@ -51,7 +51,7 @@ pub fn create(app: &App) -> tauri::Result<()> {
             .into(),
     );
 
-    // M2 판정: Floating(4)으로 전체화면 표시·메뉴바 클릭 모두 통과 (상향 불필요)
+    // 네이티브 검증 결과 Floating(4)으로 전체화면 표시·메뉴바 클릭을 모두 만족한다.
     panel.set_level(PanelLevel::Floating.value());
 
     // 키 입력을 받아야 하므로 "필요할 때만 키" 비활성화
