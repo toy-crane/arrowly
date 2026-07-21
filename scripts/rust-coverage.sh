@@ -7,8 +7,8 @@ if ! cargo llvm-cov --version >/dev/null 2>&1; then
 fi
 
 # Tauri's MockRuntime deliberately does not execute native webviews or AppKit.
-# Enforce coverage on the backend domain modules; native adapters have the
-# separate macOS regression checklist documented in docs/TESTING.md.
+# Enforce coverage on the backend policy modules; native adapters are verified
+# by the macOS acceptance criteria in the relevant docs/specs capability.
 cargo llvm-cov \
   --manifest-path src-tauri/Cargo.toml \
   --summary-only \

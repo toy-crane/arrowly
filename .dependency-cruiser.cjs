@@ -1,5 +1,5 @@
 /**
- * 프런트엔드 의존 경계 규칙 — docs/ARCHITECTURE.md의 레이어 모델을 기계로 강제한다.
+ * 프런트엔드 의존 경계 규칙의 실행 가능한 단일 소스.
  * 위반은 `bun run depcruise`(test:all·CI 포함)에서 빌드 실패다.
  *
  * 레이어: app(main.tsx) → features(overlay|onboarding|settings) → shared

@@ -302,7 +302,7 @@ describe("DrawingCanvas", () => {
 
   describe("double-click text entry", () => {
     beforeEach(() => {
-      // 동기 rAF 스텁과 충돌하지 않게 필요한 프리미티브만 fake로 제한한다 (TESTING.md 컨벤션)
+      // 동기 rAF 스텁과 충돌하지 않게 필요한 프리미티브만 fake로 제한한다.
       vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "Date"] });
     });
     afterEach(() => {
