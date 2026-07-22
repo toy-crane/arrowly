@@ -15,6 +15,7 @@ import {
 import {
   drawMark,
   findTextMarkAt,
+  LineMark,
   Point,
   ShapeMark,
   StrokeStore,
@@ -295,7 +296,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
     let holdAnchor: Point | null = null;
     let holdStart = 0;
     let holdTimer = 0;
-    let snapped: ShapeMark | null = null;
+    let snapped: ShapeMark | LineMark | null = null;
     let lineRawEndpoint: Point | null = null;
     let lineShiftHeld = false;
     let ringVisible = false;
@@ -367,7 +368,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
             ...result,
             color,
             width: strokeWidthPx(widthKey, Math.min(window.innerWidth, window.innerHeight)),
-          } as ShapeMark;
+          } as ShapeMark | LineMark;
           if (snapped.shape === "line") {
             lineRawEndpoint = snapped.geometry.to;
             updateLockedLine();

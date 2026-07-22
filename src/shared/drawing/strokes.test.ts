@@ -2,15 +2,18 @@ import { describe, expect, it, vi } from "vitest";
 import { createCanvasContext, installCanvasMock } from "../../../test/canvas";
 import {
   drawMark,
+  findMarkAt,
   findTextMarkAt,
   fontString,
   layoutText,
   Mark,
+  markFrameBounds,
   measureTextWidth,
   StrokeStore,
   textCaretOffsetAt,
   TEXT_FONT_FAMILY,
   TextMark,
+  translateMark,
 } from "./strokes";
 import type { LineGeometry } from "./strokes";
 
@@ -157,6 +160,121 @@ describe("StrokeStore", () => {
     store.retractLast();
     expect(store.undo()).toBe(true);
     expect(store.marks).toEqual([]);
+  });
+});
+
+describe("mark movement", () => {
+  it("translates every committed mark without changing its shape or ink", () => {
+    const marks: Mark[] = [
+      { kind: "pen", points: [{ x: 1, y: 2 }, { x: 4, y: 8 }], color: "red", width: 3 },
+      textMark,
+      rectMark,
+      {
+        kind: "shape",
+        shape: "ellipse",
+        geometry: { cx: 30, cy: 40, rx: 12, ry: 8 },
+        color: "blue",
+        width: 5,
+      },
+      {
+        kind: "shape",
+        shape: "line",
+        geometry: { from: { x: 5, y: 6 }, to: { x: 15, y: 16 } },
+        color: "green",
+        width: 2,
+      },
+    ];
+
+    expect(marks.map((mark) => translateMark(mark, 7, -3))).toEqual([
+      { kind: "pen", points: [{ x: 8, y: -1 }, { x: 11, y: 5 }], color: "red", width: 3 },
+      { ...textMark, x: 47, y: 57 },
+      { ...rectMark, geometry: { x: 17, y: 17, w: 100, h: 50 } },
+      {
+        kind: "shape",
+        shape: "ellipse",
+        geometry: { cx: 37, cy: 37, rx: 12, ry: 8 },
+        color: "blue",
+        width: 5,
+      },
+      {
+        kind: "shape",
+        shape: "line",
+        geometry: { from: { x: 12, y: 3 }, to: { x: 22, y: 13 } },
+        color: "green",
+        width: 2,
+      },
+    ]);
+    expect(marks[0]).toEqual({
+      kind: "pen",
+      points: [{ x: 1, y: 2 }, { x: 4, y: 8 }],
+      color: "red",
+      width: 3,
+    });
+  });
+
+  it("hits each mark by visible geometry and returns the topmost overlap", () => {
+    installCanvasMock();
+    const pen: Mark = {
+      kind: "pen",
+      points: [{ x: 0, y: 0 }, { x: 100, y: 100 }],
+      color: "red",
+      width: 2,
+    };
+    const line: Mark = {
+      kind: "shape",
+      shape: "line",
+      geometry: { from: { x: 120, y: 20 }, to: { x: 200, y: 20 } },
+      color: "orange",
+      width: 2,
+    };
+    const rect: Mark = {
+      kind: "shape",
+      shape: "rect",
+      geometry: { x: 220, y: 10, w: 50, h: 40 },
+      color: "green",
+      width: 3,
+    };
+    const ellipse: Mark = {
+      kind: "shape",
+      shape: "ellipse",
+      geometry: { cx: 330, cy: 30, rx: 30, ry: 20 },
+      color: "blue",
+      width: 3,
+    };
+    const text: TextMark = { ...textMark, x: 400, y: 10 };
+
+    expect(findMarkAt([pen], { x: 50, y: 55 })).toEqual({ index: 0, mark: pen });
+    expect(findMarkAt([pen], { x: 0, y: 100 })).toBeNull();
+    expect(findMarkAt([line], { x: 160, y: 26 })).toEqual({ index: 0, mark: line });
+    expect(findMarkAt([rect], { x: 245, y: 30 })).toEqual({ index: 0, mark: rect });
+    expect(findMarkAt([ellipse], { x: 330, y: 30 })).toEqual({ index: 0, mark: ellipse });
+    expect(findMarkAt([text], { x: 405, y: 20 })).toEqual({ index: 0, mark: text });
+
+    const topLine = { ...line, geometry: { from: { x: 0, y: 0 }, to: { x: 100, y: 100 } } };
+    expect(findMarkAt([pen, topLine], { x: 50, y: 50 })).toEqual({ index: 1, mark: topLine });
+  });
+
+  it("exposes frames for text and closed shapes but not path marks", () => {
+    installCanvasMock();
+    expect(markFrameBounds(textMark)).toEqual({ x: 34, y: 54, w: 22, h: 56 });
+    expect(markFrameBounds(rectMark)).toEqual({ x: 1.5, y: 11.5, w: 117, h: 67 });
+    expect(
+      markFrameBounds({
+        kind: "shape",
+        shape: "ellipse",
+        geometry: { cx: 50, cy: 40, rx: 30, ry: 20 },
+        color: "blue",
+        width: 4,
+      }),
+    ).toEqual({ x: 12, y: 12, w: 76, h: 56 });
+    expect(
+      markFrameBounds({
+        kind: "pen",
+        points: [{ x: 0, y: 0 }, { x: 20, y: 20 }],
+        color: "red",
+        width: 3,
+      }),
+    ).toBeNull();
   });
 });
 
