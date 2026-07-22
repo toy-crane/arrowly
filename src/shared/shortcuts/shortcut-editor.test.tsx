@@ -119,6 +119,18 @@ describe("ShortcutEditor", () => {
     expect(await screen.findByText("This shortcut is already assigned")).toBeInTheDocument();
   });
 
+  it("reserves plain E for the fixed mark deletion tool", async () => {
+    const user = userEvent.setup();
+    render(<ShortcutEditor />);
+    await waitFor(() => expect(field("Typing text")).toHaveTextContent("T"));
+
+    await user.click(field("Typing text"));
+    fireEvent.keyDown(window, { code: "KeyE" });
+
+    expect(await screen.findByText("E is reserved for the mark deletion tool")).toBeInTheDocument();
+    expect(settings.saveShortcuts).not.toHaveBeenCalled();
+  });
+
   it("reports backend conflicts, resets defaults, and restores shortcuts on unmount", async () => {
     const user = userEvent.setup();
     const { unmount } = render(<ShortcutEditor />);

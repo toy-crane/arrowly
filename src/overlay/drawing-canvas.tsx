@@ -936,7 +936,13 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       } else if (matchesAccelerator(e, clearAccelRef.current)) {
         e.preventDefault();
         clearAll();
-      } else if (!e.metaKey && !e.altKey && !e.ctrlKey && e.code === "KeyE") {
+      } else if (
+        !e.metaKey &&
+        !e.altKey &&
+        !e.ctrlKey &&
+        !e.shiftKey &&
+        e.code === "KeyE"
+      ) {
         e.preventDefault();
         resetGestureState();
         renderLive();

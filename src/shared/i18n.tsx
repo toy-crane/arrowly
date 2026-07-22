@@ -28,6 +28,7 @@ const en = {
   "shortcut.error.duplicate": "This shortcut is already assigned",
   "shortcut.error.invalid": "Unrecognized combination",
   "shortcut.error.reservedEsc": "Esc is a reserved key",
+  "shortcut.error.reservedDelete": "E is reserved for the mark deletion tool",
   "shortcut.error.inUse": "This combination is already used by another app",
   "shortcut.error.generic": "Couldn't set this shortcut",
   "settings.title": "Shortcuts",
@@ -96,6 +97,7 @@ const ko: Record<Key, string> = {
   "shortcut.error.duplicate": "이미 다른 동작에 지정된 단축키예요",
   "shortcut.error.invalid": "인식할 수 없는 조합",
   "shortcut.error.reservedEsc": "Esc는 예약된 키예요",
+  "shortcut.error.reservedDelete": "E는 마크 삭제 도구에 예약된 키예요",
   "shortcut.error.inUse": "이 조합은 다른 곳에서 사용 중이에요",
   "shortcut.error.generic": "단축키를 설정하지 못했어요",
   "settings.title": "단축키",
@@ -159,6 +161,7 @@ export function tx(key: Key, slots: Record<string, ReactNode>): ReactNode[] {
 const ERROR_KEYS: Record<string, Key> = {
   "error:invalid_shortcut": "shortcut.error.invalid",
   "error:reserved_escape": "shortcut.error.reservedEsc",
+  "error:reserved_delete": "shortcut.error.reservedDelete",
   "error:reserved_undo": "shortcut.error.undo",
   "error:modifier_required": "shortcut.error.modifierRequired",
   "error:duplicate_shortcut": "shortcut.error.duplicate",

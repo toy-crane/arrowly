@@ -423,6 +423,24 @@ describe("DrawingCanvas", () => {
       expect(baseCtx.stroke).toHaveBeenCalledTimes(3);
     });
 
+    it("reserves plain E for deletion while allowing a modified E text shortcut", () => {
+      const onToolChange = vi.fn();
+      render(
+        <DrawingCanvas
+          {...baseProps}
+          textAccel="Shift+KeyE"
+          tool="freehand"
+          onToolChange={onToolChange}
+        />,
+      );
+
+      fireEvent.keyDown(window, { code: "KeyE", shiftKey: true });
+      expect(onToolChange).toHaveBeenLastCalledWith("text");
+
+      fireEvent.keyDown(window, { code: "KeyE" });
+      expect(onToolChange).toHaveBeenLastCalledWith("delete");
+    });
+
     it("routes Command plus and minus to the active tool and ignores them in deletion", () => {
       const onWidthStep = vi.fn();
       const onTextSizeStep = vi.fn();

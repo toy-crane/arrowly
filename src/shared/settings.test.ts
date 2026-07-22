@@ -98,6 +98,20 @@ describe("settings", () => {
     });
   });
 
+  it("migrates a legacy KeyE text shortcut to the safe default", async () => {
+    const legacy = {
+      toggle: "Alt+Tab",
+      board: "Shift+Alt+Tab",
+      clear: "Alt+Backspace",
+      text: "KeyE",
+    };
+    mocks.values.set("shortcuts", legacy);
+
+    await expect(loadShortcuts()).resolves.toEqual({ ...legacy, text: "KeyT" });
+    expect(mocks.store.set).toHaveBeenCalledWith("shortcuts", { ...legacy, text: "KeyT" });
+    expect(mocks.store.save).toHaveBeenCalledOnce();
+  });
+
   it("marks onboarding complete", async () => {
     await saveOnboardingDone();
     expect(mocks.values.get("onboardingDone")).toBe(true);
