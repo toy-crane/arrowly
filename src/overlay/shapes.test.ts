@@ -41,6 +41,27 @@ function circlePath(cx: number, cy: number, r: number, samples = 36): Point[] {
   return pts;
 }
 
+function trianglePath(x: number, y: number, width: number, height: number, perSide = 12): Point[] {
+  const vertices = [
+    { x: x + width / 2, y },
+    { x: x + width, y: y + height },
+    { x, y: y + height },
+    { x: x + width / 2, y },
+  ];
+  const points: Point[] = [];
+  for (let side = 0; side < 3; side += 1) {
+    const from = vertices[side];
+    const to = vertices[side + 1];
+    for (let index = side === 0 ? 0 : 1; index <= perSide; index += 1) {
+      points.push({
+        x: from.x + ((to.x - from.x) * index) / perSide,
+        y: from.y + ((to.y - from.y) * index) / perSide,
+      });
+    }
+  }
+  return points;
+}
+
 function linePath(from: Point, to: Point, samples = 20): Point[] {
   const pts: Point[] = [];
   for (let i = 0; i <= samples; i++) {
@@ -68,6 +89,16 @@ describe("classifyStroke", () => {
     expect(result.geometry.cy).toBeCloseTo(150, 0);
     expect(result.geometry.rx).toBeCloseTo(50, 0);
     expect(result.geometry.ry).toBeCloseTo(50, 0);
+  });
+
+  it("snaps a hand-jittered three-corner stroke to an upright triangle", () => {
+    const result = classifyStroke(jitter(trianglePath(100, 80, 120, 90), 0.8));
+    expect(result?.shape).toBe("triangle");
+    if (result?.shape !== "triangle") return;
+    expect(result.geometry.x).toBeCloseTo(100, -1);
+    expect(result.geometry.y).toBeCloseTo(80, -1);
+    expect(result.geometry.w).toBeCloseTo(120, -1);
+    expect(result.geometry.h).toBeCloseTo(90, -1);
   });
 
   it("keeps a squashed round blob an ellipse, not a rect", () => {
@@ -123,7 +154,7 @@ describe("classifyStroke", () => {
   });
 
   it("locks the tuning constants that DrawingCanvas depends on", () => {
-    expect(HOLD_MS).toBe(450);
+    expect(HOLD_MS).toBe(350);
     expect(RING_DELAY_MS).toBe(150);
     expect(STILL_RADIUS_PX).toBe(3.5);
     expect(MIN_SNAP_DIAG_PX).toBe(24);

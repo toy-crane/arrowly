@@ -4,6 +4,8 @@ import {
   DEFAULT_COLOR,
   DEFAULT_TEXT_SIZE,
   DEFAULT_WIDTH,
+  stepTextSize,
+  stepWidth,
   strokeWidthPx,
   TextSizeKey,
   WidthKey,
@@ -27,6 +29,8 @@ import {
 import { applyPenCursor, applyTextCursor, resetCursor } from "./cursor";
 import { DrawingCanvas, type DrawingCanvasHandle } from "./drawing-canvas";
 import { Marker } from "./marker";
+import { PointerPingLayer, type PointerPingLayerHandle } from "./pointer-ping-layer";
+import type { DrawingTool } from "./tools";
 
 export function OverlayApp() {
   const [drawing, setDrawing] = useState(false);
@@ -37,9 +41,10 @@ export function OverlayApp() {
   const [textSizeKey, setTextSizeKey] = useState<TextSizeKey>(DEFAULT_TEXT_SIZE);
   const [clearAccel, setClearAccel] = useState(DEFAULT_SHORTCUTS.clear);
   const [textAccel, setTextAccel] = useState(DEFAULT_SHORTCUTS.text);
-  const [textMode, setTextMode] = useState(false);
+  const [tool, setTool] = useState<DrawingTool>("freehand");
   const [editingTextSizeKey, setEditingTextSizeKey] = useState<TextSizeKey | null>(null);
   const canvasRef = useRef<DrawingCanvasHandle>(null);
+  const pingLayerRef = useRef<PointerPingLayerHandle>(null);
 
   useEffect(() => {
     loadShortcuts().then((s) => {
@@ -55,7 +60,7 @@ export function OverlayApp() {
     const unMode = onModeChanged((p) => {
       setDrawing(p.drawing);
       setBoard(p.board);
-      if (!p.drawing) setTextMode(false); // Esc·토글로 나가면 텍스트 도구 선택도 폐기
+      if (!p.drawing) setTool("freehand"); // Esc·토글로 나가면 일시 도구 선택도 폐기
     });
     const unBoard = onBoardChanged((p) => setBoard(p.on));
     const unMarker = onMarkerHiddenChanged((p) => setMarkerHidden(p.hidden));
@@ -64,7 +69,7 @@ export function OverlayApp() {
       setTextAccel(p.text);
     });
     // 트레이 "텍스트 입력" — Rust가 그리기 진입을 보장한 뒤 emit한다
-    const unEnterText = onEnterTextMode(() => setTextMode(true));
+    const unEnterText = onEnterTextMode(() => setTool("text"));
     return () => {
       unMode.then((f) => f());
       unBoard.then((f) => f());
@@ -80,12 +85,32 @@ export function OverlayApp() {
       resetCursor();
       return;
     }
-    if (textMode) {
+    if (tool === "text") {
       applyTextCursor();
       return;
     }
+    if (tool === "delete") {
+      resetCursor();
+      return;
+    }
     applyPenCursor(color, strokeWidthPx(widthKey, Math.min(window.innerWidth, window.innerHeight)));
-  }, [drawing, textMode, color, widthKey]);
+  }, [drawing, tool, color, widthKey]);
+
+  const changeWidthBy = (delta: -1 | 1) => {
+    setWidthKey((current) => {
+      const next = stepWidth(current, delta);
+      if (next !== current) void saveWidth(next);
+      return next;
+    });
+  };
+
+  const changeTextSizeBy = (delta: -1 | 1) => {
+    setTextSizeKey((current) => {
+      const next = stepTextSize(current, delta);
+      if (next !== current) void saveTextSize(next);
+      return next;
+    });
+  };
 
   return (
     <>
@@ -97,21 +122,25 @@ export function OverlayApp() {
         textSizeKey={textSizeKey}
         clearAccel={clearAccel}
         textAccel={textAccel}
-        textMode={textMode}
-        onTextModeChange={setTextMode}
+        tool={tool}
+        onToolChange={setTool}
+        onWidthStep={changeWidthBy}
+        onTextSizeStep={changeTextSizeBy}
+        onPointerPing={(point) => pingLayerRef.current?.pingAt(point)}
         onEditingTextSizeChange={setEditingTextSizeKey}
         onNewTextSizeCommit={(size) => {
           setTextSizeKey(size);
           void saveTextSize(size);
         }}
       />
+      <PointerPingLayer ref={pingLayerRef} />
       {drawing && !markerHidden && (
         <Marker
           color={color}
           widthKey={widthKey}
           textSizeKey={editingTextSizeKey ?? textSizeKey}
           board={board}
-          textMode={textMode}
+          tool={tool}
           onColorChange={(c) => {
             setColor(c);
             void saveColor(c);
@@ -129,12 +158,11 @@ export function OverlayApp() {
             }
           }}
           onBoardToggle={() => void toggleBoard()}
-          onTextToggle={() => {
+          onToolChange={(next) => {
             if (canvasRef.current?.isEditing()) {
               canvasRef.current.finishTextEditing();
-            } else {
-              setTextMode((v) => !v);
             }
+            setTool(next);
           }}
         />
       )}

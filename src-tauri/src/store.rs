@@ -21,8 +21,8 @@ pub struct StoredShortcuts {
     pub text: Option<String>,
 }
 
-/// shortcuts를 읽되, board가 없는 기존 설정은 기존 사용자 키와 충돌하지 않는
-/// 기본값으로 마이그레이션해 저장까지 마친다.
+/// shortcuts를 읽되, board가 없는 기존 설정과 삭제 도구 E를 텍스트에 할당한
+/// 기존 설정을 안전한 기본값으로 마이그레이션해 저장까지 마친다.
 pub fn load_shortcuts_with_migration(app: &AppHandle) -> Option<StoredShortcuts> {
     let store = app.store(SETTINGS_FILE).ok()?;
     let mut values = store
@@ -32,8 +32,14 @@ pub fn load_shortcuts_with_migration(app: &AppHandle) -> Option<StoredShortcuts>
     let field = |k: &str| values.get(k).and_then(|v| v.as_str()).map(String::from);
     let toggle = field("toggle");
     let clear = field("clear");
-    let text = field("text");
-    let board = if let Some(board) = field("board") {
+    let stored_text = field("text");
+    let stored_board = field("board");
+    let text = crate::shortcut_policy::migrated_text_shortcut(stored_text.as_deref());
+    let mut changed = text != stored_text;
+    if changed {
+        values.insert("text".into(), serde_json::json!(text));
+    }
+    let board = if let Some(board) = stored_board {
         Some(board)
     } else {
         let migrated = crate::shortcut_policy::migrated_board_default(
@@ -45,10 +51,13 @@ pub fn load_shortcuts_with_migration(app: &AppHandle) -> Option<StoredShortcuts>
                 .unwrap_or(crate::shortcut_policy::DEFAULT_CLEAR),
         );
         values.insert("board".into(), serde_json::json!(migrated));
-        store.set(KEY_SHORTCUTS, serde_json::Value::Object(values));
-        let _ = store.save();
+        changed = true;
         Some(migrated)
     };
+    if changed {
+        store.set(KEY_SHORTCUTS, serde_json::Value::Object(values));
+        let _ = store.save();
+    }
     Some(StoredShortcuts {
         toggle,
         board,

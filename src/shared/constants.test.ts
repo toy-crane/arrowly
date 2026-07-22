@@ -5,6 +5,7 @@ import {
   DEFAULT_TEXT_SIZE,
   DEFAULT_WIDTH,
   MIN_STROKE_PX,
+  stepWidth,
   stepTextSize,
   strokeWidthPx,
   TEXT_SIZE_KEYS,
@@ -40,5 +41,12 @@ describe("drawing constants", () => {
     expect(stepTextSize("medium", 1)).toBe("large");
     expect(stepTextSize("xsmall", -1)).toBe("xsmall");
     expect(stepTextSize("xlarge", 1)).toBe("xlarge");
+  });
+
+  it("steps pen width and clamps silently at both ends", () => {
+    expect(stepWidth("medium", -1)).toBe("thin");
+    expect(stepWidth("medium", 1)).toBe("thick");
+    expect(stepWidth("xthin", -1)).toBe("xthin");
+    expect(stepWidth("xthick", 1)).toBe("xthick");
   });
 });

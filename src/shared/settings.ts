@@ -82,7 +82,14 @@ export const DEFAULT_SHORTCUTS: Shortcuts = {
 export async function loadShortcuts(): Promise<Shortcuts> {
   const store = await settingsStore();
   const s = await store.get<Partial<Shortcuts>>("shortcuts");
-  return { ...DEFAULT_SHORTCUTS, ...s };
+  const shortcuts = { ...DEFAULT_SHORTCUTS, ...s };
+  if (shortcuts.text === "KeyE") {
+    const migrated = { ...shortcuts, text: DEFAULT_SHORTCUTS.text };
+    await store.set("shortcuts", migrated);
+    await store.save();
+    return migrated;
+  }
+  return shortcuts;
 }
 
 export async function saveShortcuts(shortcuts: Shortcuts): Promise<void> {

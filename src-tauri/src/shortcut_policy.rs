@@ -9,6 +9,7 @@ pub const DEFAULT_BOARD: &str = "Shift+Alt+Tab";
 pub const DEFAULT_CLEAR: &str = "Alt+Backspace";
 /// 텍스트 키는 전역 미등록 로컬 키(오버레이 keydown)라 수식키 없는 단독 키가 기본이다.
 pub const DEFAULT_TEXT: &str = "KeyT";
+pub const DELETE_TOOL_ACCELERATOR: &str = "KeyE";
 const BOARD_FALLBACKS: [&str; 4] = [
     DEFAULT_BOARD,
     "Control+Cmd+KeyB",
@@ -37,6 +38,9 @@ fn validate_shortcut(shortcut: &Shortcut, require_modifier: bool) -> Result<(), 
     if shortcut.key == Code::Escape {
         return Err("error:reserved_escape".into());
     }
+    if !require_modifier && shortcut.key == Code::KeyE && shortcut.mods.is_empty() {
+        return Err("error:reserved_delete".into());
+    }
     if require_modifier && shortcut.mods.is_empty() {
         return Err("error:modifier_required".into());
     }
@@ -49,6 +53,18 @@ fn validate_shortcut(shortcut: &Shortcut, require_modifier: bool) -> Result<(), 
         return Err("error:reserved_undo".into());
     }
     Ok(())
+}
+
+/// 삭제 도구 키가 설정 가능하던 버전의 텍스트 단축키를 현재 안전한 기본값으로 바꾼다.
+pub fn migrated_text_shortcut(text: Option<&str>) -> Option<String> {
+    text.map(|value| {
+        if value == DELETE_TOOL_ACCELERATOR {
+            DEFAULT_TEXT
+        } else {
+            value
+        }
+        .to_string()
+    })
 }
 
 /// 기존 설정과 겹치지 않는 블랙보드 초기값을 고른다. 기존 사용자 값이 항상 우선이다.
@@ -148,5 +164,23 @@ mod tests {
             parse_valid_local("not a shortcut").unwrap_err(),
             "error:invalid_shortcut"
         );
+    }
+
+    #[test]
+    fn local_validation_reserves_plain_e_and_migrates_legacy_text_settings() {
+        assert_eq!(
+            parse_valid_local("KeyE").unwrap_err(),
+            "error:reserved_delete"
+        );
+        assert!(parse_valid_local("Shift+KeyE").is_ok());
+        assert_eq!(
+            migrated_text_shortcut(Some("KeyE")),
+            Some(DEFAULT_TEXT.to_string())
+        );
+        assert_eq!(
+            migrated_text_shortcut(Some("Shift+KeyE")),
+            Some("Shift+KeyE".to_string())
+        );
+        assert_eq!(migrated_text_shortcut(None), None);
     }
 }

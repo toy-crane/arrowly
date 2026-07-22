@@ -25,12 +25,12 @@ describe("Marker saved position", () => {
         widthKey="medium"
         textSizeKey="medium"
         board={false}
-        textMode={false}
+        tool="freehand"
         onColorChange={vi.fn()}
         onWidthChange={vi.fn()}
         onTextSizeChange={vi.fn()}
         onBoardToggle={vi.fn()}
-        onTextToggle={vi.fn()}
+        onToolChange={vi.fn()}
       />,
     );
     const root = container.firstElementChild as HTMLElement;

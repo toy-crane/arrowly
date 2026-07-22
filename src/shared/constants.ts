@@ -12,11 +12,18 @@ export const WIDTHS = {
   xthick: 0.011,
 } as const;
 export type WidthKey = keyof typeof WIDTHS;
+export const WIDTH_KEYS = Object.keys(WIDTHS) as WidthKey[];
 export const DEFAULT_WIDTH: WidthKey = "medium";
 export const MIN_STROKE_PX = 2;
 
 export function strokeWidthPx(key: WidthKey, screenShortSide: number): number {
   return Math.max(MIN_STROKE_PX, screenShortSide * WIDTHS[key]);
+}
+
+export function stepWidth(key: WidthKey, delta: -1 | 1): WidthKey {
+  const index = WIDTH_KEYS.indexOf(key);
+  const next = Math.min(WIDTH_KEYS.length - 1, Math.max(0, index + delta));
+  return WIDTH_KEYS[next];
 }
 
 /** 텍스트 크기 5단계 — 펜 굵기·화면 해상도와 독립적인 고정 CSS px. */

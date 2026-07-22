@@ -15,6 +15,7 @@ import {
 import {
   drawMark,
   findMarkAt,
+  findMovableMarkAt,
   findTextMarkAt,
   LineMark,
   markFrameBounds,
@@ -36,11 +37,16 @@ import { matchesAccelerator } from "../shared/shortcuts";
 import {
   classifyStroke,
   HOLD_MS,
-  projectLineEndpoint,
   RING_DELAY_MS,
   STILL_RADIUS_PX,
 } from "./shapes";
 import { TextEditor } from "./text-editor";
+import {
+  createQuickInsertMark,
+  type DrawingTool,
+  isQuickInsertTool,
+  type QuickInsertTool,
+} from "./tools";
 
 const MOVE_REVEAL_DELAY_MS = 120;
 const MOVE_FOCUS_SCRIM = "rgba(7, 10, 18, 0.38)";
@@ -57,8 +63,11 @@ type Props = {
   textSizeKey: TextSizeKey;
   clearAccel: string;
   textAccel: string;
-  textMode: boolean;
-  onTextModeChange: (on: boolean) => void;
+  tool: DrawingTool;
+  onToolChange: (tool: DrawingTool) => void;
+  onWidthStep?: (delta: -1 | 1) => void;
+  onTextSizeStep?: (delta: -1 | 1) => void;
+  onPointerPing?: (point: Point) => void;
   onEditingTextSizeChange?: (size: TextSizeKey | null) => void;
   onNewTextSizeCommit?: (size: TextSizeKey) => void;
 };
@@ -99,8 +108,11 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
     textSizeKey,
     clearAccel,
     textAccel,
-    textMode,
-    onTextModeChange,
+    tool,
+    onToolChange,
+    onWidthStep,
+    onTextSizeStep,
+    onPointerPing,
     onEditingTextSizeChange,
     onNewTextSizeCommit,
   },
@@ -116,16 +128,23 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
   clearAccelRef.current = clearAccel;
   const textAccelRef = useRef(textAccel);
   textAccelRef.current = textAccel;
-  const textModeRef = useRef(textMode);
-  textModeRef.current = textMode;
-  const onTextModeChangeRef = useRef(onTextModeChange);
-  onTextModeChangeRef.current = onTextModeChange;
+  const activeToolRef = useRef(tool);
+  activeToolRef.current = tool;
+  const onToolChangeRef = useRef(onToolChange);
+  onToolChangeRef.current = onToolChange;
+  const onWidthStepRef = useRef(onWidthStep);
+  onWidthStepRef.current = onWidthStep;
+  const onTextSizeStepRef = useRef(onTextSizeStep);
+  onTextSizeStepRef.current = onTextSizeStep;
+  const onPointerPingRef = useRef(onPointerPing);
+  onPointerPingRef.current = onPointerPing;
   const onEditingTextSizeChangeRef = useRef(onEditingTextSizeChange);
   onEditingTextSizeChangeRef.current = onEditingTextSizeChange;
   const onNewTextSizeCommitRef = useRef(onNewTextSizeCommit);
   onNewTextSizeCommitRef.current = onNewTextSizeCommit;
   const defaultTextSizeRef = useRef(textSizeKey);
   defaultTextSizeRef.current = textSizeKey;
+  const previousToolRef = useRef(tool);
 
   const [session, setSession] = useState<TextEditorSession | null>(null);
   const sessionRef = useRef<TextEditorSession | null>(session);
@@ -137,6 +156,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
   editingRef.current = session !== null;
 
   const renderBaseRef = useRef<() => void>(() => undefined);
+  const resetGestureRef = useRef<() => void>(() => undefined);
   const rememberOutsideClickRef = useRef<(point: Point) => void>(() => undefined);
   const finishSessionRef = useRef<(commit: boolean) => void>(() => undefined);
 
@@ -164,7 +184,12 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
   );
 
   useEffect(() => {
-    if (textMode) return;
+    const previousTool = previousToolRef.current;
+    previousToolRef.current = tool;
+    // 텍스트 편집기 바깥 클릭은 text → freehand 전환과 함께 첫 클릭을 기억한다.
+    // 그 전환에서 추적 상태까지 지우면 두 번째 클릭이 점 마크로 남는다.
+    if (!(previousTool === "text" && tool === "freehand")) resetGestureRef.current();
+    if (tool === "text") return;
     if (sessionRef.current) {
       finishSessionRef.current(true);
       return;
@@ -176,7 +201,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       sessionRequestRef.current += 1;
       void setTextEditing(false);
     }
-  }, [textMode]);
+  }, [tool]);
 
   useEffect(() => {
     const store = storeRef.current;
@@ -190,6 +215,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
     let moveDiscoverySuppressed = false;
     let moveRevealTimer = 0;
     let hoveredMarkIndex = -1;
+    let deletionHoverIndex = -1;
+    let deletionPointer: Point | null = null;
     let movingMarkIndex = -1;
     let movingMark: Mark | null = null;
     let commandPointerActive = false;
@@ -216,7 +243,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       sessionRef.current = null;
       setSession(null);
       onEditingTextSizeChangeRef.current?.(null);
-      onTextModeChangeRef.current(false);
+      onToolChangeRef.current("freehand");
       void setTextEditing(false);
     };
 
@@ -264,7 +291,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
         if (request === sessionRequestRef.current) {
           wantsEditingRef.current = false;
           onEditingTextSizeChangeRef.current?.(null);
-          onTextModeChangeRef.current(false);
+          onToolChangeRef.current("freehand");
         }
         return;
       }
@@ -275,7 +302,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       sessionRef.current = next;
       setSession(next);
       onEditingTextSizeChangeRef.current?.(next.sizeKey);
-      onTextModeChangeRef.current(true);
+      onToolChangeRef.current("text");
       renderBase();
     };
 
@@ -316,23 +343,16 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
     let holdStart = 0;
     let holdTimer = 0;
     let snapped: ShapeMark | LineMark | null = null;
-    let lineRawEndpoint: Point | null = null;
-    let lineShiftHeld = false;
+    let previewAnchor: Point | null = null;
     let ringVisible = false;
     let ringProgress = 0;
-
-    const updateLockedLine = () => {
-      if (!snapped || snapped.shape !== "line" || !lineRawEndpoint) return false;
-      const from = snapped.geometry.from;
-      snapped = {
-        ...snapped,
-        geometry: {
-          from,
-          to: lineShiftHeld ? projectLineEndpoint(from, lineRawEndpoint) : lineRawEndpoint,
-        },
-      };
-      return true;
-    };
+    let quickGesture: {
+      tool: QuickInsertTool;
+      origin: Point;
+      current: Point;
+      shiftHeld: boolean;
+    } | null = null;
+    let quickPreview: ShapeMark | LineMark | null = null;
 
     const stopHold = () => {
       if (holdTimer) window.clearInterval(holdTimer);
@@ -401,6 +421,10 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
         drawMoveCandidate(liveCtx, movingMark, true);
         return;
       }
+      if (quickPreview) {
+        drawMark(liveCtx, quickPreview);
+        return;
+      }
       if (snapped) {
         drawMark(liveCtx, snapped); // 스냅 미리보기 — 떼면 확정
         return;
@@ -420,6 +444,11 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
         store.marks.forEach((mark, index) =>
           drawMoveCandidate(liveCtx, mark, index === hoveredMarkIndex),
         );
+        return;
+      }
+      if (activeToolRef.current === "delete" && deletionHoverIndex >= 0) {
+        const mark = store.marks[deletionHoverIndex];
+        if (mark) drawMoveCandidate(liveCtx, mark, true);
       }
     };
 
@@ -450,16 +479,14 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
         const result = classifyStroke(store.live.points);
         if (result) {
           const { color, widthKey } = toolRef.current;
-          snapped = {
-            kind: "shape",
-            ...result,
+          const ink = {
             color,
             width: strokeWidthPx(widthKey, Math.min(window.innerWidth, window.innerHeight)),
-          } as ShapeMark | LineMark;
-          if (snapped.shape === "line") {
-            lineRawEndpoint = snapped.geometry.to;
-            updateLockedLine();
-          }
+          };
+          snapped = result.shape === "line"
+            ? { kind: "shape", ...result, arrowhead: "none", ...ink }
+            : { kind: "shape", ...result, ...ink };
+          previewAnchor = store.live.points[store.live.points.length - 1];
           stopHold();
         } else {
           armHold(store.live.points[store.live.points.length - 1]); // 과소 획 — 재무장
@@ -511,6 +538,32 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
 
     const toPoint = (e: PointerEvent): Point => ({ x: e.clientX, y: e.clientY });
 
+    const refreshDeletionHover = () => {
+      const previous = deletionHoverIndex;
+      deletionHoverIndex =
+        activeToolRef.current === "delete" && deletionPointer
+          ? (findMarkAt(store.marks, deletionPointer)?.index ?? -1)
+          : -1;
+      live.style.cursor = deletionHoverIndex >= 0 ? "pointer" : "default";
+      return deletionHoverIndex !== previous;
+    };
+
+    const updateQuickPreview = (point: Point, shiftHeld: boolean) => {
+      if (!quickGesture) return;
+      quickGesture.current = point;
+      quickGesture.shiftHeld = shiftHeld;
+      const { color, widthKey } = toolRef.current;
+      quickPreview = createQuickInsertMark(
+        quickGesture.tool,
+        quickGesture.origin,
+        point,
+        color,
+        strokeWidthPx(widthKey, Math.min(window.innerWidth, window.innerHeight)),
+        shiftHeld,
+      );
+      scheduleLive();
+    };
+
     // 더블클릭 = 텍스트 진입. 첫 클릭의 점은 두 번째 클릭에서 사후 회수한다(≤350ms 노출 트레이드오프).
     const DBLCLICK_MS = 350;
     const DBLCLICK_SLOP_PX = 6;
@@ -538,18 +591,22 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       dblPending = null;
       stopHold();
       snapped = null;
-      lineRawEndpoint = null;
-      lineShiftHeld = false;
+      previewAnchor = null;
+      quickGesture = null;
+      quickPreview = null;
       moveGesture = null;
       movingMark = null;
       movingMarkIndex = -1;
       commandPointerActive = false;
       hoveredMarkIndex = -1;
+      deletionHoverIndex = -1;
+      deletionPointer = null;
       live.style.cursor = "default";
       store.cancelLive();
       activePointerId = null;
       if (wasMovingMark) renderBase();
     };
+    resetGestureRef.current = resetGestureState;
 
     const onPointerDown = (e: PointerEvent) => {
       if (e.button !== 0) return;
@@ -564,7 +621,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
         if (editingRef.current) return;
         clearMoveRevealTimer();
         const point = toPoint(e);
-        const hit = findMarkAt(store.marks, point);
+        const hit = findMovableMarkAt(store.marks, point);
         commandPointerActive = true;
         activePointerId = e.pointerId;
         live.setPointerCapture(e.pointerId);
@@ -582,7 +639,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
         }
         return;
       }
-      if (textModeRef.current) {
+      if (activeToolRef.current === "text") {
         e.preventDefault();
         if (editingRef.current) return;
         const point = toPoint(e);
@@ -590,6 +647,31 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
         return;
       }
       const p = toPoint(e);
+      if (activeToolRef.current === "delete") {
+        e.preventDefault();
+        deletionPointer = p;
+        const hit = findMarkAt(store.marks, p);
+        if (hit) {
+          store.remove(hit.index);
+          refreshDeletionHover();
+          renderBase();
+          renderLive();
+        }
+        return;
+      }
+      if (isQuickInsertTool(activeToolRef.current)) {
+        e.preventDefault();
+        quickGesture = {
+          tool: activeToolRef.current,
+          origin: p,
+          current: p,
+          shiftHeld: e.shiftKey,
+        };
+        quickPreview = null;
+        activePointerId = e.pointerId;
+        live.setPointerCapture(e.pointerId);
+        return;
+      }
       if (
         lastClick &&
         Date.now() - lastClick.t <= DBLCLICK_MS &&
@@ -607,16 +689,20 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       live.setPointerCapture(e.pointerId);
       activePointerId = e.pointerId;
       snapped = null;
-      lineRawEndpoint = null;
-      lineShiftHeld = e.shiftKey;
+      previewAnchor = null;
       armHold(p);
       scheduleLive();
     };
 
     const onPointerMove = (e: PointerEvent) => {
       if (activePointerId !== null && e.pointerId !== activePointerId) return;
+      if (activePointerId === null && activeToolRef.current === "delete") {
+        deletionPointer = toPoint(e);
+        if (refreshDeletionHover()) renderLive();
+        return;
+      }
       if (activePointerId === null && moveDiscoveryVisible) {
-        const nextHovered = findMarkAt(store.marks, toPoint(e))?.index ?? -1;
+        const nextHovered = findMovableMarkAt(store.marks, toPoint(e))?.index ?? -1;
         if (nextHovered !== hoveredMarkIndex) {
           hoveredMarkIndex = nextHovered;
           live.style.cursor = nextHovered >= 0 ? "grab" : "default";
@@ -640,11 +726,20 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
         return;
       }
       if (commandPointerActive) return;
+      if (quickGesture) {
+        updateQuickPreview(toPoint(e), e.shiftKey);
+        return;
+      }
       if (snapped) {
-        if (snapped.shape === "line") {
-          lineRawEndpoint = toPoint(e);
-          lineShiftHeld = e.shiftKey;
-          updateLockedLine();
+        const point = toPoint(e);
+        if (
+          previewAnchor &&
+          Math.hypot(point.x - previewAnchor.x, point.y - previewAnchor.y) > STILL_RADIUS_PX
+        ) {
+          snapped = null;
+          previewAnchor = null;
+          store.extendLive([point]);
+          armHold(point);
           scheduleLive();
         }
         return;
@@ -687,9 +782,34 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
           renderBase();
         }
         hoveredMarkIndex = moveDiscoveryVisible
-          ? (findMarkAt(store.marks, point)?.index ?? -1)
+          ? (findMovableMarkAt(store.marks, point)?.index ?? -1)
           : -1;
         live.style.cursor = hoveredMarkIndex >= 0 ? "grab" : "default";
+        renderLive();
+        return;
+      }
+      if (quickGesture) {
+        const point = toPoint(e);
+        const { origin, tool: quickTool } = quickGesture;
+        quickGesture = null;
+        activePointerId = null;
+        if (Math.hypot(point.x - origin.x, point.y - origin.y) > CLICK_SLOP_PX) {
+          const { color, widthKey } = toolRef.current;
+          const mark = createQuickInsertMark(
+            quickTool,
+            origin,
+            point,
+            color,
+            strokeWidthPx(widthKey, Math.min(window.innerWidth, window.innerHeight)),
+            e.shiftKey,
+          );
+          quickPreview = null;
+          store.push(mark);
+          drawMark(baseCtx, mark);
+          onToolChangeRef.current("freehand");
+        } else {
+          quickPreview = null;
+        }
         renderLive();
         return;
       }
@@ -706,21 +826,20 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
           }
         }
         lastClick = null;
-        beginTextAt(at);
+        const textHit = findTextMarkAt(store.marks, at);
+        if (textHit) {
+          beginExistingText(textHit.index, textHit.mark, at);
+        } else {
+          onPointerPingRef.current?.(at);
+        }
         return;
       }
       stopHold();
       if (snapped) {
-        if (snapped.shape === "line") {
-          lineRawEndpoint = toPoint(e);
-          lineShiftHeld = e.shiftKey;
-          updateLockedLine();
-        }
         // 스냅 확정: 손그림 live를 버리고 도형 마크를 커밋한다 (undo 1단위)
         const mark = snapped;
         snapped = null;
-        lineRawEndpoint = null;
-        lineShiftHeld = false;
+        previewAnchor = null;
         activePointerId = null;
         store.cancelLive();
         store.push(mark);
@@ -755,7 +874,14 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       commandHeld = false;
       moveDiscoverySuppressed = false;
       hideMoveDiscovery();
-      finishSession(false);
+      if (sessionRef.current || wantsEditingRef.current) {
+        finishSession(false);
+      } else if (
+        activeToolRef.current !== "freehand" &&
+        activeToolRef.current !== "delete"
+      ) {
+        onToolChangeRef.current("freehand");
+      }
       store.clear();
       renderBase();
       renderLive();
@@ -783,8 +909,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       }
       if (!isModifierKey(e.key)) suppressMoveDiscovery();
       if (e.key === "Shift") {
-        lineShiftHeld = true;
-        if (updateLockedLine()) scheduleLive();
+        if (quickGesture) updateQuickPreview(quickGesture.current, true);
         return;
       }
       const sizeDelta =
@@ -804,6 +929,13 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
         if (sessionRef.current) {
           const next = stepTextSize(sessionRef.current.sizeKey, sizeDelta as -1 | 1);
           setEditingSize(next);
+        } else if (activeToolRef.current === "text") {
+          onTextSizeStepRef.current?.(sizeDelta as -1 | 1);
+        } else if (
+          activeToolRef.current === "freehand" ||
+          isQuickInsertTool(activeToolRef.current)
+        ) {
+          onWidthStepRef.current?.(sizeDelta as -1 | 1);
         }
         return;
       }
@@ -816,15 +948,32 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
         // 버퍼가 바뀌면 더블클릭 추적은 무효 — 무관한 마크를 회수하는 오동작 방지
         lastClick = null;
         dblPending = null;
-        if (e.shiftKey ? store.redo() : store.undo()) renderBase();
+        if (e.shiftKey ? store.redo() : store.undo()) {
+          renderBase();
+          if (activeToolRef.current === "delete") {
+            refreshDeletionHover();
+            renderLive();
+          }
+        }
       } else if (matchesAccelerator(e, clearAccelRef.current)) {
         e.preventDefault();
         clearAll();
+      } else if (
+        !e.metaKey &&
+        !e.altKey &&
+        !e.ctrlKey &&
+        !e.shiftKey &&
+        e.code === "KeyE"
+      ) {
+        e.preventDefault();
+        resetGestureState();
+        renderLive();
+        onToolChangeRef.current("delete");
       } else if (matchesAccelerator(e, textAccelRef.current)) {
         e.preventDefault();
         resetGestureState(); // 그리던 획·홀드·더블클릭 대기를 끊고 모드를 바꾼다
         renderLive();
-        onTextModeChangeRef.current(!textModeRef.current);
+        onToolChangeRef.current(activeToolRef.current === "text" ? "freehand" : "text");
       }
     };
 
@@ -836,8 +985,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
         return;
       }
       if (e.key !== "Shift") return;
-      lineShiftHeld = e.shiftKey;
-      if (updateLockedLine()) scheduleLive();
+      if (quickGesture) updateQuickPreview(quickGesture.current, false);
     };
 
     const resetLostCommandState = () => {
@@ -901,6 +1049,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       sessionRequestRef.current += 1;
       if (hadEditingRequest) void setTextEditing(false);
       renderBaseRef.current = () => undefined;
+      resetGestureRef.current = () => undefined;
       rememberOutsideClickRef.current = () => undefined;
       finishSessionRef.current = () => undefined;
     };

@@ -7,6 +7,7 @@ import { installCanvasMock } from "../../test/canvas";
 import { type TextSizeKey } from "../shared/constants";
 import { DrawingCanvas, type DrawingCanvasHandle } from "./drawing-canvas";
 import { Marker } from "./marker";
+import type { DrawingTool } from "./tools";
 
 const settings = vi.hoisted(() => ({
   loadMarkerPos: vi.fn(),
@@ -23,7 +24,7 @@ let contexts: CanvasRenderingContext2D[];
 /** OverlayApp과 동일한 배선으로 실물 DrawingCanvas + Marker를 함께 렌더링한다 —
  * TextEditor의 캡처 리스너와 마커 클릭 사이의 레이스는 교차 컴포넌트라 단독 테스트로는 못 잡는다. */
 function Harness() {
-  const [textMode, setTextMode] = useState(false);
+  const [tool, setTool] = useState<DrawingTool>("freehand");
   const [defaultTextSize, setDefaultTextSize] = useState<TextSizeKey>("medium");
   const [editingTextSize, setEditingTextSize] = useState<TextSizeKey | null>(null);
   const canvasRef = useRef<DrawingCanvasHandle>(null);
@@ -36,17 +37,17 @@ function Harness() {
         textSizeKey={defaultTextSize}
         clearAccel="Alt+Backspace"
         textAccel="KeyT"
-        textMode={textMode}
+        tool={tool}
         onEditingTextSizeChange={setEditingTextSize}
         onNewTextSizeCommit={setDefaultTextSize}
-        onTextModeChange={setTextMode}
+        onToolChange={setTool}
       />
       <Marker
         color="#FF2D95"
         widthKey="medium"
         textSizeKey={editingTextSize ?? defaultTextSize}
         board={false}
-        textMode={textMode}
+        tool={tool}
         onColorChange={() => {}}
         onWidthChange={() => {}}
         onTextSizeChange={(size) => {
@@ -54,9 +55,9 @@ function Harness() {
           else setDefaultTextSize(size);
         }}
         onBoardToggle={() => {}}
-        onTextToggle={() => {
+        onToolChange={(next) => {
           if (canvasRef.current?.isEditing()) canvasRef.current.finishTextEditing();
-          else setTextMode((v) => !v);
+          setTool(next);
         }}
       />
     </>

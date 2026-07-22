@@ -8,13 +8,14 @@ vi.mock("../shared/shortcuts", async (importOriginal) => {
 });
 
 describe("SettingsApp", () => {
-  it("shows text resizing as fixed shortcuts alongside undo and exit", () => {
+  it("shows active-tool sizing and deletion as fixed shortcuts alongside undo and exit", () => {
     render(<SettingsApp />);
     expect(screen.getByText("shortcut editor")).toBeInTheDocument();
     expect(screen.getByText("Undo")).toBeInTheDocument();
-    expect(screen.getByText("Text larger")).toBeInTheDocument();
-    expect(screen.getByText("Text smaller")).toBeInTheDocument();
+    expect(screen.getByText("Current tool larger")).toBeInTheDocument();
+    expect(screen.getByText("Current tool smaller")).toBeInTheDocument();
+    expect(screen.getByText("Mark deletion tool")).toBeInTheDocument();
     expect(screen.getByText("Exit")).toBeInTheDocument();
-    expect(screen.getAllByText("Fixed")).toHaveLength(4);
+    expect(screen.getAllByText("Fixed")).toHaveLength(5);
   });
 });

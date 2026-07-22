@@ -57,7 +57,8 @@ describe("OnboardingApp", () => {
 
     expect(screen.getByRole("heading", { name: "Choose your shortcuts" })).toBeInTheDocument();
     expect(screen.getByText("shortcut editor")).toBeInTheDocument();
-    expect(screen.getByText(/double-click text to edit it again/)).toBeInTheDocument();
+    expect(screen.getByText(/double-click text to edit or elsewhere to ping/)).toBeInTheDocument();
+    expect(screen.getByText(/E deletes marks/)).toBeInTheDocument();
     expect(screen.getByLabelText("Arrow icon")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Get started" }));
 

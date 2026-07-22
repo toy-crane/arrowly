@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Marker } from "./marker";
@@ -27,20 +27,21 @@ describe("Marker", () => {
       widthKey: "medium" as const,
       textSizeKey: "medium" as const,
       board: false,
-      textMode: false,
+      tool: "freehand" as const,
       onColorChange: vi.fn(),
       onWidthChange: vi.fn(),
       onTextSizeChange: vi.fn(),
       onBoardToggle: vi.fn(),
-      onTextToggle: vi.fn(),
+      onToolChange: vi.fn(),
     };
     const { container, rerender } = render(<Marker {...props} />);
     const marker = container.querySelector<HTMLElement>("[data-arrowly-marker]")!;
     const freehand = screen.getByRole("button", { name: "Freehand tool" });
     const text = screen.getByRole("button", { name: "Text tool" });
+    const deletion = screen.getByRole("button", { name: "Mark deletion tool" });
     const sweep = freehand.querySelector("svg")!;
 
-    expect(marker).toHaveStyle({ width: "163px", height: "44px" });
+    expect(marker).toHaveStyle({ width: "209px", height: "44px" });
     expect(freehand).toHaveStyle({ marginRight: "4px", color: "#FF2D95" });
     expect(sweep).toHaveAttribute("stroke", "currentColor");
     expect(sweep).toHaveAttribute("stroke-width", "3.2");
@@ -49,6 +50,7 @@ describe("Marker", () => {
       "M3 15.8c3.2-7.4 6.3-7.5 8.2-3.2 2.1 4.8 6 3.7 9.8-2.5",
     );
     expect(text.querySelector("span")).toHaveStyle({ fontSize: "19px" });
+    expect(deletion).toHaveAttribute("aria-pressed", "false");
 
     rerender(
       <Marker
@@ -65,7 +67,7 @@ describe("Marker", () => {
 
   it("switches an inactive tool without opening properties and toggles properties from the active tool", async () => {
     const user = userEvent.setup();
-    const onTextToggle = vi.fn();
+    const onToolChange = vi.fn();
     const props = {
       color: "#FF2D95" as const,
       widthKey: "medium" as const,
@@ -75,9 +77,9 @@ describe("Marker", () => {
       onWidthChange: vi.fn(),
       onTextSizeChange: vi.fn(),
       onBoardToggle: vi.fn(),
-      onTextToggle,
+      onToolChange,
     };
-    const { rerender } = render(<Marker {...props} textMode={false} />);
+    const { rerender } = render(<Marker {...props} tool="freehand" />);
 
     const freehand = screen.getByRole("button", { name: "Freehand tool" });
     const text = screen.getByRole("button", { name: "Text tool" });
@@ -100,12 +102,109 @@ describe("Marker", () => {
     expect(screen.queryByRole("group", { name: "Freehand properties" })).not.toBeInTheDocument();
 
     await user.click(text);
-    expect(onTextToggle).toHaveBeenCalledOnce();
+    expect(onToolChange).toHaveBeenCalledWith("text");
     expect(screen.queryByRole("group", { name: "Text properties" })).not.toBeInTheDocument();
 
-    rerender(<Marker {...props} textMode />);
+    rerender(<Marker {...props} tool="text" />);
     await user.click(text);
     expect(screen.getByRole("group", { name: "Text properties" })).toBeInTheDocument();
+  });
+
+  it("arms one of four quick inserts from the pen panel and reflects it in the pen tool", async () => {
+    const user = userEvent.setup();
+    const onToolChange = vi.fn();
+    const props = {
+      color: "#FF2D95" as const,
+      widthKey: "medium" as const,
+      textSizeKey: "medium" as const,
+      board: false,
+      tool: "freehand" as const,
+      onColorChange: vi.fn(),
+      onWidthChange: vi.fn(),
+      onTextSizeChange: vi.fn(),
+      onBoardToggle: vi.fn(),
+      onToolChange,
+    };
+    const { rerender } = render(<Marker {...props} />);
+
+    await user.click(screen.getByRole("button", { name: "Freehand tool" }));
+    expect(screen.getByRole("group", { name: "Quick insert" })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /Insert .* once/ })).toHaveLength(4);
+
+    await user.click(screen.getByRole("button", { name: "Insert triangle once" }));
+    expect(onToolChange).toHaveBeenCalledWith("triangle");
+    expect(screen.queryByRole("group", { name: "Freehand properties" })).not.toBeInTheDocument();
+
+    rerender(<Marker {...props} tool="triangle" />);
+    const freehand = screen.getByRole("button", { name: "Freehand tool" });
+    expect(freehand).toHaveAttribute("aria-pressed", "true");
+    expect(freehand.querySelector("svg")).toHaveAttribute("data-quick-insert-icon", "triangle");
+  });
+
+  it("orders drawing choices by usage and returns to freehand from the first choice", async () => {
+    const user = userEvent.setup();
+    const onToolChange = vi.fn();
+    render(
+      <Marker
+        color="#FF2D95"
+        widthKey="medium"
+        textSizeKey="medium"
+        board={false}
+        tool="freehand"
+        onColorChange={vi.fn()}
+        onWidthChange={vi.fn()}
+        onTextSizeChange={vi.fn()}
+        onBoardToggle={vi.fn()}
+        onToolChange={onToolChange}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Freehand tool" }));
+    const choices = within(screen.getByRole("group", { name: "Quick insert" })).getAllByRole(
+      "button",
+    );
+
+    expect(choices.map((button) => button.getAttribute("aria-label"))).toEqual([
+      "Freehand tool",
+      "Insert arrow once",
+      "Insert rectangle once",
+      "Insert ellipse once",
+      "Insert triangle once",
+    ]);
+    expect(screen.queryByRole("button", { name: "Insert line once" })).not.toBeInTheDocument();
+
+    await user.click(choices[0]);
+    expect(onToolChange).toHaveBeenCalledWith("freehand");
+    expect(screen.queryByRole("group", { name: "Freehand properties" })).not.toBeInTheDocument();
+  });
+
+  it("shows every drawing choice icon in neutral white", async () => {
+    const user = userEvent.setup();
+    render(
+      <Marker
+        color="#FF2D95"
+        widthKey="medium"
+        textSizeKey="medium"
+        board={false}
+        tool="freehand"
+        onColorChange={vi.fn()}
+        onWidthChange={vi.fn()}
+        onTextSizeChange={vi.fn()}
+        onBoardToggle={vi.fn()}
+        onToolChange={vi.fn()}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Freehand tool" }));
+    const drawingChoiceButtons = within(
+      screen.getByRole("group", { name: "Quick insert" }),
+    ).getAllByRole("button");
+
+    expect(drawingChoiceButtons).toHaveLength(5);
+    for (const button of drawingChoiceButtons) {
+      expect(button.style.color).toBe("rgb(232, 234, 240)");
+      expect(button.querySelector("svg")).toHaveAttribute("stroke", "currentColor");
+    }
   });
 
   it("closes open properties when a keyboard tool change updates the active tool", async () => {
@@ -119,14 +218,14 @@ describe("Marker", () => {
       onWidthChange: vi.fn(),
       onTextSizeChange: vi.fn(),
       onBoardToggle: vi.fn(),
-      onTextToggle: vi.fn(),
+      onToolChange: vi.fn(),
     };
-    const { rerender } = render(<Marker {...props} textMode />);
+    const { rerender } = render(<Marker {...props} tool="text" />);
 
     await user.click(screen.getByRole("button", { name: "Text tool" }));
     expect(screen.getByRole("group", { name: "Text properties" })).toBeInTheDocument();
 
-    rerender(<Marker {...props} textMode={false} />);
+    rerender(<Marker {...props} tool="freehand" />);
     expect(screen.queryByRole("group", { name: "Text properties" })).not.toBeInTheDocument();
   });
 
@@ -136,7 +235,7 @@ describe("Marker", () => {
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
       const rootLeft = side === "right" ? 164 : 6;
       if (this.hasAttribute("data-arrowly-marker")) {
-        return rect(rootLeft, 160, 144, 44);
+        return rect(rootLeft, 160, 209, 44);
       }
       if (this.getAttribute("aria-label") === "Freehand tool") {
         return rect(rootLeft + 8, 166, 42, 32);
@@ -159,9 +258,9 @@ describe("Marker", () => {
       onWidthChange: vi.fn(),
       onTextSizeChange: vi.fn(),
       onBoardToggle: vi.fn(),
-      onTextToggle: vi.fn(),
+      onToolChange: vi.fn(),
     };
-    const { rerender } = render(<Marker {...props} textMode />);
+    const { rerender } = render(<Marker {...props} tool="text" />);
 
     await user.click(screen.getByRole("button", { name: "Text tool" }));
     let panel = screen.getByRole("group", { name: "Text properties" });
@@ -176,7 +275,7 @@ describe("Marker", () => {
 
     side = "left";
     Object.defineProperty(window, "innerWidth", { configurable: true, value: 320 });
-    rerender(<Marker {...props} textMode={false} />);
+    rerender(<Marker {...props} tool="freehand" />);
     await user.click(screen.getByRole("button", { name: "Freehand tool" }));
     panel = screen.getByRole("group", { name: "Freehand properties" });
     arrow = panel.querySelector<HTMLElement>("[data-arrowly-inspector-arrow]");
@@ -184,10 +283,10 @@ describe("Marker", () => {
     expect(arrow).toHaveStyle({ left: "24.5px" });
   });
 
-  it("opens a two-row pen panel below when its measured height would cross the top edge", async () => {
+  it("opens the three-row pen panel below when its measured height would cross the top edge", async () => {
     const user = userEvent.setup();
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
-      if (this.hasAttribute("data-arrowly-marker")) return rect(100, 80, 144, 44);
+      if (this.hasAttribute("data-arrowly-marker")) return rect(100, 80, 209, 44);
       if (this.getAttribute("aria-label") === "Freehand tool") return rect(108, 86, 42, 32);
       if (this.getAttribute("role") === "group") return rect(0, -14, 306, 86);
       return rect(0, 0, 0, 0);
@@ -199,12 +298,12 @@ describe("Marker", () => {
         widthKey="medium"
         textSizeKey="medium"
         board={false}
-        textMode={false}
+        tool="freehand"
         onColorChange={vi.fn()}
         onWidthChange={vi.fn()}
         onTextSizeChange={vi.fn()}
         onBoardToggle={vi.fn()}
-        onTextToggle={vi.fn()}
+        onToolChange={vi.fn()}
       />,
     );
 
@@ -222,7 +321,7 @@ describe("Marker", () => {
     const onWidthChange = vi.fn();
     const onTextSizeChange = vi.fn();
     const onBoardToggle = vi.fn();
-    const onTextToggle = vi.fn();
+    const onToolChange = vi.fn();
 
     render(
       <Marker
@@ -230,12 +329,12 @@ describe("Marker", () => {
         widthKey="medium"
         textSizeKey="medium"
         board={false}
-        textMode={false}
+        tool="freehand"
         onColorChange={onColorChange}
         onWidthChange={onWidthChange}
         onTextSizeChange={onTextSizeChange}
         onBoardToggle={onBoardToggle}
-        onTextToggle={onTextToggle}
+        onToolChange={onToolChange}
       />,
     );
 
@@ -264,7 +363,7 @@ describe("Marker", () => {
     expect(onBoardToggle).toHaveBeenCalledOnce();
     expect(screen.queryByRole("group", { name: "Freehand properties" })).not.toBeInTheDocument();
     expect(onTextSizeChange).not.toHaveBeenCalled();
-    expect(onTextToggle).not.toHaveBeenCalled();
+    expect(onToolChange).not.toHaveBeenCalled();
   });
 
   it("uses the same neutral active treatment for tools and blackboard", () => {
@@ -276,9 +375,9 @@ describe("Marker", () => {
       onWidthChange: vi.fn(),
       onTextSizeChange: vi.fn(),
       onBoardToggle: vi.fn(),
-      onTextToggle: vi.fn(),
+      onToolChange: vi.fn(),
     };
-    const { rerender } = render(<Marker {...props} board={false} textMode={false} />);
+    const { rerender } = render(<Marker {...props} board={false} tool="freehand" />);
     const freehand = screen.getByRole("button", { name: "Freehand tool" });
     const text = screen.getByRole("button", { name: "Text tool" });
     const board = screen.getByRole("button", { name: "Toggle blackboard" });
@@ -286,7 +385,7 @@ describe("Marker", () => {
     expect(text.style.background).toBe("none");
     expect(board.style.background).toBe("none");
 
-    rerender(<Marker {...props} board textMode />);
+    rerender(<Marker {...props} board tool="text" />);
     expect(freehand.style.background).toBe("none");
     expect(text.style.background).toBe("rgba(255, 255, 255, 0.16)");
     expect(board.style.background).toBe("rgba(255, 255, 255, 0.16)");
@@ -296,15 +395,15 @@ describe("Marker", () => {
     const rect = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue({
       left: 100,
       top: 100,
-      right: 270,
+      right: 309,
       bottom: 144,
-      width: 170,
+      width: 209,
       height: 44,
       x: 100,
       y: 100,
       toJSON: () => ({}),
     });
-    Object.defineProperty(HTMLElement.prototype, "offsetWidth", { configurable: true, get: () => 170 });
+    Object.defineProperty(HTMLElement.prototype, "offsetWidth", { configurable: true, get: () => 209 });
     Object.defineProperty(HTMLElement.prototype, "offsetHeight", { configurable: true, get: () => 44 });
 
     const props = {
@@ -312,12 +411,12 @@ describe("Marker", () => {
       widthKey: "xthin" as const,
       textSizeKey: "xsmall" as const,
       board: true,
-      textMode: false,
+      tool: "freehand" as const,
       onColorChange: vi.fn(),
       onWidthChange: vi.fn(),
       onTextSizeChange: vi.fn(),
       onBoardToggle: vi.fn(),
-      onTextToggle: vi.fn(),
+      onToolChange: vi.fn(),
     };
     const { container } = render(<Marker {...props} />);
     const root = container.firstElementChild as HTMLElement;
@@ -330,18 +429,18 @@ describe("Marker", () => {
 
     fireEvent.pointerDown(root, { clientX: 100, clientY: 100, pointerId: 2 });
     fireEvent.pointerMove(root, { clientX: -500, clientY: -500, pointerId: 2 });
-    rect.mockReturnValue({ left: 6, top: 6, right: 176, bottom: 50, width: 170, height: 44, x: 6, y: 6, toJSON: () => ({}) });
+    rect.mockReturnValue({ left: 6, top: 6, right: 215, bottom: 50, width: 209, height: 44, x: 6, y: 6, toJSON: () => ({}) });
     fireEvent.pointerUp(root, { pointerId: 2 });
     await waitFor(() => expect(settings.saveMarkerPos).toHaveBeenCalledWith({ xRatio: 0.006, yRatio: 0.0075 }));
 
-    rect.mockReturnValue({ left: 100, top: 100, right: 270, bottom: 144, width: 170, height: 44, x: 100, y: 100, toJSON: () => ({}) });
+    rect.mockReturnValue({ left: 100, top: 100, right: 309, bottom: 144, width: 209, height: 44, x: 100, y: 100, toJSON: () => ({}) });
     fireEvent.pointerDown(root, { clientX: 100, clientY: 100, pointerId: 3 });
     fireEvent.pointerMove(root, { clientX: 2000, clientY: 2000, pointerId: 3 });
     fireEvent.pointerCancel(root, { pointerId: 3 });
 
     fireEvent.pointerDown(root, { clientX: 100, clientY: 100, pointerId: 4 });
     fireEvent.pointerMove(root, { clientX: -500, clientY: -500, pointerId: 4 });
-    rect.mockReturnValue({ left: 6, top: 6, right: 176, bottom: 50, width: 170, height: 44, x: 6, y: 6, toJSON: () => ({}) });
+    rect.mockReturnValue({ left: 6, top: 6, right: 215, bottom: 50, width: 209, height: 44, x: 6, y: 6, toJSON: () => ({}) });
     fireEvent.pointerUp(root, { pointerId: 4 });
     fireEvent.click(screen.getByRole("button", { name: "Freehand tool" }));
 
