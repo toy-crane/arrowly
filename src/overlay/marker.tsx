@@ -13,6 +13,12 @@ import { loadMarkerPos, MarkerPos, saveMarkerPos } from "../shared/settings";
 import { FreehandToolLiveStrokeIcon } from "./freehand-tool-live-stroke-icon";
 import { LiveTextSizeIcon } from "./live-text-size-icon";
 import { ToolInspector } from "./tool-inspector";
+import {
+  DrawingTool,
+  isQuickInsertTool,
+  QUICK_INSERT_TOOLS,
+  QuickInsertTool,
+} from "./tools";
 
 type Panel = "collapsed" | "pen" | "text";
 
@@ -21,12 +27,12 @@ type Props = {
   widthKey: WidthKey;
   textSizeKey: TextSizeKey;
   board: boolean;
-  textMode: boolean;
+  tool: DrawingTool;
   onColorChange: (c: Color) => void;
   onWidthChange: (w: WidthKey) => void;
   onTextSizeChange: (size: TextSizeKey) => void;
   onBoardToggle: () => void;
-  onTextToggle: () => void;
+  onToolChange: (tool: DrawingTool) => void;
 };
 
 // 기본 위치 좌하단(시안 확정). 드래그하면 settings.json(markerPos)에 저장된다.
@@ -56,12 +62,12 @@ export function Marker({
   widthKey,
   textSizeKey,
   board,
-  textMode,
+  tool,
   onColorChange,
   onWidthChange,
   onTextSizeChange,
   onBoardToggle,
-  onTextToggle,
+  onToolChange,
 }: Props) {
   const [panel, setPanel] = useState<Panel>("collapsed");
   const [pos, setPosState] = useState<MarkerPos>(sessionPos ?? DEFAULT_POS);
@@ -105,7 +111,7 @@ export function Marker({
   // 단축키나 외부 이벤트가 도구·블랙보드 상태를 바꾸면 열려 있던 속성을 접는다.
   useEffect(() => {
     setPanel("collapsed");
-  }, [textMode, board]);
+  }, [tool, board]);
 
   const onPointerDown = (e: React.PointerEvent) => {
     e.stopPropagation(); // 마커 위에서 획이 시작되면 안 된다
@@ -162,6 +168,12 @@ export function Marker({
     onTextSizeChange(size);
     setPanel("collapsed");
   };
+  const pickQuickInsert = (next: QuickInsertTool) => {
+    onToolChange(next);
+    setPanel("collapsed");
+  };
+
+  const penActive = tool === "freehand" || isQuickInsertTool(tool);
 
   return (
     <div
@@ -175,37 +187,50 @@ export function Marker({
     >
       <button
         ref={penButtonRef}
-        style={{ ...btn, ...penToolButton, color, ...(!textMode ? modeOn : undefined) }}
+        style={{ ...btn, ...toolSpacing, color, ...(penActive ? modeOn : undefined) }}
         aria-label={t("marker.freehandTool")}
-        aria-pressed={!textMode}
+        aria-pressed={penActive}
         aria-expanded={panel === "pen"}
         onClick={() => {
-          if (textMode) {
+          if (tool !== "freehand") {
             setPanel("collapsed");
-            onTextToggle();
+            onToolChange("freehand");
           } else {
             togglePanel("pen");
           }
         }}
       >
-        <FreehandToolLiveStrokeIcon widthKey={widthKey} />
+        {isQuickInsertTool(tool)
+          ? <QuickInsertIcon tool={tool} />
+          : <FreehandToolLiveStrokeIcon widthKey={widthKey} />}
       </button>
       <button
         ref={textButtonRef}
-        style={{ ...btn, ...(textMode ? modeOn : undefined) }}
+        style={{ ...btn, ...toolSpacing, ...(tool === "text" ? modeOn : undefined) }}
         aria-label={t("marker.textTool")}
-        aria-pressed={textMode}
+        aria-pressed={tool === "text"}
         aria-expanded={panel === "text"}
         onClick={() => {
-          if (!textMode) {
+          if (tool !== "text") {
             setPanel("collapsed");
-            onTextToggle();
+            onToolChange("text");
           } else {
             togglePanel("text");
           }
         }}
       >
         <LiveTextSizeIcon sizeKey={textSizeKey} />
+      </button>
+      <button
+        style={{ ...btn, ...(tool === "delete" ? modeOn : undefined) }}
+        aria-label={t("marker.deleteTool")}
+        aria-pressed={tool === "delete"}
+        onClick={() => {
+          setPanel("collapsed");
+          onToolChange("delete");
+        }}
+      >
+        <DeleteIcon />
       </button>
       <span style={divider} />
       <button
@@ -241,6 +266,20 @@ export function Marker({
         >
           {panel === "pen" && (
             <>
+              <div role="group" aria-label={t("marker.quickInsertLabel")} style={inspectorRow}>
+                <div style={choiceStrip}>
+                  {QUICK_INSERT_TOOLS.map((quickTool) => (
+                    <button
+                      key={quickTool}
+                      style={choice}
+                      aria-label={t(`marker.quickInsert.${quickTool}` as Key)}
+                      onClick={() => pickQuickInsert(quickTool)}
+                    >
+                      <QuickInsertIcon tool={quickTool} />
+                    </button>
+                  ))}
+                </div>
+              </div>
               <div role="group" aria-label={t("marker.colorLabel")} style={inspectorRow}>
                 <div style={choiceStrip}>
                   {COLORS.map((c) => (
@@ -321,7 +360,7 @@ const surface: CSSProperties = {
 const capsule: CSSProperties = {
   ...surface,
   position: "fixed",
-  width: 163,
+  width: 209,
   cursor: "default",
   touchAction: "none",
 };
@@ -385,9 +424,51 @@ const choice: CSSProperties = {
   ...btn,
 };
 
-const penToolButton: CSSProperties = {
+const toolSpacing: CSSProperties = {
   marginRight: 4,
 };
+
+function QuickInsertIcon({ tool }: { tool: QuickInsertTool }) {
+  return (
+    <svg
+      data-quick-insert-icon={tool}
+      width="24"
+      height="22"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {tool === "rect" && <rect x="4" y="5" width="16" height="14" rx="1.5" />}
+      {tool === "ellipse" && <ellipse cx="12" cy="12" rx="8" ry="6.5" />}
+      {tool === "triangle" && <path d="m12 4 8 15H4Z" />}
+      {tool === "line" && <path d="M4 18 20 6" />}
+      {tool === "arrow" && <path d="M4 18 19 7M13 6l6 1-1 6" />}
+    </svg>
+  );
+}
+
+function DeleteIcon() {
+  return (
+    <svg
+      width="22"
+      height="22"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={NEUTRAL}
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="m5 15 8.8-8.8a2.3 2.3 0 0 1 3.2 0l1.8 1.8a2.3 2.3 0 0 1 0 3.2L11 19H6.7a2.2 2.2 0 0 1-1.6-.7 2.3 2.3 0 0 1-.1-3.3Z" />
+      <path d="M11 19h7" />
+    </svg>
+  );
+}
 
 const dot: CSSProperties = { width: 17, height: 17, borderRadius: "50%", display: "block" };
 

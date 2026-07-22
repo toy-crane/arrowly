@@ -5,6 +5,7 @@ import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi, Mock } from "vitest";
 import { installCanvasMock } from "../../test/canvas";
 import { DrawingCanvas } from "./drawing-canvas";
+import type { DrawingTool } from "./tools";
 
 let contexts: CanvasRenderingContext2D[];
 
@@ -22,30 +23,38 @@ const baseProps = {
   textAccel: "KeyT",
 };
 
-/** 부모(OverlayApp)의 textMode 소유를 흉내 내는 하네스. */
+/** 부모(OverlayApp)의 현재 도구 소유를 흉내 내는 하네스. */
 function Harness({
   initialTextMode = false,
+  initialTool,
   onChange = vi.fn() as Mock,
+  onWidthStep = vi.fn(),
+  onTextSizeStep = vi.fn(),
   onEditingSize = vi.fn(),
   onNewTextSizeCommit = vi.fn(),
 }: {
   initialTextMode?: boolean;
+  initialTool?: DrawingTool;
   onChange?: Mock;
+  onWidthStep?: (delta: -1 | 1) => void;
+  onTextSizeStep?: (delta: -1 | 1) => void;
   onEditingSize?: (size: "xsmall" | "small" | "medium" | "large" | "xlarge" | null) => void;
   onNewTextSizeCommit?: (size: "xsmall" | "small" | "medium" | "large" | "xlarge") => void;
 }) {
-  const [textMode, setTextMode] = useState(initialTextMode);
+  const [tool, setTool] = useState<DrawingTool>(initialTool ?? (initialTextMode ? "text" : "freehand"));
   return (
     <>
-      <button data-testid="force-off" onClick={() => setTextMode(false)} />
+      <button data-testid="force-off" onClick={() => setTool("freehand")} />
       <DrawingCanvas
         {...baseProps}
-        textMode={textMode}
+        tool={tool}
         onEditingTextSizeChange={onEditingSize}
         onNewTextSizeCommit={onNewTextSizeCommit}
-        onTextModeChange={(on) => {
-          onChange(on);
-          setTextMode(on);
+        onWidthStep={onWidthStep}
+        onTextSizeStep={onTextSizeStep}
+        onToolChange={(next) => {
+          onChange(next === "text");
+          setTool(next);
         }}
       />
     </>
@@ -68,7 +77,7 @@ describe("DrawingCanvas", () => {
 
   it("draws pointer input, batches coalesced points and handles correction shortcuts", () => {
     const { container, unmount } = render(
-      <DrawingCanvas {...baseProps} textMode={false} onTextModeChange={vi.fn()} />,
+      <DrawingCanvas {...baseProps} tool="freehand" onToolChange={vi.fn()} />,
     );
     const [base, live] = Array.from(container.querySelectorAll("canvas"));
     expect(base.width).toBe(1600);
@@ -112,8 +121,8 @@ describe("DrawingCanvas", () => {
         color="#00AEEF"
         widthKey="thin"
         clearAccel="Control+KeyK"
-        textMode={false}
-        onTextModeChange={vi.fn()}
+        tool="freehand"
+        onToolChange={vi.fn()}
       />,
     );
     const live = container.querySelectorAll("canvas")[1];
@@ -298,6 +307,122 @@ describe("DrawingCanvas", () => {
     } finally {
       stray.remove();
     }
+  });
+
+  describe("quick insert, deletion and tool sizing", () => {
+    it("commits a dragged quick rectangle once and returns to freehand", () => {
+      const onToolChange = vi.fn();
+      const { container } = render(
+        <DrawingCanvas {...baseProps} tool="rect" onToolChange={onToolChange} />,
+      );
+      const [baseCtx, liveCtx] = contexts;
+      const live = container.querySelectorAll("canvas")[1];
+
+      fireEvent.pointerDown(live, { button: 0, clientX: 80, clientY: 90, pointerId: 1 });
+      fireEvent.pointerMove(live, { clientX: 180, clientY: 150, pointerId: 1 });
+      expect(liveCtx.rect).toHaveBeenCalledWith(80, 90, 100, 60);
+      expect(baseCtx.rect).not.toHaveBeenCalled();
+
+      fireEvent.pointerUp(live, { clientX: 180, clientY: 150, pointerId: 1 });
+      expect(baseCtx.rect).toHaveBeenCalledWith(80, 90, 100, 60);
+      expect(onToolChange).toHaveBeenCalledWith("freehand");
+    });
+
+    it("keeps a quick insert armed after a sub-threshold release or cancellation", () => {
+      const onToolChange = vi.fn();
+      const { container } = render(
+        <DrawingCanvas {...baseProps} tool="triangle" onToolChange={onToolChange} />,
+      );
+      const [baseCtx] = contexts;
+      const live = container.querySelectorAll("canvas")[1];
+
+      fireEvent.pointerDown(live, { button: 0, clientX: 30, clientY: 30, pointerId: 1 });
+      fireEvent.pointerUp(live, { clientX: 33, clientY: 32, pointerId: 1 });
+      fireEvent.pointerDown(live, { button: 0, clientX: 30, clientY: 30, pointerId: 2 });
+      fireEvent.pointerMove(live, { clientX: 100, clientY: 90, pointerId: 2 });
+      fireEvent.pointerCancel(live, { pointerId: 2 });
+
+      expect(baseCtx.moveTo).not.toHaveBeenCalledWith(65, 30);
+      expect(onToolChange).not.toHaveBeenCalled();
+    });
+
+    it("constrains a quick arrow with Shift and draws an end arrowhead", () => {
+      const { container } = render(
+        <DrawingCanvas {...baseProps} tool="arrow" onToolChange={vi.fn()} />,
+      );
+      const [baseCtx] = contexts;
+      const live = container.querySelectorAll("canvas")[1];
+
+      fireEvent.pointerDown(live, { button: 0, clientX: 10, clientY: 10, pointerId: 1 });
+      fireEvent.pointerMove(live, { clientX: 110, clientY: 35, pointerId: 1, shiftKey: true });
+      fireEvent.pointerUp(live, { clientX: 110, clientY: 35, pointerId: 1, shiftKey: true });
+
+      expect(baseCtx.moveTo).toHaveBeenCalledWith(10, 10);
+      expect(baseCtx.lineTo).toHaveBeenCalledWith(expect.closeTo(113.077, 2), expect.closeTo(10, 2));
+      expect(baseCtx.lineTo).toHaveBeenCalledTimes(3); // shaft + two arrowhead sides
+    });
+
+    it("keeps deletion active across delete, undo and another delete", () => {
+      const { container } = render(<Harness />);
+      const [baseCtx] = contexts;
+      const live = container.querySelectorAll("canvas")[1];
+      fireEvent.pointerDown(live, { button: 0, clientX: 20, clientY: 20, pointerId: 1 });
+      fireEvent.pointerMove(live, { clientX: 100, clientY: 20, pointerId: 1 });
+      fireEvent.pointerUp(live, { clientX: 100, clientY: 20, pointerId: 1 });
+      expect(baseCtx.stroke).toHaveBeenCalledTimes(1);
+
+      fireEvent.keyDown(window, { code: "KeyE" });
+      fireEvent.pointerMove(live, { clientX: 50, clientY: 20, pointerId: 2 });
+      expect(live).toHaveStyle({ cursor: "pointer" });
+      fireEvent.pointerDown(live, { button: 0, clientX: 50, clientY: 20, pointerId: 2 });
+      fireEvent.keyDown(window, { code: "KeyZ", metaKey: true });
+      expect(baseCtx.stroke).toHaveBeenCalledTimes(2);
+      fireEvent.pointerDown(live, { button: 0, clientX: 50, clientY: 20, pointerId: 3 });
+      fireEvent.keyDown(window, { code: "KeyZ", metaKey: true });
+      expect(baseCtx.stroke).toHaveBeenCalledTimes(3);
+    });
+
+    it("routes Command plus and minus to the active tool and ignores them in deletion", () => {
+      const onWidthStep = vi.fn();
+      const onTextSizeStep = vi.fn();
+      const { rerender } = render(
+        <DrawingCanvas
+          {...baseProps}
+          tool="freehand"
+          onToolChange={vi.fn()}
+          onWidthStep={onWidthStep}
+          onTextSizeStep={onTextSizeStep}
+        />,
+      );
+      fireEvent.keyDown(window, { code: "Equal", metaKey: true });
+      expect(onWidthStep).toHaveBeenCalledWith(1);
+      expect(onTextSizeStep).not.toHaveBeenCalled();
+
+      rerender(
+        <DrawingCanvas
+          {...baseProps}
+          tool="text"
+          onToolChange={vi.fn()}
+          onWidthStep={onWidthStep}
+          onTextSizeStep={onTextSizeStep}
+        />,
+      );
+      fireEvent.keyDown(window, { code: "Minus", metaKey: true });
+      expect(onTextSizeStep).toHaveBeenCalledWith(-1);
+
+      rerender(
+        <DrawingCanvas
+          {...baseProps}
+          tool="delete"
+          onToolChange={vi.fn()}
+          onWidthStep={onWidthStep}
+          onTextSizeStep={onTextSizeStep}
+        />,
+      );
+      fireEvent.keyDown(window, { code: "Equal", metaKey: true });
+      expect(onWidthStep).toHaveBeenCalledTimes(1);
+      expect(onTextSizeStep).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe("mark movement discovery", () => {
@@ -761,7 +886,7 @@ describe("DrawingCanvas", () => {
 
     function renderCanvas() {
       const { container } = render(
-        <DrawingCanvas {...baseProps} textMode={false} onTextModeChange={vi.fn()} />,
+        <DrawingCanvas {...baseProps} tool="freehand" onToolChange={vi.fn()} />,
       );
       return { live: container.querySelectorAll("canvas")[1], baseCtx: contexts[0], liveCtx: contexts[1] };
     }
