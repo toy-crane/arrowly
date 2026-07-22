@@ -392,6 +392,7 @@ describe("DrawingCanvas", () => {
       fireEvent.pointerMove(live, { clientX: 80, clientY: 70, pointerId: 1 });
       fireEvent.pointerUp(live, { clientX: 80, clientY: 70, pointerId: 1 });
       vi.mocked(liveCtx.stroke).mockClear();
+      vi.mocked(liveCtx.fillRect).mockClear();
 
       fireEvent.keyDown(window, { key: "Meta", code: "MetaLeft", metaKey: true });
       fireEvent.pointerDown(live, {
@@ -402,6 +403,8 @@ describe("DrawingCanvas", () => {
         metaKey: true,
       });
       expect(liveCtx.stroke).toHaveBeenCalledTimes(2); // 경로 강조 + 원래 잉크
+      vi.advanceTimersByTime(120);
+      expect(liveCtx.fillRect).not.toHaveBeenCalled(); // 활성 제스처 중에는 전체 focus field를 열지 않는다
       fireEvent.pointerUp(live, { clientX: 20, clientY: 30, pointerId: 2, metaKey: true });
 
       const committedStrokes = vi.mocked(baseCtx.stroke).mock.calls.length;

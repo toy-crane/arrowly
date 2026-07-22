@@ -562,6 +562,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       if (e.metaKey || commandHeld) {
         e.preventDefault();
         if (editingRef.current) return;
+        clearMoveRevealTimer();
         const point = toPoint(e);
         const hit = findMarkAt(store.marks, point);
         commandPointerActive = true;
