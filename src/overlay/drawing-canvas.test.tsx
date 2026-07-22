@@ -405,22 +405,43 @@ describe("DrawingCanvas", () => {
 
     it("keeps deletion active across delete, undo and another delete", () => {
       const { container } = render(<Harness />);
-      const [baseCtx] = contexts;
       const live = container.querySelectorAll("canvas")[1];
       fireEvent.pointerDown(live, { button: 0, clientX: 20, clientY: 20, pointerId: 1 });
       fireEvent.pointerMove(live, { clientX: 100, clientY: 20, pointerId: 1 });
       fireEvent.pointerUp(live, { clientX: 100, clientY: 20, pointerId: 1 });
-      expect(baseCtx.stroke).toHaveBeenCalledTimes(1);
 
       fireEvent.keyDown(window, { code: "KeyE" });
       fireEvent.pointerMove(live, { clientX: 50, clientY: 20, pointerId: 2 });
       expect(live).toHaveStyle({ cursor: "pointer" });
+
       fireEvent.pointerDown(live, { button: 0, clientX: 50, clientY: 20, pointerId: 2 });
+      expect(live).toHaveStyle({ cursor: "default" });
+
       fireEvent.keyDown(window, { code: "KeyZ", metaKey: true });
-      expect(baseCtx.stroke).toHaveBeenCalledTimes(2);
+      expect(live).toHaveStyle({ cursor: "pointer" });
+
+      fireEvent.keyDown(window, { code: "KeyZ", metaKey: true, shiftKey: true });
+      expect(live).toHaveStyle({ cursor: "default" });
+
+      fireEvent.keyDown(window, { code: "KeyZ", metaKey: true });
+      expect(live).toHaveStyle({ cursor: "pointer" });
+
       fireEvent.pointerDown(live, { button: 0, clientX: 50, clientY: 20, pointerId: 3 });
+      expect(live).toHaveStyle({ cursor: "default" });
+
       fireEvent.keyDown(window, { code: "KeyZ", metaKey: true });
-      expect(baseCtx.stroke).toHaveBeenCalledTimes(3);
+      expect(live).toHaveStyle({ cursor: "pointer" });
+    });
+
+    it("keeps the deletion tool active after Clear All", async () => {
+      const onChange = vi.fn();
+      render(<Harness initialTool="delete" onChange={onChange} />);
+
+      await act(async () => {
+        await emit("clear-all");
+      });
+
+      expect(onChange).not.toHaveBeenCalled();
     });
 
     it("reserves plain E for deletion while allowing a modified E text shortcut", () => {

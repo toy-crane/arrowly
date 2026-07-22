@@ -216,6 +216,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
     let moveRevealTimer = 0;
     let hoveredMarkIndex = -1;
     let deletionHoverIndex = -1;
+    let deletionPointer: Point | null = null;
     let movingMarkIndex = -1;
     let movingMark: Mark | null = null;
     let commandPointerActive = false;
@@ -537,6 +538,16 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
 
     const toPoint = (e: PointerEvent): Point => ({ x: e.clientX, y: e.clientY });
 
+    const refreshDeletionHover = () => {
+      const previous = deletionHoverIndex;
+      deletionHoverIndex =
+        activeToolRef.current === "delete" && deletionPointer
+          ? (findMarkAt(store.marks, deletionPointer)?.index ?? -1)
+          : -1;
+      live.style.cursor = deletionHoverIndex >= 0 ? "pointer" : "default";
+      return deletionHoverIndex !== previous;
+    };
+
     const updateQuickPreview = (point: Point, shiftHeld: boolean) => {
       if (!quickGesture) return;
       quickGesture.current = point;
@@ -589,6 +600,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       commandPointerActive = false;
       hoveredMarkIndex = -1;
       deletionHoverIndex = -1;
+      deletionPointer = null;
       live.style.cursor = "default";
       store.cancelLive();
       activePointerId = null;
@@ -637,10 +649,11 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       const p = toPoint(e);
       if (activeToolRef.current === "delete") {
         e.preventDefault();
+        deletionPointer = p;
         const hit = findMarkAt(store.marks, p);
         if (hit) {
           store.remove(hit.index);
-          deletionHoverIndex = findMarkAt(store.marks, p)?.index ?? -1;
+          refreshDeletionHover();
           renderBase();
           renderLive();
         }
@@ -684,12 +697,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
     const onPointerMove = (e: PointerEvent) => {
       if (activePointerId !== null && e.pointerId !== activePointerId) return;
       if (activePointerId === null && activeToolRef.current === "delete") {
-        const nextHovered = findMarkAt(store.marks, toPoint(e))?.index ?? -1;
-        if (nextHovered !== deletionHoverIndex) {
-          deletionHoverIndex = nextHovered;
-          live.style.cursor = nextHovered >= 0 ? "pointer" : "default";
-          renderLive();
-        }
+        deletionPointer = toPoint(e);
+        if (refreshDeletionHover()) renderLive();
         return;
       }
       if (activePointerId === null && moveDiscoveryVisible) {
@@ -865,7 +874,14 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       commandHeld = false;
       moveDiscoverySuppressed = false;
       hideMoveDiscovery();
-      finishSession(false);
+      if (sessionRef.current || wantsEditingRef.current) {
+        finishSession(false);
+      } else if (
+        activeToolRef.current !== "freehand" &&
+        activeToolRef.current !== "delete"
+      ) {
+        onToolChangeRef.current("freehand");
+      }
       store.clear();
       renderBase();
       renderLive();
@@ -932,7 +948,13 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
         // 버퍼가 바뀌면 더블클릭 추적은 무효 — 무관한 마크를 회수하는 오동작 방지
         lastClick = null;
         dblPending = null;
-        if (e.shiftKey ? store.redo() : store.undo()) renderBase();
+        if (e.shiftKey ? store.redo() : store.undo()) {
+          renderBase();
+          if (activeToolRef.current === "delete") {
+            refreshDeletionHover();
+            renderLive();
+          }
+        }
       } else if (matchesAccelerator(e, clearAccelRef.current)) {
         e.preventDefault();
         clearAll();
