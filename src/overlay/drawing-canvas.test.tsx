@@ -382,6 +382,27 @@ describe("DrawingCanvas", () => {
       expect(baseCtx.lineTo).toHaveBeenCalledTimes(3); // shaft + two arrowhead sides
     });
 
+    it("updates a stationary quick line preview when Shift changes", () => {
+      const { container } = render(
+        <DrawingCanvas {...baseProps} tool="line" onToolChange={vi.fn()} />,
+      );
+      const [, liveCtx] = contexts;
+      const live = container.querySelectorAll("canvas")[1];
+
+      fireEvent.pointerDown(live, { button: 0, clientX: 10, clientY: 10, pointerId: 1 });
+      fireEvent.pointerMove(live, { clientX: 110, clientY: 35, pointerId: 1 });
+      expect(liveCtx.lineTo).toHaveBeenLastCalledWith(110, 35);
+
+      fireEvent.keyDown(window, { key: "Shift", code: "ShiftLeft", shiftKey: true });
+      expect(liveCtx.lineTo).toHaveBeenLastCalledWith(
+        expect.closeTo(113.077, 2),
+        expect.closeTo(10, 2),
+      );
+
+      fireEvent.keyUp(window, { key: "Shift", code: "ShiftLeft" });
+      expect(liveCtx.lineTo).toHaveBeenLastCalledWith(110, 35);
+    });
+
     it("keeps deletion active across delete, undo and another delete", () => {
       const { container } = render(<Harness />);
       const [baseCtx] = contexts;

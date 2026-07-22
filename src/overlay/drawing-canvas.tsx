@@ -345,7 +345,12 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
     let previewAnchor: Point | null = null;
     let ringVisible = false;
     let ringProgress = 0;
-    let quickGesture: { tool: QuickInsertTool; origin: Point } | null = null;
+    let quickGesture: {
+      tool: QuickInsertTool;
+      origin: Point;
+      current: Point;
+      shiftHeld: boolean;
+    } | null = null;
     let quickPreview: ShapeMark | LineMark | null = null;
 
     const stopHold = () => {
@@ -532,6 +537,22 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
 
     const toPoint = (e: PointerEvent): Point => ({ x: e.clientX, y: e.clientY });
 
+    const updateQuickPreview = (point: Point, shiftHeld: boolean) => {
+      if (!quickGesture) return;
+      quickGesture.current = point;
+      quickGesture.shiftHeld = shiftHeld;
+      const { color, widthKey } = toolRef.current;
+      quickPreview = createQuickInsertMark(
+        quickGesture.tool,
+        quickGesture.origin,
+        point,
+        color,
+        strokeWidthPx(widthKey, Math.min(window.innerWidth, window.innerHeight)),
+        shiftHeld,
+      );
+      scheduleLive();
+    };
+
     // 더블클릭 = 텍스트 진입. 첫 클릭의 점은 두 번째 클릭에서 사후 회수한다(≤350ms 노출 트레이드오프).
     const DBLCLICK_MS = 350;
     const DBLCLICK_SLOP_PX = 6;
@@ -627,7 +648,12 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       }
       if (isQuickInsertTool(activeToolRef.current)) {
         e.preventDefault();
-        quickGesture = { tool: activeToolRef.current, origin: p };
+        quickGesture = {
+          tool: activeToolRef.current,
+          origin: p,
+          current: p,
+          shiftHeld: e.shiftKey,
+        };
         quickPreview = null;
         activePointerId = e.pointerId;
         live.setPointerCapture(e.pointerId);
@@ -692,17 +718,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       }
       if (commandPointerActive) return;
       if (quickGesture) {
-        const point = toPoint(e);
-        const { color, widthKey } = toolRef.current;
-        quickPreview = createQuickInsertMark(
-          quickGesture.tool,
-          quickGesture.origin,
-          point,
-          color,
-          strokeWidthPx(widthKey, Math.min(window.innerWidth, window.innerHeight)),
-          e.shiftKey,
-        );
-        scheduleLive();
+        updateQuickPreview(toPoint(e), e.shiftKey);
         return;
       }
       if (snapped) {
@@ -876,7 +892,10 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
         return;
       }
       if (!isModifierKey(e.key)) suppressMoveDiscovery();
-      if (e.key === "Shift") return;
+      if (e.key === "Shift") {
+        if (quickGesture) updateQuickPreview(quickGesture.current, true);
+        return;
+      }
       const sizeDelta =
         e.metaKey &&
         !e.altKey &&
@@ -938,6 +957,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
         return;
       }
       if (e.key !== "Shift") return;
+      if (quickGesture) updateQuickPreview(quickGesture.current, false);
     };
 
     const resetLostCommandState = () => {
