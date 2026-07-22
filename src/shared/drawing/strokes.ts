@@ -359,11 +359,33 @@ function hitsTriangle(geometry: TriangleGeometry, width: number, point: Point): 
   );
 }
 
+function arrowheadEndpoints(geometry: LineGeometry, width: number): [Point, Point] {
+  const { from, to } = geometry;
+  const angle = Math.atan2(to.y - from.y, to.x - from.x);
+  const length = Math.max(12, width * 3);
+  return [
+    {
+      x: to.x + Math.cos(angle + (Math.PI * 5) / 6) * length,
+      y: to.y + Math.sin(angle + (Math.PI * 5) / 6) * length,
+    },
+    {
+      x: to.x + Math.cos(angle - (Math.PI * 5) / 6) * length,
+      y: to.y + Math.sin(angle - (Math.PI * 5) / 6) * length,
+    },
+  ];
+}
+
 function hitsMark(mark: Mark, point: Point): boolean {
   if (mark.kind === "pen") return hitsPath(mark.points, mark.width, point);
   if (mark.kind === "text") return hitsTextMark(mark, point);
   if (mark.shape === "line") {
-    return hitsPath([mark.geometry.from, mark.geometry.to], mark.width, point);
+    if (hitsPath([mark.geometry.from, mark.geometry.to], mark.width, point)) return true;
+    if (mark.arrowhead === "none") return false;
+    const [left, right] = arrowheadEndpoints(mark.geometry, mark.width);
+    return (
+      hitsPath([mark.geometry.to, left], mark.width, point) ||
+      hitsPath([mark.geometry.to, right], mark.width, point)
+    );
   }
   if (mark.shape === "rect") {
     const { x, y, w, h } = mark.geometry;
@@ -518,12 +540,11 @@ export function drawMark(ctx: CanvasRenderingContext2D, m: Mark) {
     ctx.moveTo(from.x, from.y);
     ctx.lineTo(to.x, to.y);
     if (m.arrowhead === "end") {
-      const angle = Math.atan2(to.y - from.y, to.x - from.x);
-      const length = Math.max(12, m.width * 3);
+      const [left, right] = arrowheadEndpoints(m.geometry, m.width);
       ctx.moveTo(to.x, to.y);
-      ctx.lineTo(to.x + Math.cos(angle + (Math.PI * 5) / 6) * length, to.y + Math.sin(angle + (Math.PI * 5) / 6) * length);
+      ctx.lineTo(left.x, left.y);
       ctx.moveTo(to.x, to.y);
-      ctx.lineTo(to.x + Math.cos(angle - (Math.PI * 5) / 6) * length, to.y + Math.sin(angle - (Math.PI * 5) / 6) * length);
+      ctx.lineTo(right.x, right.y);
     }
     ctx.stroke();
   }

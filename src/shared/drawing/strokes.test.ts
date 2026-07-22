@@ -267,6 +267,22 @@ describe("mark movement", () => {
     expect(findMarkAt([pen, topLine], { x: 50, y: 50 })).toEqual({ index: 1, mark: topLine });
   });
 
+  it("hits the visible arrowhead sides outside the shaft tolerance", () => {
+    const arrow: Mark = {
+      kind: "shape",
+      shape: "line",
+      geometry: { from: { x: 0, y: 0 }, to: { x: 100, y: 0 } },
+      arrowhead: "end",
+      color: "orange",
+      width: 20,
+    };
+    const line: Mark = { ...arrow, arrowhead: "none" };
+    const arrowheadTip = { x: 48, y: 30 };
+
+    expect(findMarkAt([line], arrowheadTip)).toBeNull();
+    expect(findMarkAt([arrow], arrowheadTip)).toEqual({ index: 0, mark: arrow });
+  });
+
   it("offers only pen and text marks to the move gesture", () => {
     installCanvasMock();
     const pen: Mark = {
