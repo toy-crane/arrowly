@@ -349,6 +349,23 @@ describe("DrawingCanvas", () => {
       expect(onToolChange).not.toHaveBeenCalled();
     });
 
+    it("cancels an in-progress quick preview when another tool is selected", () => {
+      const onToolChange = vi.fn();
+      const { container, rerender } = render(
+        <DrawingCanvas {...baseProps} tool="rect" onToolChange={onToolChange} />,
+      );
+      const [baseCtx] = contexts;
+      const live = container.querySelectorAll("canvas")[1];
+      fireEvent.pointerDown(live, { button: 0, clientX: 80, clientY: 90, pointerId: 1 });
+      fireEvent.pointerMove(live, { clientX: 180, clientY: 150, pointerId: 1 });
+
+      rerender(<DrawingCanvas {...baseProps} tool="delete" onToolChange={onToolChange} />);
+      fireEvent.pointerUp(live, { clientX: 180, clientY: 150, pointerId: 1 });
+
+      expect(baseCtx.rect).not.toHaveBeenCalled();
+      expect(onToolChange).not.toHaveBeenCalled();
+    });
+
     it("constrains a quick arrow with Shift and draws an end arrowhead", () => {
       const { container } = render(
         <DrawingCanvas {...baseProps} tool="arrow" onToolChange={vi.fn()} />,

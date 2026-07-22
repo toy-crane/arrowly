@@ -144,6 +144,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
   onNewTextSizeCommitRef.current = onNewTextSizeCommit;
   const defaultTextSizeRef = useRef(textSizeKey);
   defaultTextSizeRef.current = textSizeKey;
+  const previousToolRef = useRef(tool);
 
   const [session, setSession] = useState<TextEditorSession | null>(null);
   const sessionRef = useRef<TextEditorSession | null>(session);
@@ -155,6 +156,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
   editingRef.current = session !== null;
 
   const renderBaseRef = useRef<() => void>(() => undefined);
+  const resetGestureRef = useRef<() => void>(() => undefined);
   const rememberOutsideClickRef = useRef<(point: Point) => void>(() => undefined);
   const finishSessionRef = useRef<(commit: boolean) => void>(() => undefined);
 
@@ -182,6 +184,11 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
   );
 
   useEffect(() => {
+    const previousTool = previousToolRef.current;
+    previousToolRef.current = tool;
+    // 텍스트 편집기 바깥 클릭은 text → freehand 전환과 함께 첫 클릭을 기억한다.
+    // 그 전환에서 추적 상태까지 지우면 두 번째 클릭이 점 마크로 남는다.
+    if (!(previousTool === "text" && tool === "freehand")) resetGestureRef.current();
     if (tool === "text") return;
     if (sessionRef.current) {
       finishSessionRef.current(true);
@@ -566,6 +573,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       activePointerId = null;
       if (wasMovingMark) renderBase();
     };
+    resetGestureRef.current = resetGestureState;
 
     const onPointerDown = (e: PointerEvent) => {
       if (e.button !== 0) return;
@@ -993,6 +1001,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       sessionRequestRef.current += 1;
       if (hadEditingRequest) void setTextEditing(false);
       renderBaseRef.current = () => undefined;
+      resetGestureRef.current = () => undefined;
       rememberOutsideClickRef.current = () => undefined;
       finishSessionRef.current = () => undefined;
     };
