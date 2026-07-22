@@ -14,13 +14,17 @@ import {
 } from "../shared/constants";
 import {
   drawMark,
+  findMarkAt,
   findTextMarkAt,
   LineMark,
+  markFrameBounds,
+  Mark,
   Point,
   ShapeMark,
   StrokeStore,
   textCaretOffsetAt,
   TextMark,
+  translateMark,
 } from "../shared/drawing";
 import {
   onClearAll,
@@ -37,6 +41,15 @@ import {
   STILL_RADIUS_PX,
 } from "./shapes";
 import { TextEditor } from "./text-editor";
+
+const MOVE_REVEAL_DELAY_MS = 120;
+const MOVE_FOCUS_SCRIM = "rgba(7, 10, 18, 0.38)";
+const MOVE_FOCUS_PATH = "rgba(255, 255, 255, 0.68)";
+const MOVE_FOCUS_FRAME = "rgba(255, 255, 255, 0.78)";
+
+function isModifierKey(key: string): boolean {
+  return key === "Meta" || key === "Shift" || key === "Alt" || key === "Control";
+}
 
 type Props = {
   color: string;
@@ -172,12 +185,18 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
     const baseCtx = base.getContext("2d")!;
     const liveCtx = live.getContext("2d")!;
     let rafId = 0;
-    let movingTextIndex = -1;
-    let movingText: TextMark | null = null;
-    let textGesture: {
+    let commandHeld = false;
+    let moveDiscoveryVisible = false;
+    let moveDiscoverySuppressed = false;
+    let moveRevealTimer = 0;
+    let hoveredMarkIndex = -1;
+    let movingMarkIndex = -1;
+    let movingMark: Mark | null = null;
+    let commandPointerActive = false;
+    let moveGesture: {
       origin: Point;
       index: number;
-      original: TextMark;
+      original: Mark;
       moving: boolean;
     } | null = null;
 
@@ -186,7 +205,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       const editingIndex =
         sessionRef.current?.kind === "existing" ? sessionRef.current.index : -1;
       store.marks.forEach((mark, index) => {
-        if (index !== editingIndex && index !== movingTextIndex) drawMark(baseCtx, mark);
+        if (index !== editingIndex && index !== movingMarkIndex) drawMark(baseCtx, mark);
       });
     };
     renderBaseRef.current = renderBase;
@@ -338,10 +357,48 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       ctx.stroke();
     };
 
+    const drawMoveCandidate = (
+      ctx: CanvasRenderingContext2D,
+      mark: Mark,
+      emphasized = false,
+    ) => {
+      if (mark.kind === "pen" || (mark.kind === "shape" && mark.shape === "line")) {
+        ctx.save();
+        drawMark(ctx, {
+          ...mark,
+          color: emphasized ? "rgba(255, 255, 255, 0.94)" : MOVE_FOCUS_PATH,
+          width: mark.width + (emphasized ? 12 : 8),
+        });
+        ctx.restore();
+        drawMark(ctx, mark);
+        return;
+      }
+
+      drawMark(ctx, mark);
+      const frame = markFrameBounds(mark);
+      if (!frame) return;
+      ctx.save();
+      ctx.strokeStyle = MOVE_FOCUS_FRAME;
+      ctx.lineWidth = emphasized ? 3 : 1.5;
+      ctx.strokeRect(frame.x, frame.y, frame.w, frame.h);
+      ctx.restore();
+    };
+
     const renderLive = () => {
       liveCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
-      if (movingText) {
-        drawMark(liveCtx, movingText);
+      if (movingMark) {
+        if (moveDiscoveryVisible) {
+          liveCtx.save();
+          liveCtx.fillStyle = MOVE_FOCUS_SCRIM;
+          liveCtx.fillRect(0, 0, window.innerWidth, window.innerHeight);
+          liveCtx.restore();
+          store.marks.forEach((mark, index) => {
+            if (index !== moveGesture?.index) {
+              drawMoveCandidate(liveCtx, mark, index === hoveredMarkIndex);
+            }
+          });
+        }
+        drawMoveCandidate(liveCtx, movingMark, true);
         return;
       }
       if (snapped) {
@@ -353,7 +410,37 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
         if (ringVisible) {
           drawHoldRing(liveCtx, store.live.points[store.live.points.length - 1], ringProgress);
         }
+        return;
       }
+      if (moveDiscoveryVisible) {
+        liveCtx.save();
+        liveCtx.fillStyle = MOVE_FOCUS_SCRIM;
+        liveCtx.fillRect(0, 0, window.innerWidth, window.innerHeight);
+        liveCtx.restore();
+        store.marks.forEach((mark, index) =>
+          drawMoveCandidate(liveCtx, mark, index === hoveredMarkIndex),
+        );
+      }
+    };
+
+    const clearMoveRevealTimer = () => {
+      if (moveRevealTimer) window.clearTimeout(moveRevealTimer);
+      moveRevealTimer = 0;
+    };
+
+    const hideMoveDiscovery = () => {
+      clearMoveRevealTimer();
+      if (!moveDiscoveryVisible) return;
+      moveDiscoveryVisible = false;
+      hoveredMarkIndex = -1;
+      live.style.cursor = movingMark ? "grabbing" : "default";
+      renderLive();
+    };
+
+    const suppressMoveDiscovery = () => {
+      if (!commandHeld) return;
+      moveDiscoverySuppressed = true;
+      hideMoveDiscovery();
     };
 
     const holdTick = () => {
@@ -411,10 +498,15 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
 
     const scheduleLive = () => {
       if (rafId) return;
-      rafId = requestAnimationFrame(() => {
+      let ranSynchronously = false;
+      const requestedId = requestAnimationFrame(() => {
+        ranSynchronously = true;
         rafId = 0;
         renderLive();
       });
+      // 테스트·일부 호스트 스텁은 callback을 동기 실행한다. 그 경우 완료 후 반환된 id로
+      // rafId를 다시 덮어쓰면 이후 모든 live 렌더가 영구 차단된다.
+      if (!ranSynchronously) rafId = requestedId;
     };
 
     const toPoint = (e: PointerEvent): Point => ({ x: e.clientX, y: e.clientY });
@@ -439,21 +531,24 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
     // (두 번째 입력 장치·멀티터치가 첫 포인터의 홀드·스냅 상태를 덮어쓰지 못하게 한다)
     let activePointerId: number | null = null;
 
-    /** 제스처 상태 전체를 취소한다 — 이동 중인 텍스트만 즉시 원위치로 다시 그린다. */
+    /** 제스처 상태 전체를 취소한다 — 이동 중인 마크는 즉시 원위치로 다시 그린다. */
     const resetGestureState = () => {
-      const wasMovingText = movingTextIndex >= 0;
+      const wasMovingMark = movingMarkIndex >= 0;
       lastClick = null;
       dblPending = null;
       stopHold();
       snapped = null;
       lineRawEndpoint = null;
       lineShiftHeld = false;
-      textGesture = null;
-      movingText = null;
-      movingTextIndex = -1;
+      moveGesture = null;
+      movingMark = null;
+      movingMarkIndex = -1;
+      commandPointerActive = false;
+      hoveredMarkIndex = -1;
+      live.style.cursor = "default";
       store.cancelLive();
       activePointerId = null;
-      if (wasMovingText) renderBase();
+      if (wasMovingMark) renderBase();
     };
 
     const onPointerDown = (e: PointerEvent) => {
@@ -464,23 +559,33 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
         e.preventDefault();
         return;
       }
+      if (e.metaKey || commandHeld) {
+        e.preventDefault();
+        if (editingRef.current) return;
+        const point = toPoint(e);
+        const hit = findMarkAt(store.marks, point);
+        commandPointerActive = true;
+        activePointerId = e.pointerId;
+        live.setPointerCapture(e.pointerId);
+        if (hit) {
+          moveGesture = {
+            origin: point,
+            index: hit.index,
+            original: hit.mark,
+            moving: false,
+          };
+          movingMark = hit.mark;
+          hoveredMarkIndex = hit.index;
+          live.style.cursor = "grabbing";
+          renderLive();
+        }
+        return;
+      }
       if (textModeRef.current) {
         e.preventDefault();
         if (editingRef.current) return;
         const point = toPoint(e);
-        const hit = findTextMarkAt(store.marks, point);
-        if (!hit) {
-          beginTextAt(point);
-          return;
-        }
-        textGesture = {
-          origin: point,
-          index: hit.index,
-          original: hit.mark,
-          moving: false,
-        };
-        activePointerId = e.pointerId;
-        live.setPointerCapture(e.pointerId);
+        beginTextAt(point);
         return;
       }
       const p = toPoint(e);
@@ -509,25 +614,31 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
 
     const onPointerMove = (e: PointerEvent) => {
       if (activePointerId !== null && e.pointerId !== activePointerId) return;
-      if (textGesture) {
+      if (activePointerId === null && moveDiscoveryVisible) {
+        const nextHovered = findMarkAt(store.marks, toPoint(e))?.index ?? -1;
+        if (nextHovered !== hoveredMarkIndex) {
+          hoveredMarkIndex = nextHovered;
+          live.style.cursor = nextHovered >= 0 ? "grab" : "default";
+          renderLive();
+        }
+        return;
+      }
+      if (moveGesture) {
         const point = toPoint(e);
-        const dx = point.x - textGesture.origin.x;
-        const dy = point.y - textGesture.origin.y;
-        if (!textGesture.moving && Math.hypot(dx, dy) > CLICK_SLOP_PX) {
-          textGesture.moving = true;
-          movingTextIndex = textGesture.index;
+        const dx = point.x - moveGesture.origin.x;
+        const dy = point.y - moveGesture.origin.y;
+        if (!moveGesture.moving && Math.hypot(dx, dy) > CLICK_SLOP_PX) {
+          moveGesture.moving = true;
+          movingMarkIndex = moveGesture.index;
           renderBase();
         }
-        if (textGesture.moving) {
-          movingText = {
-            ...textGesture.original,
-            x: textGesture.original.x + dx,
-            y: textGesture.original.y + dy,
-          };
+        if (moveGesture.moving) {
+          movingMark = translateMark(moveGesture.original, dx, dy);
           scheduleLive();
         }
         return;
       }
+      if (commandPointerActive) return;
       if (snapped) {
         if (snapped.shape === "line") {
           lineRawEndpoint = toPoint(e);
@@ -552,31 +663,33 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
 
     const onPointerUp = (e: PointerEvent) => {
       if (activePointerId !== null && e.pointerId !== activePointerId) return;
-      if (textGesture) {
-        const gesture = textGesture;
+      if (commandPointerActive) {
+        const gesture = moveGesture;
         const point = toPoint(e);
-        const wasMoving =
-          gesture.moving ||
-          Math.hypot(point.x - gesture.origin.x, point.y - gesture.origin.y) > CLICK_SLOP_PX;
-        const moved = wasMoving
-          ? {
-              ...gesture.original,
-              x: gesture.original.x + point.x - gesture.origin.x,
-              y: gesture.original.y + point.y - gesture.origin.y,
-            }
-          : null;
-        textGesture = null;
-        movingText = null;
-        movingTextIndex = -1;
+        const moved =
+          gesture &&
+          (gesture.moving ||
+            Math.hypot(point.x - gesture.origin.x, point.y - gesture.origin.y) > CLICK_SLOP_PX)
+            ? translateMark(
+                gesture.original,
+                point.x - gesture.origin.x,
+                point.y - gesture.origin.y,
+              )
+            : null;
+        moveGesture = null;
+        movingMark = null;
+        movingMarkIndex = -1;
+        commandPointerActive = false;
         activePointerId = null;
-        if (moved) {
+        if (gesture && moved) {
           store.replace(gesture.index, moved);
-          onTextModeChangeRef.current(false);
           renderBase();
-          renderLive();
-        } else {
-          beginExistingText(gesture.index, gesture.original, point);
         }
+        hoveredMarkIndex = moveDiscoveryVisible
+          ? (findMarkAt(store.marks, point)?.index ?? -1)
+          : -1;
+        live.style.cursor = hoveredMarkIndex >= 0 ? "grab" : "default";
+        renderLive();
         return;
       }
       if (dblPending) {
@@ -638,6 +751,9 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
 
     const clearAll = () => {
       resetGestureState();
+      commandHeld = false;
+      moveDiscoverySuppressed = false;
+      hideMoveDiscovery();
       finishSession(false);
       store.clear();
       renderBase();
@@ -645,6 +761,26 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
     };
 
     const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Meta") {
+        if (
+          isEditableTarget(e) ||
+          editingRef.current ||
+          activePointerId !== null ||
+          commandHeld
+        ) {
+          return;
+        }
+        commandHeld = true;
+        moveDiscoverySuppressed = false;
+        moveRevealTimer = window.setTimeout(() => {
+          moveRevealTimer = 0;
+          if (!commandHeld || moveDiscoverySuppressed || editingRef.current) return;
+          moveDiscoveryVisible = true;
+          renderLive();
+        }, MOVE_REVEAL_DELAY_MS);
+        return;
+      }
+      if (!isModifierKey(e.key)) suppressMoveDiscovery();
       if (e.key === "Shift") {
         lineShiftHeld = true;
         if (updateLockedLine()) scheduleLive();
@@ -692,15 +828,36 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
     };
 
     const onKeyUp = (e: KeyboardEvent) => {
+      if (e.key === "Meta") {
+        commandHeld = false;
+        moveDiscoverySuppressed = false;
+        hideMoveDiscovery();
+        return;
+      }
       if (e.key !== "Shift") return;
       lineShiftHeld = e.shiftKey;
       if (updateLockedLine()) scheduleLive();
+    };
+
+    const resetLostCommandState = () => {
+      resetGestureState();
+      commandHeld = false;
+      moveDiscoverySuppressed = false;
+      hideMoveDiscovery();
+      live.style.cursor = "default";
+      renderLive();
+    };
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden") resetLostCommandState();
     };
 
     setupBacking();
     window.addEventListener("resize", setupBacking);
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("keyup", onKeyUp);
+    window.addEventListener("blur", resetLostCommandState);
+    document.addEventListener("visibilitychange", onVisibilityChange);
     live.addEventListener("pointerdown", onPointerDown);
     live.addEventListener("pointermove", onPointerMove);
     live.addEventListener("pointerup", onPointerUp);
@@ -713,6 +870,9 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
         // 숨김≠삭제: 텍스트는 현재 내용 확정, 진행 중 live 획만 취소한다.
         finishSession(true);
         resetGestureState();
+        commandHeld = false;
+        moveDiscoverySuppressed = false;
+        hideMoveDiscovery();
         renderLive();
       }
     });
@@ -723,6 +883,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       window.removeEventListener("resize", setupBacking);
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
+      window.removeEventListener("blur", resetLostCommandState);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
       live.removeEventListener("pointerdown", onPointerDown);
       live.removeEventListener("pointermove", onPointerMove);
       live.removeEventListener("pointerup", onPointerUp);
@@ -731,6 +893,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       unlistenClear.then((f) => f());
       unlistenFinishText.then((f) => f());
       if (rafId) cancelAnimationFrame(rafId);
+      clearMoveRevealTimer();
       stopHold();
       const hadEditingRequest = wantsEditingRef.current;
       wantsEditingRef.current = false;
