@@ -3,8 +3,12 @@ import { vi } from "vitest";
 export function createCanvasContext() {
   return {
     clearRect: vi.fn(),
+    fillRect: vi.fn(),
+    strokeRect: vi.fn(),
     setTransform: vi.fn(),
     scale: vi.fn(),
+    save: vi.fn(),
+    restore: vi.fn(),
     beginPath: vi.fn(),
     moveTo: vi.fn(),
     lineTo: vi.fn(),
@@ -25,6 +29,8 @@ export function createCanvasContext() {
     globalAlpha: 0,
     font: "",
     textBaseline: "alphabetic",
+    shadowColor: "",
+    shadowBlur: 0,
   } as unknown as CanvasRenderingContext2D;
 }
 

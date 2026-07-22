@@ -102,7 +102,7 @@ describe("DrawingCanvas", () => {
     fireEvent.pointerDown(live, { button: 0, clientX: 5, clientY: 5, pointerId: 3 });
     fireEvent.pointerCancel(live, { pointerId: 3 });
     unmount();
-    expect(cancelAnimationFrame).toHaveBeenCalled();
+    expect(cancelAnimationFrame).not.toHaveBeenCalled(); // 동기 rAF는 이미 완료되어 취소할 예약이 없다
   });
 
   it("responds to resize and mocked Tauri mode/clear events without deleting hidden strokes", async () => {
@@ -300,6 +300,201 @@ describe("DrawingCanvas", () => {
     }
   });
 
+  describe("mark movement discovery", () => {
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("reveals movable marks after holding Command for 120ms and suppresses shortcut chords", () => {
+      const { container } = render(<Harness />);
+      const live = container.querySelectorAll("canvas")[1];
+      const liveCtx = contexts[1];
+
+      fireEvent.pointerDown(live, { button: 0, clientX: 20, clientY: 30, pointerId: 1 });
+      fireEvent.pointerMove(live, { clientX: 80, clientY: 70, pointerId: 1 });
+      fireEvent.pointerUp(live, { clientX: 80, clientY: 70, pointerId: 1 });
+      vi.mocked(liveCtx.fillRect).mockClear();
+
+      fireEvent.keyDown(window, { key: "Meta", code: "MetaLeft", metaKey: true });
+      vi.advanceTimersByTime(119);
+      expect(liveCtx.fillRect).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(1);
+      expect(liveCtx.fillRect).toHaveBeenCalledWith(0, 0, 800, 600);
+      fireEvent.keyUp(window, { key: "Meta", code: "MetaLeft", metaKey: false });
+
+      vi.mocked(liveCtx.fillRect).mockClear();
+      fireEvent.keyDown(window, { key: "Meta", code: "MetaLeft", metaKey: true });
+      fireEvent.keyDown(window, { key: "z", code: "KeyZ", metaKey: true });
+      vi.advanceTimersByTime(120);
+      expect(liveCtx.fillRect).not.toHaveBeenCalled();
+      fireEvent.keyUp(window, { key: "Meta", code: "MetaLeft", metaKey: false });
+
+      for (const [key, code] of [
+        ["+", "Equal"],
+        ["-", "Minus"],
+      ]) {
+        vi.mocked(liveCtx.fillRect).mockClear();
+        fireEvent.keyDown(window, { key: "Meta", code: "MetaLeft", metaKey: true });
+        fireEvent.keyDown(window, { key, code, metaKey: true });
+        vi.advanceTimersByTime(120);
+        expect(liveCtx.fillRect).not.toHaveBeenCalled();
+        fireEvent.keyUp(window, { key: "Meta", code: "MetaLeft", metaKey: false });
+      }
+    });
+
+    it("moves a pen mark immediately with Command-drag and records one undoable change", () => {
+      const { container } = render(<Harness />);
+      const [baseCtx, liveCtx] = contexts;
+      const live = container.querySelectorAll("canvas")[1];
+
+      fireEvent.pointerDown(live, { button: 0, clientX: 20, clientY: 30, pointerId: 1 });
+      fireEvent.pointerMove(live, { clientX: 80, clientY: 70, pointerId: 1 });
+      fireEvent.pointerUp(live, { clientX: 80, clientY: 70, pointerId: 1 });
+      vi.mocked(baseCtx.moveTo).mockClear();
+      vi.mocked(liveCtx.moveTo).mockClear();
+
+      fireEvent.keyDown(window, { key: "Meta", code: "MetaLeft", metaKey: true });
+      fireEvent.pointerDown(live, {
+        button: 0,
+        clientX: 20,
+        clientY: 30,
+        pointerId: 2,
+        metaKey: true,
+      });
+      fireEvent.pointerMove(live, {
+        clientX: 60,
+        clientY: 50,
+        pointerId: 2,
+        metaKey: true,
+      });
+      expect(liveCtx.moveTo).toHaveBeenLastCalledWith(60, 50);
+
+      fireEvent.keyUp(window, { key: "Meta", code: "MetaLeft", metaKey: false });
+      fireEvent.pointerUp(live, { clientX: 70, clientY: 60, pointerId: 2, metaKey: false });
+      expect(baseCtx.moveTo).toHaveBeenLastCalledWith(70, 60);
+
+      fireEvent.keyDown(window, { key: "z", code: "KeyZ", metaKey: true });
+      expect(baseCtx.moveTo).toHaveBeenLastCalledWith(20, 30);
+      fireEvent.keyDown(window, { key: "z", code: "KeyZ", metaKey: true, shiftKey: true });
+      expect(baseCtx.moveTo).toHaveBeenLastCalledWith(70, 60);
+    });
+
+    it("highlights the hit target immediately and leaves an empty Command-drag inert", () => {
+      const { container } = render(<Harness />);
+      const [baseCtx, liveCtx] = contexts;
+      const live = container.querySelectorAll("canvas")[1];
+
+      fireEvent.pointerDown(live, { button: 0, clientX: 20, clientY: 30, pointerId: 1 });
+      fireEvent.pointerMove(live, { clientX: 80, clientY: 70, pointerId: 1 });
+      fireEvent.pointerUp(live, { clientX: 80, clientY: 70, pointerId: 1 });
+      vi.mocked(liveCtx.stroke).mockClear();
+      vi.mocked(liveCtx.fillRect).mockClear();
+
+      fireEvent.keyDown(window, { key: "Meta", code: "MetaLeft", metaKey: true });
+      fireEvent.pointerDown(live, {
+        button: 0,
+        clientX: 20,
+        clientY: 30,
+        pointerId: 2,
+        metaKey: true,
+      });
+      expect(liveCtx.stroke).toHaveBeenCalledTimes(2); // 경로 강조 + 원래 잉크
+      vi.advanceTimersByTime(120);
+      expect(liveCtx.fillRect).not.toHaveBeenCalled(); // 활성 제스처 중에는 전체 focus field를 열지 않는다
+      fireEvent.pointerUp(live, { clientX: 20, clientY: 30, pointerId: 2, metaKey: true });
+
+      const committedStrokes = vi.mocked(baseCtx.stroke).mock.calls.length;
+      fireEvent.pointerDown(live, {
+        button: 0,
+        clientX: 400,
+        clientY: 400,
+        pointerId: 3,
+        metaKey: true,
+      });
+      fireEvent.pointerMove(live, { clientX: 450, clientY: 450, pointerId: 3, metaKey: true });
+      fireEvent.pointerUp(live, { clientX: 450, clientY: 450, pointerId: 3, metaKey: true });
+      fireEvent.keyUp(window, { key: "Meta", code: "MetaLeft", metaKey: false });
+      expect(baseCtx.stroke).toHaveBeenCalledTimes(committedStrokes);
+    });
+
+    it("draws a solid text frame and strengthens it with a grab cursor on hover", async () => {
+      const { container } = render(<Harness initialTextMode />);
+      const live = container.querySelectorAll("canvas")[1];
+      const liveCtx = contexts[1];
+
+      fireEvent.pointerDown(live, { button: 0, clientX: 100, clientY: 100, pointerId: 1 });
+      await flushTextEditingStart();
+      const editor = screen.getByRole("textbox");
+      fireEvent.change(editor, { target: { value: "후보" } });
+      fireEvent.keyDown(editor, { key: "Enter" });
+
+      vi.mocked(liveCtx.strokeRect).mockClear();
+      fireEvent.keyDown(window, { key: "Meta", code: "MetaLeft", metaKey: true });
+      vi.advanceTimersByTime(120);
+      expect(liveCtx.strokeRect).toHaveBeenCalled();
+      expect(liveCtx.lineWidth).toBe(1.5);
+
+      fireEvent.pointerMove(live, { clientX: 100, clientY: 100, pointerId: 2, metaKey: true });
+      expect(live).toHaveStyle({ cursor: "grab" });
+      expect(liveCtx.lineWidth).toBe(3);
+
+      fireEvent.keyUp(window, { key: "Meta", code: "MetaLeft", metaKey: false });
+      expect(live).toHaveStyle({ cursor: "default" });
+    });
+
+    it("does not reveal when Command starts during a pointer gesture and clears a lost keyup on blur", () => {
+      const { container } = render(<Harness />);
+      const live = container.querySelectorAll("canvas")[1];
+      const liveCtx = contexts[1];
+
+      fireEvent.pointerDown(live, { button: 0, clientX: 20, clientY: 30, pointerId: 1 });
+      vi.mocked(liveCtx.fillRect).mockClear();
+      fireEvent.keyDown(window, { key: "Meta", code: "MetaLeft", metaKey: true });
+      vi.advanceTimersByTime(120);
+      fireEvent.pointerMove(live, { clientX: 80, clientY: 70, pointerId: 1, metaKey: true });
+      fireEvent.pointerUp(live, { clientX: 80, clientY: 70, pointerId: 1, metaKey: true });
+      expect(liveCtx.fillRect).not.toHaveBeenCalled();
+      fireEvent.keyUp(window, { key: "Meta", code: "MetaLeft", metaKey: false });
+
+      fireEvent.keyDown(window, { key: "Meta", code: "MetaLeft", metaKey: true });
+      vi.advanceTimersByTime(120);
+      expect(liveCtx.fillRect).toHaveBeenCalled();
+      fireEvent.pointerMove(live, { clientX: 20, clientY: 30, pointerId: 2, metaKey: true });
+      expect(live).toHaveStyle({ cursor: "grab" });
+
+      fireEvent.blur(window);
+      expect(live).toHaveStyle({ cursor: "default" });
+      vi.mocked(liveCtx.fillRect).mockClear();
+      fireEvent.pointerMove(live, { clientX: 20, clientY: 30, pointerId: 2 });
+      expect(liveCtx.fillRect).not.toHaveBeenCalled();
+    });
+
+    it("keeps the default cursor after an empty Command gesture in the visible focus field", () => {
+      const { container } = render(<Harness />);
+      const live = container.querySelectorAll("canvas")[1];
+
+      fireEvent.pointerDown(live, { button: 0, clientX: 20, clientY: 30, pointerId: 1 });
+      fireEvent.pointerUp(live, { clientX: 20, clientY: 30, pointerId: 1 });
+      fireEvent.keyDown(window, { key: "Meta", code: "MetaLeft", metaKey: true });
+      vi.advanceTimersByTime(120);
+
+      fireEvent.pointerDown(live, {
+        button: 0,
+        clientX: 400,
+        clientY: 400,
+        pointerId: 2,
+        metaKey: true,
+      });
+      fireEvent.pointerUp(live, { clientX: 400, clientY: 400, pointerId: 2, metaKey: true });
+      expect(live).toHaveStyle({ cursor: "default" });
+      fireEvent.keyUp(window, { key: "Meta", code: "MetaLeft", metaKey: false });
+    });
+  });
+
   describe("double-click text entry", () => {
     beforeEach(() => {
       // 동기 rAF 스텁과 충돌하지 않게 필요한 프리미티브만 fake로 제한한다.
@@ -477,16 +672,29 @@ describe("DrawingCanvas", () => {
       const [baseCtx, liveCtx] = contexts;
       const live = container.querySelectorAll("canvas")[1];
       await createText(live, 100, 100, "이동\n대상", 1);
+      const modeChangesBeforeMove = onChange.mock.calls.length;
 
-      fireEvent.keyDown(window, { code: "KeyT" });
-      fireEvent.pointerDown(live, { button: 0, clientX: 105, clientY: 105, pointerId: 2 });
-      fireEvent.pointerMove(live, { clientX: 135, clientY: 125, pointerId: 2 });
+      fireEvent.keyDown(window, { key: "Meta", code: "MetaLeft", metaKey: true });
+      fireEvent.pointerDown(live, {
+        button: 0,
+        clientX: 105,
+        clientY: 105,
+        pointerId: 2,
+        metaKey: true,
+      });
+      fireEvent.pointerMove(live, {
+        clientX: 135,
+        clientY: 125,
+        pointerId: 2,
+        metaKey: true,
+      });
       expect(liveCtx.fillText).toHaveBeenCalledWith("이동", 130, 120);
       expect(liveCtx.fillText).toHaveBeenCalledWith("대상", 130, 172.8);
 
-      fireEvent.pointerUp(live, { clientX: 145, clientY: 135, pointerId: 2 });
+      fireEvent.keyUp(window, { key: "Meta", code: "MetaLeft", metaKey: false });
+      fireEvent.pointerUp(live, { clientX: 145, clientY: 135, pointerId: 2, metaKey: false });
       expect(baseCtx.fillText).toHaveBeenLastCalledWith("대상", 140, 182.8);
-      expect(onChange).toHaveBeenLastCalledWith(false);
+      expect(onChange).toHaveBeenCalledTimes(modeChangesBeforeMove);
       expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
 
       fireEvent.keyDown(window, { code: "KeyZ", metaKey: true });
@@ -495,26 +703,44 @@ describe("DrawingCanvas", () => {
       expect(baseCtx.fillText).toHaveBeenLastCalledWith("대상", 140, 182.8);
     });
 
-    it("treats a sub-threshold text gesture as editing and restores a cancelled move", async () => {
+    it("keeps sub-threshold Command gestures as no-ops and restores a cancelled move", async () => {
       const onChange = vi.fn();
       const { container } = render(<Harness onChange={onChange} />);
       const [baseCtx] = contexts;
       const live = container.querySelectorAll("canvas")[1];
       await createText(live, 100, 100, "원본", 1);
 
-      fireEvent.keyDown(window, { code: "KeyT" });
-      fireEvent.pointerDown(live, { button: 0, clientX: 100, clientY: 100, pointerId: 2 });
-      fireEvent.pointerMove(live, { clientX: 103, clientY: 100, pointerId: 2 });
-      fireEvent.pointerUp(live, { clientX: 103, clientY: 100, pointerId: 2 });
-      await flushTextEditingStart();
-      expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe("원본");
-      fireEvent.keyDown(screen.getByRole("textbox"), { code: "KeyZ", metaKey: true });
+      fireEvent.keyDown(window, { key: "Meta", code: "MetaLeft", metaKey: true });
+      fireEvent.pointerDown(live, {
+        button: 0,
+        clientX: 100,
+        clientY: 100,
+        pointerId: 2,
+        metaKey: true,
+      });
+      fireEvent.pointerMove(live, { clientX: 103, clientY: 100, pointerId: 2, metaKey: true });
+      fireEvent.pointerUp(live, { clientX: 103, clientY: 100, pointerId: 2, metaKey: true });
+      fireEvent.keyUp(window, { key: "Meta", code: "MetaLeft", metaKey: false });
+      expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+      expect(baseCtx.fillText).toHaveBeenLastCalledWith("원본", 100, 100);
+
+      fireEvent.keyDown(window, { key: "Meta", code: "MetaLeft", metaKey: true });
+      fireEvent.pointerDown(live, {
+        button: 0,
+        clientX: 100,
+        clientY: 100,
+        pointerId: 3,
+        metaKey: true,
+      });
+      fireEvent.pointerMove(live, { clientX: 130, clientY: 130, pointerId: 3, metaKey: true });
+      fireEvent.pointerCancel(live, { pointerId: 3 });
+      fireEvent.keyUp(window, { key: "Meta", code: "MetaLeft", metaKey: false });
+      expect(baseCtx.fillText).toHaveBeenLastCalledWith("원본", 100, 100);
 
       fireEvent.keyDown(window, { code: "KeyT" });
-      fireEvent.pointerDown(live, { button: 0, clientX: 100, clientY: 100, pointerId: 3 });
-      fireEvent.pointerMove(live, { clientX: 130, clientY: 130, pointerId: 3 });
-      fireEvent.pointerCancel(live, { pointerId: 3 });
-      expect(baseCtx.fillText).toHaveBeenLastCalledWith("원본", 100, 100);
+      fireEvent.pointerDown(live, { button: 0, clientX: 100, clientY: 100, pointerId: 4 });
+      await flushTextEditingStart();
+      expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe("원본");
       expect(onChange).toHaveBeenLastCalledWith(true);
     });
   });
@@ -672,6 +898,64 @@ describe("DrawingCanvas", () => {
       fireEvent.keyDown(window, { code: "KeyZ", metaKey: true, shiftKey: true });
       expect(baseCtx.lineTo).toHaveBeenCalledTimes(2);
       expect(baseCtx.lineTo).toHaveBeenLastCalledWith(220, 140);
+    });
+
+    it("moves a locked line by its path while preserving both endpoints", () => {
+      const { live, baseCtx } = renderCanvas();
+      traceOpenStroke(live, [20, 30], [120, 70]);
+      vi.advanceTimersByTime(450);
+      fireEvent.pointerUp(live, { clientX: 120, clientY: 70, pointerId: 1 });
+      vi.mocked(baseCtx.moveTo).mockClear();
+      vi.mocked(baseCtx.lineTo).mockClear();
+
+      fireEvent.keyDown(window, { key: "Meta", code: "MetaLeft", metaKey: true });
+      fireEvent.pointerDown(live, {
+        button: 0,
+        clientX: 70,
+        clientY: 50,
+        pointerId: 2,
+        metaKey: true,
+      });
+      fireEvent.pointerMove(live, { clientX: 90, clientY: 80, pointerId: 2, metaKey: true });
+      fireEvent.pointerUp(live, { clientX: 100, clientY: 90, pointerId: 2, metaKey: true });
+      fireEvent.keyUp(window, { key: "Meta", code: "MetaLeft", metaKey: false });
+
+      expect(baseCtx.moveTo).toHaveBeenLastCalledWith(50, 70);
+      expect(baseCtx.lineTo).toHaveBeenLastCalledWith(150, 110);
+    });
+
+    it("moves a snapped rectangle from its interior and preserves its geometry", () => {
+      const { live, baseCtx } = renderCanvas();
+      traceSquare(live, 100, 100, 120);
+      vi.advanceTimersByTime(450);
+      fireEvent.pointerUp(live, { clientX: 100, clientY: 100, pointerId: 1 });
+      const rectCalls = vi.mocked(baseCtx.rect).mock.calls;
+      const [x, y, width, height] = rectCalls[rectCalls.length - 1];
+      vi.mocked(baseCtx.rect).mockClear();
+
+      fireEvent.keyDown(window, { key: "Meta", code: "MetaLeft", metaKey: true });
+      fireEvent.pointerDown(live, {
+        button: 0,
+        clientX: x + width / 2,
+        clientY: y + height / 2,
+        pointerId: 2,
+        metaKey: true,
+      });
+      fireEvent.pointerMove(live, {
+        clientX: x + width / 2 + 20,
+        clientY: y + height / 2 + 10,
+        pointerId: 2,
+        metaKey: true,
+      });
+      fireEvent.pointerUp(live, {
+        clientX: x + width / 2 + 30,
+        clientY: y + height / 2 + 20,
+        pointerId: 2,
+        metaKey: true,
+      });
+      fireEvent.keyUp(window, { key: "Meta", code: "MetaLeft", metaKey: false });
+
+      expect(baseCtx.rect).toHaveBeenLastCalledWith(x + 30, y + 20, width, height);
     });
 
     it("commits the constrained endpoint when Shift remains held on pointerup", () => {

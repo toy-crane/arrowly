@@ -17,13 +17,52 @@ export type TextMark = {
 export type RectGeometry = { x: number; y: number; w: number; h: number };
 export type EllipseGeometry = { cx: number; cy: number; rx: number; ry: number };
 export type LineGeometry = { from: Point; to: Point };
-/** 홀드 보정으로 정리된 도형·직선 — 보정 결과도 마크다. */
+/** 홀드 보정으로 정리된 닫힌 도형 마크. */
 export type ShapeMark =
   | { kind: "shape"; shape: "rect"; geometry: RectGeometry; color: string; width: number }
-  | { kind: "shape"; shape: "ellipse"; geometry: EllipseGeometry; color: string; width: number }
-  | { kind: "shape"; shape: "line"; geometry: LineGeometry; color: string; width: number };
+  | { kind: "shape"; shape: "ellipse"; geometry: EllipseGeometry; color: string; width: number };
+/** 홀드 보정으로 잠긴 직선 마크. */
+export type LineMark = {
+  kind: "shape";
+  shape: "line";
+  geometry: LineGeometry;
+  color: string;
+  width: number;
+};
 
-export type Mark = PenMark | TextMark | ShapeMark;
+export type Mark = PenMark | TextMark | ShapeMark | LineMark;
+
+/** 마크의 형태와 잉크를 유지한 채 화면 좌표만 평행이동한다. 원본은 바꾸지 않는다. */
+export function translateMark(mark: Mark, dx: number, dy: number): Mark {
+  if (mark.kind === "pen") {
+    return {
+      ...mark,
+      points: mark.points.map((point) => ({ x: point.x + dx, y: point.y + dy })),
+    };
+  }
+  if (mark.kind === "text") {
+    return { ...mark, x: mark.x + dx, y: mark.y + dy };
+  }
+  if (mark.shape === "rect") {
+    return {
+      ...mark,
+      geometry: { ...mark.geometry, x: mark.geometry.x + dx, y: mark.geometry.y + dy },
+    };
+  }
+  if (mark.shape === "ellipse") {
+    return {
+      ...mark,
+      geometry: { ...mark.geometry, cx: mark.geometry.cx + dx, cy: mark.geometry.cy + dy },
+    };
+  }
+  return {
+    ...mark,
+    geometry: {
+      from: { x: mark.geometry.from.x + dx, y: mark.geometry.from.y + dy },
+      to: { x: mark.geometry.to.x + dx, y: mark.geometry.to.y + dy },
+    },
+  };
+}
 
 type HistoryEntry =
   | { kind: "insert"; index: number; mark: Mark }
@@ -221,25 +260,111 @@ export function layoutText(text: string, sizeKey: TextSizeKey): TextLayout {
 }
 
 export const TEXT_HIT_PADDING_PX = 6;
+export const MARK_HIT_PADDING_PX = 6;
 
 export type TextHit = { index: number; mark: TextMark };
+export type MarkHit = { index: number; mark: Mark };
+
+/** B focus field에서 실선 프레임을 쓰는 텍스트·닫힌 도형의 실제 hit 경계. */
+export function markFrameBounds(mark: Mark): RectGeometry | null {
+  if (mark.kind === "pen" || (mark.kind === "shape" && mark.shape === "line")) return null;
+  if (mark.kind === "text") {
+    const layout = layoutText(mark.text, mark.sizeKey);
+    const contentHeight = layout.lines[layout.lines.length - 1].top + layout.fontSize;
+    return {
+      x: mark.x - TEXT_HIT_PADDING_PX,
+      y: mark.y - TEXT_HIT_PADDING_PX,
+      w: layout.width + TEXT_HIT_PADDING_PX * 2,
+      h: contentHeight + TEXT_HIT_PADDING_PX * 2,
+    };
+  }
+  const padding = mark.width / 2 + MARK_HIT_PADDING_PX;
+  if (mark.shape === "rect") {
+    return {
+      x: mark.geometry.x - padding,
+      y: mark.geometry.y - padding,
+      w: mark.geometry.w + padding * 2,
+      h: mark.geometry.h + padding * 2,
+    };
+  }
+  return {
+    x: mark.geometry.cx - mark.geometry.rx - padding,
+    y: mark.geometry.cy - mark.geometry.ry - padding,
+    w: (mark.geometry.rx + padding) * 2,
+    h: (mark.geometry.ry + padding) * 2,
+  };
+}
+
+function hitsTextMark(mark: TextMark, point: Point): boolean {
+  const layout = layoutText(mark.text, mark.sizeKey);
+  return layout.lines.some(
+    (line) =>
+      point.x >= mark.x - TEXT_HIT_PADDING_PX &&
+      point.x <= mark.x + line.width + TEXT_HIT_PADDING_PX &&
+      point.y >= mark.y + line.top - TEXT_HIT_PADDING_PX &&
+      point.y <= mark.y + line.top + layout.fontSize + TEXT_HIT_PADDING_PX,
+  );
+}
 
 /** 가장 위에 그려진 텍스트부터 실제 글자 영역 + 여유 안에 점이 들어오는지 찾는다. */
 export function findTextMarkAt(marks: Mark[], point: Point): TextHit | null {
   for (let index = marks.length - 1; index >= 0; index -= 1) {
     const mark = marks[index];
     if (mark.kind !== "text") continue;
-    const layout = layoutText(mark.text, mark.sizeKey);
-    const hit = layout.lines.some(
-      (line) =>
-        point.x >= mark.x - TEXT_HIT_PADDING_PX &&
-        point.x <= mark.x + line.width + TEXT_HIT_PADDING_PX &&
-        point.y >= mark.y + line.top - TEXT_HIT_PADDING_PX &&
-        point.y <= mark.y + line.top + layout.fontSize + TEXT_HIT_PADDING_PX,
+    if (hitsTextMark(mark, point)) return { index, mark };
+  }
+  return null;
+}
+
+function distanceToSegment(point: Point, from: Point, to: Point): number {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const lengthSquared = dx * dx + dy * dy;
+  if (lengthSquared === 0) return Math.hypot(point.x - from.x, point.y - from.y);
+  const projection = Math.max(
+    0,
+    Math.min(1, ((point.x - from.x) * dx + (point.y - from.y) * dy) / lengthSquared),
+  );
+  return Math.hypot(point.x - (from.x + projection * dx), point.y - (from.y + projection * dy));
+}
+
+function hitsPath(points: Point[], width: number, point: Point): boolean {
+  const tolerance = width / 2 + MARK_HIT_PADDING_PX;
+  if (points.length === 1) return Math.hypot(point.x - points[0].x, point.y - points[0].y) <= tolerance;
+  for (let index = 1; index < points.length; index += 1) {
+    if (distanceToSegment(point, points[index - 1], points[index]) <= tolerance) return true;
+  }
+  return false;
+}
+
+function hitsMark(mark: Mark, point: Point): boolean {
+  if (mark.kind === "pen") return hitsPath(mark.points, mark.width, point);
+  if (mark.kind === "text") return hitsTextMark(mark, point);
+  if (mark.shape === "line") {
+    return hitsPath([mark.geometry.from, mark.geometry.to], mark.width, point);
+  }
+  if (mark.shape === "rect") {
+    const { x, y, w, h } = mark.geometry;
+    const padding = mark.width / 2 + MARK_HIT_PADDING_PX;
+    return (
+      point.x >= x - padding &&
+      point.x <= x + w + padding &&
+      point.y >= y - padding &&
+      point.y <= y + h + padding
     );
-    if (hit) {
-      return { index, mark };
-    }
+  }
+  const { cx, cy, rx, ry } = mark.geometry;
+  const padding = mark.width / 2 + MARK_HIT_PADDING_PX;
+  const nx = (point.x - cx) / (rx + padding);
+  const ny = (point.y - cy) / (ry + padding);
+  return nx * nx + ny * ny <= 1;
+}
+
+/** 화면에서 가장 위에 그려진 마크부터 실제 형태의 hit 영역으로 찾는다. */
+export function findMarkAt(marks: Mark[], point: Point): MarkHit | null {
+  for (let index = marks.length - 1; index >= 0; index -= 1) {
+    const mark = marks[index];
+    if (hitsMark(mark, point)) return { index, mark };
   }
   return null;
 }
