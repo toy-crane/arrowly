@@ -271,7 +271,7 @@ export function Marker({
                   {QUICK_INSERT_TOOLS.map((quickTool) => (
                     <button
                       key={quickTool}
-                      style={choice}
+                      style={{ ...choice, color: NEUTRAL }}
                       aria-label={t(`marker.quickInsert.${quickTool}` as Key)}
                       onClick={() => pickQuickInsert(quickTool)}
                     >

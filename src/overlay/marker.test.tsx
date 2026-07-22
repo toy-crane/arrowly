@@ -141,6 +141,33 @@ describe("Marker", () => {
     expect(freehand.querySelector("svg")).toHaveAttribute("data-quick-insert-icon", "triangle");
   });
 
+  it("shows every quick insert icon in neutral white", async () => {
+    const user = userEvent.setup();
+    render(
+      <Marker
+        color="#FF2D95"
+        widthKey="medium"
+        textSizeKey="medium"
+        board={false}
+        tool="freehand"
+        onColorChange={vi.fn()}
+        onWidthChange={vi.fn()}
+        onTextSizeChange={vi.fn()}
+        onBoardToggle={vi.fn()}
+        onToolChange={vi.fn()}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Freehand tool" }));
+    const quickInsertButtons = screen.getAllByRole("button", { name: /Insert .* once/ });
+
+    expect(quickInsertButtons).toHaveLength(5);
+    for (const button of quickInsertButtons) {
+      expect(button.style.color).toBe("rgb(232, 234, 240)");
+      expect(button.querySelector("svg")).toHaveAttribute("stroke", "currentColor");
+    }
+  });
+
   it("closes open properties when a keyboard tool change updates the active tool", async () => {
     const user = userEvent.setup();
     const props = {
