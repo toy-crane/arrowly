@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "skills": {
+    "build-prototype": {
+      "source": "toy-crane/skills",
+      "sourceType": "github",
+      "skillPath": "skills/build-prototype/SKILL.md",
+      "computedHash": "3f17a15accc16ab74bf32f9a2ef017493ea96b91a54173f45afa1d20b7f83d57"
+    },
+    "domain-modeling": {
+      "source": "toy-crane/skills",
+      "sourceType": "github",
+      "skillPath": "skills/domain-modeling/SKILL.md",
+      "computedHash": "655b7ffd4bac78172d50d1f5f0aed66861205a83cc3d604f6c8283335754a541"
+    },
+    "draft-plan": {
+      "source": "toy-crane/skills",
+      "sourceType": "github",
+      "skillPath": "skills/draft-plan/SKILL.md",
+      "computedHash": "caefe34b5673cb36fa522e8ee87fcb2c115030650b129e7d6cfb49d2c896302c"
+    },
+    "shape-idea": {
+      "source": "toy-crane/skills",
+      "sourceType": "github",
+      "skillPath": "skills/shape-idea/SKILL.md",
+      "computedHash": "fdba4df573b5cc5b3425907f55142ca42458960d3db38ce5e65acd596d373905"
+    },
+    "tdd": {
+      "source": "toy-crane/skills",
+      "sourceType": "github",
+      "skillPath": "skills/tdd/SKILL.md",
+      "computedHash": "a8588e81cf1fa8fa7ea9025f46db770f98c91846521f27c39fc681ec131ea3b3"
+    }
+  }
+}
