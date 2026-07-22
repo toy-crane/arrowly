@@ -1,0 +1,1289 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Arrowly 빠른 마크 동작 통합 프로토타입</title>
+  <style>
+    :root {
+      --background: #f3f1ec;
+      --surface: #ffffff;
+      --foreground: #1c1e24;
+      --muted: #77746d;
+      --line: rgba(28, 30, 36, 0.14);
+      --accent: #ff2d95;
+      --accent-soft: rgba(255, 45, 149, 0.13);
+      --overlay: rgba(24, 26, 32, 0.88);
+      --overlay-strong: rgba(24, 26, 32, 0.97);
+      --overlay-fg: #e8eaf0;
+      --overlay-line: rgba(255, 255, 255, 0.14);
+      --overlay-active: rgba(255, 255, 255, 0.16);
+      --yellow: #ffd400;
+      --orange: #ff7a00;
+      --pink: #ff2d95;
+      --green: #2ed573;
+      --blue: #00aeef;
+      --radius: 14px;
+      --font: -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif;
+    }
+
+    * { box-sizing: border-box }
+    html, body { min-height: 100% }
+    body {
+      margin: 0;
+      padding: 0 0 40px;
+      background: var(--background);
+      color: var(--foreground);
+      font-family: var(--font);
+      -webkit-font-smoothing: antialiased;
+    }
+    button, input { font: inherit }
+    button { -webkit-tap-highlight-color: transparent }
+    [hidden] { display: none !important }
+
+    /* review chrome */
+    .sh-bar {
+      position: sticky;
+      top: 0;
+      z-index: 999;
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+      min-height: 42px;
+      padding: 8px 12px;
+      background: #191a1c;
+      color: #d7d7d7;
+      font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    .sh-bar b { color: #8a8f98; font-weight: 500 }
+    .sh-bar button {
+      border: 1px solid #3a3d42;
+      background: none;
+      color: inherit;
+      font: inherit;
+      padding: 2px 9px;
+      border-radius: 99px;
+      cursor: pointer;
+    }
+    .sh-bar button.on { background: #d7d7d7; color: #191a1c; border-color: #d7d7d7 }
+    #sh-states:not([hidden])::before { content: "state"; color: #8a8f98; margin-right: 4px }
+    .sh-spacer { flex: 1 }
+    .sh-stage { max-width: 1180px; margin: 0 auto; padding: 16px 20px 0 }
+    .sh-vp-390 .sh-stage {
+      max-width: 390px;
+      background: var(--background);
+      border: 10px solid #191a1c;
+      border-radius: 28px;
+      padding: 16px 12px;
+      min-height: 660px;
+      margin-top: 12px;
+    }
+    .sh-vp-768 .sh-stage {
+      max-width: 768px;
+      border: 1px solid #c4c4c4;
+      border-radius: 12px;
+      padding: 16px;
+      margin-top: 12px;
+    }
+
+    .review-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: end;
+      gap: 24px;
+      margin-bottom: 14px;
+    }
+    .review-head h1 { margin: 0 0 5px; font-size: 24px; letter-spacing: -.045em }
+    .review-head p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.55 }
+    .key-legend { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end }
+    .key-legend span {
+      padding: 6px 9px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(255,255,255,.6);
+      color: #55524d;
+      font-size: 11px;
+      white-space: nowrap;
+    }
+    kbd {
+      display: inline-grid;
+      min-width: 18px;
+      height: 18px;
+      place-items: center;
+      margin-right: 4px;
+      border: 1px solid rgba(28,30,36,.16);
+      border-bottom-width: 2px;
+      border-radius: 5px;
+      background: #fff;
+      color: #363840;
+      font: 10px ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+
+    .desktop {
+      position: relative;
+      height: min(700px, calc(100vh - 170px));
+      min-height: 590px;
+      overflow: hidden;
+      border: 1px solid rgba(28,30,36,.18);
+      border-radius: 16px;
+      background: #fafafa;
+      box-shadow: 0 22px 60px rgba(36,30,20,.15);
+      user-select: none;
+    }
+    .menu-bar {
+      position: relative;
+      z-index: 3;
+      height: 29px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 13px;
+      border-bottom: 1px solid #d7d7d7;
+      background: rgba(255,255,255,.9);
+      color: #57575a;
+      font-size: 11px;
+    }
+    .under-app {
+      position: absolute;
+      inset: 29px 0 0;
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      background: #f6f6f4;
+    }
+    .sidebar { padding: 22px 15px; border-right: 1px solid #dededb; background: #ecece8 }
+    .sidebar-title { margin: 0 8px 14px; color: #71716c; font-size: 11px; font-weight: 650 }
+    .side-item { height: 30px; padding: 7px 10px; border-radius: 7px; color: #777; font-size: 11px }
+    .side-item.active { background: #d9d9d4; color: #363636 }
+    .document { padding: 58px 70px; color: #373833 }
+    .document h2 { margin: 0 0 20px; font-size: 26px; letter-spacing: -.04em }
+    .document p { max-width: 680px; margin: 0 0 14px; color: #777872; font-size: 13px; line-height: 1.75 }
+    .document .highlight { background: linear-gradient(transparent 56%, rgba(255,212,0,.5) 56%) }
+    .document-card {
+      max-width: 720px;
+      margin-top: 28px;
+      padding: 18px 20px;
+      border: 1px solid #e1e1dd;
+      border-radius: 12px;
+      background: #fff;
+      color: #85857f;
+      font-size: 12px;
+      line-height: 1.75;
+    }
+
+    .overlay {
+      position: absolute;
+      inset: 29px 0 0;
+      z-index: 10;
+      overflow: hidden;
+      cursor: crosshair;
+    }
+    .overlay[data-mode="erase"] { cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'%3E%3Cpath d='M7 17 16.5 7.5a3 3 0 0 1 4.2 0l.8.8a3 3 0 0 1 0 4.2L12 22H7.5a2.5 2.5 0 0 1-1.8-.7 2.5 2.5 0 0 1 0-3.6Z' fill='%23181a20' stroke='%23fff' stroke-width='1.5'/%3E%3C/svg%3E") 4 23, crosshair }
+    .overlay[data-mode="text"] { cursor: text }
+
+    .mark {
+      position: absolute;
+      color: var(--pink);
+      pointer-events: auto;
+      transition: filter .12s, opacity .12s, transform .12s;
+    }
+    .mark svg { width: 100%; height: 100%; overflow: visible }
+    .mark .ink { fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round }
+    .mark.pen { left: 38%; top: 25%; width: 250px; height: 100px; transform: rotate(-2deg) }
+    .mark.rect { left: 54%; top: 49%; width: 180px; height: 112px; color: var(--blue) }
+    .mark.text {
+      left: 31%;
+      top: 52%;
+      color: var(--orange);
+      font-size: 32px;
+      font-weight: 560;
+      line-height: 1.2;
+      white-space: nowrap;
+    }
+    .overlay[data-mode="erase"] .mark:hover {
+      filter: drop-shadow(0 0 4px #fff) drop-shadow(0 0 8px var(--yellow));
+      opacity: .74;
+    }
+    .overlay[data-mode="erase"] .mark:hover::after {
+      content: "클릭해서 마크 삭제";
+      position: absolute;
+      left: 50%;
+      top: -31px;
+      transform: translateX(-50%);
+      padding: 5px 8px;
+      border-radius: 7px;
+      background: rgba(24,26,32,.92);
+      color: #fff;
+      font-size: 10px;
+      white-space: nowrap;
+    }
+
+    .draft-shape {
+      position: absolute;
+      pointer-events: none;
+      border: var(--draft-width, 5px) solid var(--pink);
+      border-radius: 2px;
+    }
+    .draft-shape.ellipse { border-radius: 50% }
+    .draft-shape.triangle {
+      width: 0 !important;
+      height: 0 !important;
+      border: 0;
+      border-left: calc(var(--draft-w) / 2) solid transparent;
+      border-right: calc(var(--draft-w) / 2) solid transparent;
+      border-bottom: var(--draft-h) solid var(--pink);
+    }
+    .draft-line, .draft-arrow {
+      position: absolute;
+      height: var(--draft-width, 5px);
+      border-radius: 99px;
+      background: var(--pink);
+      transform-origin: 0 50%;
+      pointer-events: none;
+    }
+    .draft-arrow::after {
+      content: "";
+      position: absolute;
+      right: -1px;
+      top: 50%;
+      width: 16px;
+      height: 16px;
+      border-top: var(--draft-width, 5px) solid var(--pink);
+      border-right: var(--draft-width, 5px) solid var(--pink);
+      transform: translateY(-50%) rotate(45deg);
+    }
+
+    .pointer-ping {
+      position: absolute;
+      z-index: 30;
+      width: 24px;
+      height: 24px;
+      margin: -12px 0 0 -12px;
+      border: 3px solid var(--yellow);
+      border-radius: 50%;
+      box-shadow: 0 0 0 1px rgba(24,26,32,.35);
+      pointer-events: none;
+      animation: ping .42s ease-out forwards;
+    }
+    .pointer-ping::after {
+      content: "";
+      position: absolute;
+      inset: 5px;
+      border-radius: 50%;
+      background: var(--yellow);
+    }
+    @keyframes ping {
+      0% { transform: scale(.35); opacity: 0 }
+      12% { opacity: 1 }
+      100% { transform: scale(2.4); opacity: 0 }
+    }
+
+    .ping-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .ping-grid.ping-final { grid-template-columns: minmax(300px, 430px); justify-content: center }
+    .ping-option {
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      background: rgba(255,255,255,.78);
+      box-shadow: 0 10px 28px rgba(36,30,20,.08);
+    }
+    .ping-option-head { min-height: 86px; padding: 13px 14px 11px }
+    .ping-option-kicker { margin: 0 0 4px; color: var(--muted); font-size: 10px; font-weight: 700 }
+    .ping-option h3 { margin: 0 0 4px; font-size: 16px; letter-spacing: -.025em }
+    .ping-option p { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.45 }
+    .ping-sample {
+      position: relative;
+      height: 370px;
+      overflow: hidden;
+      border-top: 1px solid var(--line);
+      background: #f8f8f6;
+      cursor: crosshair;
+    }
+    .ping-sample::before {
+      content: "";
+      position: absolute;
+      left: 18%;
+      top: 24%;
+      width: 64%;
+      height: 48%;
+      border: 1px solid #e0e0dc;
+      border-radius: 10px;
+      background: #fff;
+      box-shadow: 0 6px 18px rgba(30,30,26,.05);
+    }
+    .ping-sample::after {
+      content: "버튼을 빠르게 여러 번 눌러보기";
+      position: absolute;
+      left: 50%;
+      bottom: 16px;
+      transform: translateX(-50%);
+      color: #92918a;
+      font-size: 10px;
+      white-space: nowrap;
+    }
+    .sample-copy {
+      position: absolute;
+      left: 25%;
+      top: 33%;
+      right: 25%;
+      z-index: 1;
+      color: #b1b0aa;
+      font-size: 10px;
+      line-height: 1.8;
+      pointer-events: none;
+    }
+    .sample-copy b { display: block; margin-bottom: 5px; color: #777872; font-size: 13px }
+    .sample-ink {
+      position: absolute;
+      left: 29%;
+      top: 57%;
+      z-index: 1;
+      width: 42%;
+      height: 52px;
+      fill: none;
+      stroke: var(--blue);
+      stroke-width: 5;
+      stroke-linecap: round;
+      pointer-events: none;
+    }
+    .ping-play {
+      position: absolute;
+      right: 12px;
+      top: 12px;
+      z-index: 6;
+      padding: 6px 9px;
+      border: 1px solid rgba(28,30,36,.15);
+      border-radius: 8px;
+      background: rgba(255,255,255,.9);
+      color: #4c4d48;
+      font-size: 10px;
+      cursor: pointer;
+    }
+    .ping-play:hover { background: #fff }
+    .ping-counter {
+      position: absolute;
+      left: 12px;
+      top: 12px;
+      z-index: 6;
+      padding: 6px 9px;
+      border-radius: 8px;
+      background: rgba(24,26,32,.84);
+      color: #fff;
+      font: 10px ui-monospace, SFMono-Regular, Menlo, monospace;
+      pointer-events: none;
+    }
+    .ping-counter.active { background: rgba(0,126,184,.9) }
+    .variant-ping { position: absolute; z-index: 8; pointer-events: none }
+
+    .variant-ping.ping-a,
+    .variant-ping.ping-b,
+    .variant-ping.ping-c { width: 0; height: 0 }
+    .variant-ping i {
+      position: absolute;
+      left: 0;
+      top: 0;
+      display: block;
+      background: var(--yellow);
+      filter: drop-shadow(0 0 1px rgba(24,26,32,.52));
+      will-change: transform, opacity;
+    }
+    .variant-ping.waapi i { animation: none }
+
+    /* A: 4방향 버스트 — 짧은 빛이 반경 28px까지 뻗음 */
+    .variant-ping.ping-a i {
+      width: 9px;
+      height: 2px;
+      margin: -1px 0 0 -4.5px;
+      border-radius: 99px;
+      animation: ping-a-particle .26s cubic-bezier(.12,.7,.25,1) forwards;
+    }
+    .ping-a i:nth-child(1) { --x: 28px; --y: 0px; --r: 0deg }
+    .ping-a i:nth-child(2) { --x: 0px; --y: 28px; --r: 90deg }
+    .ping-a i:nth-child(3) { --x: -28px; --y: 0px; --r: 180deg }
+    .ping-a i:nth-child(4) { --x: 0px; --y: -28px; --r: -90deg }
+    @keyframes ping-a-particle {
+      0% { transform: translate(0, 0) rotate(var(--r)) scaleX(.15); opacity: 0 }
+      16% { opacity: 1 }
+      100% { transform: translate(var(--x), var(--y)) rotate(var(--r)) scaleX(.75); opacity: 0 }
+    }
+
+    /* B: 8방향 파티클 — 작은 다이아가 반경 34px로 고르게 흩어짐 */
+    .variant-ping.ping-b i {
+      width: 5px;
+      height: 5px;
+      margin: -2.5px 0 0 -2.5px;
+      border-radius: 1px;
+      animation: ping-b-particle .5s cubic-bezier(.12,.72,.25,1) forwards;
+    }
+    .ping-b i:nth-child(1) { --x: 34px; --y: 0px }
+    .ping-b i:nth-child(2) { --x: 24px; --y: 24px }
+    .ping-b i:nth-child(3) { --x: 0px; --y: 34px }
+    .ping-b i:nth-child(4) { --x: -24px; --y: 24px }
+    .ping-b i:nth-child(5) { --x: -34px; --y: 0px }
+    .ping-b i:nth-child(6) { --x: -24px; --y: -24px }
+    .ping-b i:nth-child(7) { --x: 0px; --y: -34px }
+    .ping-b i:nth-child(8) { --x: 24px; --y: -24px }
+    @keyframes ping-b-particle {
+      0% { transform: translate(0, 0) rotate(45deg) scale(.25); opacity: 0 }
+      10% { opacity: 1 }
+      40% { transform: translate(var(--x), var(--y)) rotate(90deg) scale(.9); opacity: .95 }
+      100% { transform: translate(var(--x), var(--y)) rotate(90deg) scale(.62); opacity: 0 }
+    }
+
+    /* C: 링+스파크 — 링은 44px, 여섯 빛은 반경 32px까지 확산 */
+    .variant-ping.ping-c::before {
+      content: "";
+      position: absolute;
+      left: -7px;
+      top: -7px;
+      width: 14px;
+      height: 14px;
+      border: 1.5px solid var(--yellow);
+      border-radius: 50%;
+      filter: drop-shadow(0 0 1px rgba(24,26,32,.45));
+      animation: ping-c-ring .32s ease-out forwards;
+    }
+    .variant-ping.ping-c.waapi::before { display: none }
+    .ping-c .ping-ring {
+      position: absolute;
+      left: -7px;
+      top: -7px;
+      width: 14px;
+      height: 14px;
+      border: 1.5px solid var(--yellow);
+      border-radius: 50%;
+      filter: drop-shadow(0 0 1px rgba(24,26,32,.45));
+      will-change: transform, opacity;
+    }
+    .variant-ping.ping-c i {
+      width: 7px;
+      height: 2px;
+      margin: -1px 0 0 -3.5px;
+      border-radius: 99px;
+      animation: ping-c-particle .32s cubic-bezier(.12,.72,.25,1) forwards;
+    }
+    .ping-c i:nth-child(1) { --x: 32px; --y: 0px; --r: 0deg }
+    .ping-c i:nth-child(2) { --x: 16px; --y: 27px; --r: 60deg }
+    .ping-c i:nth-child(3) { --x: -16px; --y: 27px; --r: 120deg }
+    .ping-c i:nth-child(4) { --x: -32px; --y: 0px; --r: 180deg }
+    .ping-c i:nth-child(5) { --x: -16px; --y: -27px; --r: 240deg }
+    .ping-c i:nth-child(6) { --x: 16px; --y: -27px; --r: 300deg }
+    @keyframes ping-c-ring {
+      0% { transform: scale(.25); opacity: 0 }
+      14% { opacity: .9 }
+      100% { transform: scale(3.15); opacity: 0 }
+    }
+    @keyframes ping-c-particle {
+      0% { transform: translate(0, 0) rotate(var(--r)) scaleX(.2); opacity: 0 }
+      16% { opacity: 1 }
+      100% { transform: translate(var(--x), var(--y)) rotate(var(--r)) scaleX(.7); opacity: 0 }
+    }
+
+    .text-draft {
+      position: absolute;
+      z-index: 26;
+      min-width: 180px;
+      padding: 2px 5px 4px;
+      border: 0;
+      border-bottom: 2px solid var(--pink);
+      outline: 0;
+      background: rgba(255,255,255,.86);
+      color: var(--pink);
+      font-size: var(--text-size, 32px);
+      font-weight: 560;
+      line-height: 1.2;
+      box-shadow: 0 6px 18px rgba(0,0,0,.08);
+      user-select: text;
+    }
+
+    .prototype-hud {
+      position: absolute;
+      right: 18px;
+      top: 17px;
+      z-index: 40;
+      width: 276px;
+      padding: 11px 12px;
+      border: 1px solid rgba(28,30,36,.14);
+      border-radius: 11px;
+      background: rgba(255,255,255,.9);
+      box-shadow: 0 8px 26px rgba(30,30,26,.1);
+      backdrop-filter: blur(14px);
+      pointer-events: auto;
+    }
+    .auto-demo {
+      display: none;
+      position: absolute;
+      left: 50%;
+      top: 40%;
+      z-index: 35;
+      width: 430px;
+      transform: translate(-50%, -50%);
+      padding: 14px 15px 13px;
+      border: 1px solid rgba(28,30,36,.15);
+      border-radius: 13px;
+      background: rgba(255,255,255,.94);
+      box-shadow: 0 14px 36px rgba(30,30,26,.14);
+      pointer-events: none;
+    }
+    .overlay.auto-demo-on .auto-demo { display: block }
+    .auto-flow { display: grid; grid-template-columns: 1fr 42px 1fr; align-items: center; gap: 10px }
+    .auto-stage {
+      height: 96px;
+      display: grid;
+      place-items: center;
+      border: 1px solid #e1e1dd;
+      border-radius: 9px;
+      background: #fafaf8;
+    }
+    .auto-stage svg { width: 118px; height: 75px; fill: none; stroke: var(--pink); stroke-width: 5; stroke-linecap: round; stroke-linejoin: round }
+    .auto-arrow { color: #777872; font-size: 22px; text-align: center }
+    .auto-arrow small { display: block; margin-top: 2px; font-size: 9px; line-height: 1.25 }
+    .auto-title { margin: 0 0 9px; font-size: 11px; font-weight: 720 }
+    .auto-scope { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 10px }
+    .auto-scope span { padding: 4px 7px; border-radius: 99px; background: #f0efeb; color: #5e5e59; font-size: 9px }
+    .auto-scope .direct-only { border: 1px solid #ddd8ca; background: #fff8dc; color: #6e5d19 }
+    .hud-top { display: flex; justify-content: space-between; gap: 8px; align-items: center }
+    .hud-title { font-size: 12px; font-weight: 720 }
+    .mode-chip {
+      padding: 4px 7px;
+      border-radius: 99px;
+      background: #1c1e24;
+      color: #fff;
+      font-size: 10px;
+      white-space: nowrap;
+    }
+    .hud-copy { margin: 7px 0 9px; color: #65655f; font-size: 11px; line-height: 1.5 }
+    .hud-actions { display: flex; gap: 5px; flex-wrap: wrap }
+    .hud-actions button {
+      padding: 5px 8px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: #fff;
+      color: #44453f;
+      font-size: 10px;
+      cursor: pointer;
+    }
+    .hud-actions button:hover { background: #f2f1ed }
+
+    .marker-stack {
+      position: absolute;
+      left: 28px;
+      bottom: 26px;
+      z-index: 50;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 8px;
+      cursor: default;
+      pointer-events: auto;
+    }
+    .marker,
+    .inspector {
+      color: var(--overlay-fg);
+      border: 1px solid var(--overlay-line);
+      box-shadow: 0 4px 18px rgba(0,0,0,.35);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+    }
+    .marker {
+      width: 209px;
+      height: 44px;
+      display: flex;
+      align-items: center;
+      padding: 0 8px;
+      border-radius: 999px;
+      background: var(--overlay);
+    }
+    .tool-button,
+    .choice {
+      width: 42px;
+      height: 32px;
+      display: grid;
+      flex: 0 0 auto;
+      place-items: center;
+      padding: 0;
+      border: 0;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--overlay-fg);
+      cursor: pointer;
+    }
+    .tool-button.tool-primary + .tool-button.tool-primary { margin-left: 4px }
+    .tool-button.active,
+    .choice.active { background: var(--overlay-active) }
+    .tool-button:hover,
+    .choice:hover { background: rgba(255,255,255,.1) }
+    .tool-button svg,
+    .choice svg {
+      width: 23px;
+      height: 23px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 1.8;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+      pointer-events: none;
+    }
+    .tool-button.pen { color: var(--pink) }
+    .tool-button.text { font-size: 19px; font-weight: 650 }
+    .tool-button.erase { color: var(--yellow) }
+    .marker-divider { width: 1px; height: 20px; margin: 0 8px; background: var(--overlay-line); flex: 0 0 auto }
+    .inspector {
+      position: relative;
+      width: max-content;
+      padding: 8px;
+      border-radius: 14px;
+      background: var(--overlay-strong);
+    }
+    .inspector::after {
+      content: "";
+      position: absolute;
+      left: 25px;
+      bottom: -5px;
+      width: 9px;
+      height: 9px;
+      border-right: 1px solid var(--overlay-line);
+      border-bottom: 1px solid var(--overlay-line);
+      background: var(--overlay-strong);
+      transform: rotate(45deg);
+    }
+    .property-row { display: flex; align-items: center; gap: 4px; min-height: 32px }
+    .property-row + .property-row { margin-top: 5px; padding-top: 5px; border-top: 1px solid var(--overlay-line) }
+    .choice .color-dot { width: 17px; height: 17px; border-radius: 50%; pointer-events: none }
+    .choice .color-dot.current { outline: 2px solid var(--overlay-fg); outline-offset: 2.5px }
+    .width-bar { width: 28px; border-radius: 99px; background: var(--overlay-fg); pointer-events: none }
+    .width-bar.outline { background: transparent; border: 1.5px solid rgba(232,234,240,.85) }
+    .w1 { height: 2px }.w2 { height: 3px }.w3 { height: 5px }.w4 { height: 7px }.w5 { height: 9px }
+
+    .toast {
+      position: absolute;
+      left: 50%;
+      bottom: 26px;
+      z-index: 60;
+      transform: translateX(-50%) translateY(8px);
+      padding: 8px 11px;
+      border-radius: 9px;
+      background: rgba(24,26,32,.9);
+      color: #fff;
+      font-size: 11px;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .18s, transform .18s;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0) }
+
+    .sh-vp-768 .review-head, .sh-vp-390 .review-head { align-items: start; flex-direction: column }
+    .sh-vp-768 .key-legend, .sh-vp-390 .key-legend { justify-content: flex-start }
+    .sh-vp-768 .desktop, .sh-vp-390 .desktop { height: 620px; min-height: 620px }
+    .sh-vp-768 .under-app { grid-template-columns: 150px 1fr }
+    .sh-vp-768 .document { padding: 48px 32px }
+    .sh-vp-390 .sidebar { display: none }
+    .sh-vp-390 .under-app { grid-template-columns: 1fr }
+    .sh-vp-390 .document { padding: 38px 22px }
+    .sh-vp-390 .prototype-hud { left: 12px; right: 12px; width: auto }
+    .sh-vp-390 .marker-stack { left: 12px; bottom: 18px; transform: scale(.84); transform-origin: left bottom }
+    .sh-vp-768 .ping-grid, .sh-vp-390 .ping-grid { grid-template-columns: 1fr }
+    .sh-vp-768 .ping-sample, .sh-vp-390 .ping-sample { height: 290px }
+  </style>
+</head>
+<body>
+  <header class="sh-bar">
+    <b>proto</b>
+    <nav id="sh-tabs"></nav>
+    <span class="sh-spacer"></span>
+    <span id="sh-states" hidden></span>
+    <button id="sh-vp">vp: full (m)</button>
+  </header>
+
+  <main class="sh-stage">
+    <section data-screen="integrated" data-title="통합 동작" data-states="전체,빠른 추가,자동 보정,포인터 핑,텍스트,삭제">
+      <div class="review-head">
+        <div>
+          <h1>빠른 마크 동작 — 통합안</h1>
+          <p>마크 삭제를 자유곡선·텍스트와 같은 1층 도구로 올리고, 도형·선만 자유곡선 패널에 결합한 화면입니다.</p>
+        </div>
+        <div class="key-legend" aria-label="단축키 요약">
+          <span><kbd>⌘±</kbd>현재 도구 크기</span>
+          <span><kbd>T</kbd>새 텍스트</span>
+          <span><kbd>E</kbd>마크 삭제</span>
+          <span><kbd>2×</kbd>포인터 핑 · 텍스트 편집</span>
+        </div>
+      </div>
+
+      <div class="desktop">
+        <div class="menu-bar"><span>● ● ●　강의 노트</span><span>7월 22일 화요일　14:32　⌁</span></div>
+        <div class="under-app" aria-hidden="true">
+          <aside class="sidebar">
+            <p class="sidebar-title">수업 자료</p>
+            <div class="side-item active">오늘의 핵심 개념</div>
+            <div class="side-item">지난 시간 복습</div>
+            <div class="side-item">질문 모음</div>
+          </aside>
+          <article class="document">
+            <h2>시각적으로 설명하면 기억에 남습니다.</h2>
+            <p><span class="highlight">중요한 부분을 바로 표시하고</span>, 필요한 도형과 짧은 텍스트를 화면 위에 덧붙입니다.</p>
+            <p>판서가 끝나면 원래 자료는 그대로 남고, 설명에 사용한 마크만 빠르게 정리할 수 있습니다.</p>
+            <div class="document-card">화면 공유 중에는 도구를 찾는 시간보다 설명의 흐름을 유지하는 일이 더 중요합니다.<br>도형·선은 한 번 그린 뒤 자유곡선으로 복귀하고, 마크 삭제는 다른 도구를 고를 때까지 유지됩니다.</div>
+          </article>
+        </div>
+
+        <div id="overlay" class="overlay" data-mode="freehand" data-component="AnnotationOverlay:reuse">
+          <div class="prototype-hud" data-component="PrototypeGuide:new">
+            <div class="hud-top"><span class="hud-title">지금 동작</span><span id="modeChip" class="mode-chip">자유곡선 · 5px</span></div>
+            <p id="hudCopy" class="hud-copy">왼쪽 아래 자유곡선을 눌러 통합 패널을 열어보세요. 캔버스를 더블클릭하면 포인터 핑이 보입니다.</p>
+            <div class="hud-actions">
+              <button id="decSize" type="button">⌘− 크기</button>
+              <button id="incSize" type="button">⌘+ 크기</button>
+              <button id="armText" type="button">T 텍스트</button>
+              <button id="armErase" type="button">E 삭제</button>
+              <button id="undo" type="button">⌘Z 복원</button>
+            </div>
+          </div>
+
+          <div class="auto-demo" data-component="ShapeReconciliation:proposed">
+            <p class="auto-title">자유곡선 끝을 잠시 유지하면 마크가 보정됩니다</p>
+            <div class="auto-flow">
+              <div class="auto-stage"><svg viewBox="0 0 118 75"><path d="M16 61 59 9 104 61 17 59" /></svg></div>
+              <div class="auto-arrow">→<small>끝점 유지</small></div>
+              <div class="auto-stage"><svg viewBox="0 0 118 75"><path d="M59 8 105 62H13Z" /></svg></div>
+            </div>
+            <div class="auto-scope"><span>사각형</span><span>타원</span><span>삼각형</span><span>직선</span><span class="direct-only">화살표는 패널에서만</span></div>
+          </div>
+
+          <div class="mark pen" data-mark="pen" aria-label="펜 마크">
+            <svg viewBox="0 0 250 100"><path class="ink" stroke-width="6" d="M8 71 C45 12 87 18 103 56 S164 102 232 28" /></svg>
+          </div>
+          <div class="mark rect" data-mark="shape" aria-label="사각형 마크">
+            <svg viewBox="0 0 180 112"><rect class="ink" stroke-width="5" x="4" y="4" width="172" height="104" rx="4" /></svg>
+          </div>
+          <div class="mark text" data-mark="text" aria-label="텍스트 마크">핵심 흐름</div>
+
+          <div class="marker-stack">
+            <div id="inspector" class="inspector" data-component="ToolInspector:compose">
+              <div class="property-row" aria-label="도형과 선 빠른 추가">
+                <button class="choice" type="button" data-action="rect" title="사각형"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="14" rx="1.5"/></svg></button>
+                <button class="choice" type="button" data-action="ellipse" title="타원"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="8" ry="6.5"/></svg></button>
+                <button class="choice" type="button" data-action="triangle" title="삼각형"><svg viewBox="0 0 24 24"><path d="m12 4 8 15H4Z"/></svg></button>
+                <button class="choice" type="button" data-action="line" title="직선"><svg viewBox="0 0 24 24"><path d="M4 18 20 6"/></svg></button>
+                <button class="choice" type="button" data-action="arrow" title="화살표"><svg viewBox="0 0 24 24"><path d="M4 18 19 7M13 6l6 1-1 6"/></svg></button>
+              </div>
+              <div class="property-row" aria-label="색">
+                <button class="choice" type="button" data-color="#FFD400"><span class="color-dot" style="background:#FFD400"></span></button>
+                <button class="choice" type="button" data-color="#FF7A00"><span class="color-dot" style="background:#FF7A00"></span></button>
+                <button class="choice active" type="button" data-color="#FF2D95"><span class="color-dot current" style="background:#FF2D95"></span></button>
+                <button class="choice" type="button" data-color="#2ED573"><span class="color-dot" style="background:#2ED573"></span></button>
+                <button class="choice" type="button" data-color="#00AEEF"><span class="color-dot" style="background:#00AEEF"></span></button>
+              </div>
+              <div class="property-row" aria-label="굵기">
+                <button class="choice" type="button" data-width="2"><span class="width-bar outline w1"></span></button>
+                <button class="choice" type="button" data-width="3"><span class="width-bar outline w2"></span></button>
+                <button class="choice active" type="button" data-width="5"><span class="width-bar w3"></span></button>
+                <button class="choice" type="button" data-width="7"><span class="width-bar outline w4"></span></button>
+                <button class="choice" type="button" data-width="9"><span class="width-bar outline w5"></span></button>
+              </div>
+            </div>
+
+            <div class="marker" data-component="FloatingMarker:compose">
+              <button id="penTool" class="tool-button tool-primary pen active" type="button" title="자유곡선 도구">
+                <svg id="penIcon" viewBox="0 0 24 24"><path d="M3 15 C7 5 11 6 13 13 S18 20 21 8" stroke="currentColor" stroke-width="3.2"/></svg>
+              </button>
+              <button id="textTool" class="tool-button tool-primary text" type="button" title="텍스트 도구">T</button>
+              <button id="eraseTool" class="tool-button tool-primary erase" type="button" title="마크 삭제 도구">
+                <svg viewBox="0 0 24 24"><path d="m5 15 8.8-8.8a2.3 2.3 0 0 1 3.2 0l1.8 1.8a2.3 2.3 0 0 1 0 3.2L11 19H6.7a2.2 2.2 0 0 1-1.6-.7 2.3 2.3 0 0 1-.1-3.3Z"/><path d="m11 19 7 0"/></svg>
+              </button>
+              <span class="marker-divider"></span>
+              <button class="tool-button" type="button" title="블랙보드"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="11" rx="1.5"/><path d="M7 11c2-4 4 3 7-1M8 21l2-5m6 5-2-5"/></svg></button>
+            </div>
+          </div>
+          <div id="toast" class="toast"></div>
+        </div>
+      </div>
+    </section>
+
+    <section data-screen="ping-variants" data-title="핑 확정">
+      <div class="review-head">
+        <div>
+          <h1>포인터 핑 — 8방향 파티클</h1>
+          <p>B안으로 확정했습니다. 입력 한 번마다 버스트 하나가 생기며, 빠르게 여러 번 눌러도 각 버스트가 독립된 각도로 겹쳐 재생됩니다.</p>
+        </div>
+        <div class="key-legend" aria-label="확정 조건">
+          <span><kbd>색</kbd>#FFD400</span>
+          <span><kbd>반경</kbd>34px</span>
+          <span><kbd>수명</kbd>500ms</span>
+          <span><kbd>입력</kbd>1회당 핑 1회</span>
+        </div>
+      </div>
+
+      <div class="ping-grid ping-final">
+        <article class="ping-option" data-variant="b">
+          <div class="ping-option-head">
+            <p class="ping-option-kicker">B · 확정</p>
+            <h3>8방향 파티클</h3>
+            <p>200ms 안에 반경 34px로 흩어진 뒤, 300ms 동안 잔상만 사라집니다.</p>
+          </div>
+          <div class="ping-sample">
+            <div class="ping-counter">활성 0</div>
+            <button class="ping-play" type="button" data-play-ping="b">1회 핑</button>
+            <div class="sample-copy"><b>핵심 개념</b>이 위치를 잠깐 봐주세요.<br>표시 뒤에는 화면을 가리지 않습니다.</div>
+            <svg class="sample-ink" viewBox="0 0 140 52"><path d="M5 38 C34 4 58 49 86 14 S119 29 135 8" /></svg>
+          </div>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const stage = document.querySelector('.sh-stage');
+    const screens = [...stage.querySelectorAll('[data-screen]')];
+    const tabs = document.getElementById('sh-tabs');
+    const statebox = document.getElementById('sh-states');
+    const vpBtn = document.getElementById('sh-vp');
+    let current = null;
+
+    screens.forEach(s => {
+      const b = document.createElement('button');
+      b.textContent = s.dataset.title || s.dataset.screen;
+      b.dataset.for = s.dataset.screen;
+      b.onclick = () => show(s.dataset.screen);
+      tabs.append(b);
+    });
+
+    function show(slug) {
+      current = screens.find(s => s.dataset.screen === slug) || screens[0];
+      screens.forEach(s => s.hidden = s !== current);
+      [...tabs.children].forEach(b => b.classList.toggle('on', b.dataset.for === current.dataset.screen));
+      history.replaceState(null, '', '#' + current.dataset.screen);
+      buildStates();
+    }
+
+    function buildStates() {
+      const names = (current.dataset.states || '').split(',').map(x => x.trim()).filter(Boolean);
+      statebox.innerHTML = '';
+      statebox.hidden = !names.length;
+      names.forEach(name => {
+        const b = document.createElement('button');
+        b.textContent = name;
+        b.onclick = () => applyState(name);
+        statebox.append(b);
+      });
+      applyState(names[0] || null);
+    }
+
+    function applyState(name) {
+      [...statebox.children].forEach(b => b.classList.toggle('on', b.textContent === name));
+      overlay.classList.remove('auto-demo-on');
+      if (name === '전체') setMode('freehand', true);
+      if (name === '빠른 추가') setMode('freehand', true);
+      if (name === '자동 보정') {
+        setMode('freehand', false);
+        overlay.classList.add('auto-demo-on');
+        modeChip.textContent = '자동 보정 · 4종';
+        hudCopy.textContent = '자유곡선으로 그린 뒤 끝을 잠시 유지하면 사각형·타원·삼각형·직선만 보정합니다. 화살표는 패널의 빠른 추가로만 만듭니다.';
+      }
+      if (name === '포인터 핑') { setMode('freehand', false); pingAt(overlay.clientWidth * .51, overlay.clientHeight * .42); }
+      if (name === '텍스트') setMode('text');
+      if (name === '삭제') setMode('erase');
+    }
+
+    const VPS = ['full', '390', '768'];
+    let vp = VPS.find(v => document.body.classList.contains('sh-vp-' + v)) || 'full';
+    function applyVp() {
+      VPS.forEach(v => document.body.classList.toggle('sh-vp-' + v, v === vp && v !== 'full'));
+      vpBtn.textContent = 'vp: ' + vp + ' (m)';
+      vpBtn.classList.toggle('on', vp !== 'full');
+    }
+    vpBtn.onclick = () => { vp = VPS[(VPS.indexOf(vp) + 1) % VPS.length]; applyVp(); };
+    applyVp();
+
+    const overlay = document.getElementById('overlay');
+    const inspector = document.getElementById('inspector');
+    const penTool = document.getElementById('penTool');
+    const textTool = document.getElementById('textTool');
+    const eraseTool = document.getElementById('eraseTool');
+    const penIcon = document.getElementById('penIcon');
+    const modeChip = document.getElementById('modeChip');
+    const hudCopy = document.getElementById('hudCopy');
+    const toast = document.getElementById('toast');
+    const widths = [2, 3, 5, 7, 9];
+    let widthIndex = 2;
+    let color = '#FF2D95';
+    let mode = 'freehand';
+    let drawStart = null;
+    let draft = null;
+    let removed = [];
+    let toastTimer = 0;
+    let draftText = null;
+    let pingSequence = 0;
+
+    const iconPaths = {
+      freehand: '<path d="M3 15 C7 5 11 6 13 13 S18 20 21 8" stroke="currentColor" stroke-width="3.2"/>',
+      rect: '<rect x="4" y="5" width="16" height="14" rx="1.5"/>',
+      ellipse: '<ellipse cx="12" cy="12" rx="8" ry="6.5"/>',
+      triangle: '<path d="m12 4 8 15H4Z"/>',
+      line: '<path d="M4 18 20 6"/>',
+      arrow: '<path d="M4 18 19 7M13 6l6 1-1 6"/>',
+      erase: '<path d="m5 15 8.8-8.8a2.3 2.3 0 0 1 3.2 0l1.8 1.8a2.3 2.3 0 0 1 0 3.2L11 19H6.7a2.2 2.2 0 0 1-1.6-.7 2.3 2.3 0 0 1-.1-3.3Z"/><path d="m11 19 7 0"/>',
+    };
+    const modeLabels = {
+      freehand: '자유곡선', rect: '사각형 1회', ellipse: '타원 1회', triangle: '삼각형 1회',
+      line: '직선 1회', arrow: '화살표 1회', erase: '마크 삭제', text: '새 텍스트', editText: '텍스트 편집'
+    };
+
+    function copyFor(next) {
+      if (['rect','ellipse','triangle','line','arrow'].includes(next)) return '캔버스를 드래그해 한 번 그리면 자유곡선으로 자동 복귀합니다. 화살표는 직선 마크의 끝점 옵션입니다.';
+      if (next === 'erase') return '마크에 올리면 대상이 강조됩니다. 클릭할 때마다 마크 전체를 지우며, 다른 도구를 고를 때까지 삭제 상태가 유지됩니다.';
+      if (next === 'text') return '원하는 위치를 클릭해 새 텍스트를 작성합니다. 기존 텍스트 더블클릭은 편집으로 바로 들어갑니다.';
+      if (next === 'editText') return '기존 텍스트를 수정 중입니다. Enter로 확정하고 자유곡선으로 복귀합니다.';
+      return '자유곡선 패널에서 도형·선·삭제를 고르거나, 캔버스를 더블클릭해 포인터 핑을 표시하세요.';
+    }
+
+    function setMode(next, keepPanel = false) {
+      finishDraftText(true);
+      mode = next;
+      overlay.dataset.mode = next === 'editText' ? 'text' : next;
+      inspector.hidden = !keepPanel;
+      penTool.classList.toggle('active', next === 'freehand' || ['rect','ellipse','triangle','line','arrow'].includes(next));
+      textTool.classList.toggle('active', next === 'text' || next === 'editText');
+      eraseTool.classList.toggle('active', next === 'erase');
+      penTool.style.color = color;
+      penIcon.innerHTML = ['rect','ellipse','triangle','line','arrow'].includes(next) ? iconPaths[next] : iconPaths.freehand;
+      modeChip.textContent = modeLabels[next] + ' · ' + (next === 'text' || next === 'editText' ? getTextSize() + 'px' : widths[widthIndex] + 'px');
+      hudCopy.textContent = copyFor(next);
+      inspector.querySelectorAll('[data-action]').forEach(b => b.classList.toggle('active', b.dataset.action === next));
+    }
+
+    function showToast(message) {
+      toast.textContent = message;
+      toast.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast.classList.remove('show'), 1500);
+    }
+
+    function getTextSize() { return [24,32,44,60,80][widthIndex] }
+
+    function updateSize(step) {
+      widthIndex = Math.max(0, Math.min(widths.length - 1, widthIndex + step));
+      document.documentElement.style.setProperty('--draft-width', widths[widthIndex] + 'px');
+      document.documentElement.style.setProperty('--text-size', getTextSize() + 'px');
+      inspector.querySelectorAll('[data-width]').forEach(b => {
+        const active = Number(b.dataset.width) === widths[widthIndex];
+        b.classList.toggle('active', active);
+        b.querySelector('.width-bar').classList.toggle('outline', !active);
+      });
+      if (draftText) draftText.style.fontSize = getTextSize() + 'px';
+      modeChip.textContent = modeLabels[mode] + ' · ' + ((mode === 'text' || mode === 'editText') ? getTextSize() : widths[widthIndex]) + 'px';
+      showToast((mode === 'text' || mode === 'editText' ? '텍스트 크기 ' + getTextSize() + 'px' : '마크 굵기 ' + widths[widthIndex] + 'px'));
+    }
+
+    function pingAt(x, y) {
+      playPingVariant(overlay, 'b', x, y);
+    }
+
+    function updatePingCounter(sample) {
+      const counter = sample.querySelector('.ping-counter');
+      if (!counter) return;
+      const count = sample.querySelectorAll('.variant-ping').length;
+      counter.textContent = '활성 ' + count;
+      counter.classList.toggle('active', count > 1);
+    }
+
+    function playPingVariant(sample, variant, x, y) {
+      const config = {
+        a: { count: 4, radius: 28, duration: 260, travelOffset: .72, step: 90, kind: 'ray' },
+        b: { count: 8, radius: 34, duration: 500, travelOffset: .4, step: 45, kind: 'diamond' },
+        c: { count: 6, radius: 32, duration: 320, travelOffset: .72, step: 60, kind: 'ray' },
+      }[variant];
+      const sequence = pingSequence++;
+      const ping = document.createElement('span');
+      ping.className = 'variant-ping ping-' + variant;
+      ping.dataset.instance = String(sequence);
+      ping.style.left = x + 'px';
+      ping.style.top = y + 'px';
+      for (let index = 0; index < config.count; index += 1) ping.append(document.createElement('i'));
+      sample.append(ping);
+      updatePingCounter(sample);
+
+      const particles = [...ping.querySelectorAll('i')];
+      if (typeof particles[0]?.animate !== 'function') {
+        ping.addEventListener('animationend', () => {
+          ping.remove();
+          updatePingCounter(sample);
+        }, { once: true });
+        return;
+      }
+
+      ping.classList.add('waapi');
+      const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+      const animations = [];
+      if (reducedMotion) {
+        particles.slice(1).forEach(particle => particle.remove());
+        animations.push(particles[0].animate(
+          [
+            { transform: 'scale(.45)', opacity: 0 },
+            { transform: 'scale(1)', opacity: 1, offset: .25 },
+            { transform: 'scale(.8)', opacity: 0 },
+          ],
+          { duration: 150, easing: 'ease-out', fill: 'forwards' },
+        ));
+      } else {
+        const rotationOffset = (sequence * 17) % config.step;
+        particles.forEach((particle, index) => {
+          const angle = rotationOffset + index * config.step;
+          const radians = angle * Math.PI / 180;
+          const radiusScale = .94 + ((sequence + index * 2) % 5) * .03;
+          const radius = config.radius * radiusScale;
+          const dx = Math.cos(radians) * radius;
+          const dy = Math.sin(radians) * radius;
+          const startTransform = config.kind === 'diamond'
+            ? 'translate(0px, 0px) rotate(45deg) scale(.25)'
+            : `translate(0px, 0px) rotate(${angle}deg) scaleX(.15)`;
+          const travelTransform = config.kind === 'diamond'
+            ? `translate(${dx}px, ${dy}px) rotate(${45 + rotationOffset}deg) scale(.9)`
+            : `translate(${dx}px, ${dy}px) rotate(${angle}deg) scaleX(.9)`;
+          const endTransform = config.kind === 'diamond'
+            ? `translate(${dx}px, ${dy}px) rotate(${45 + rotationOffset}deg) scale(.62)`
+            : `translate(${dx}px, ${dy}px) rotate(${angle}deg) scaleX(.72)`;
+          animations.push(particle.animate(
+            [
+              { transform: startTransform, opacity: 0 },
+              { opacity: 1, offset: .1 },
+              { transform: travelTransform, opacity: .95, offset: config.travelOffset },
+              { transform: endTransform, opacity: 0 },
+            ],
+            {
+              duration: config.duration,
+              easing: 'cubic-bezier(.12,.72,.25,1)',
+              fill: 'forwards',
+            },
+          ));
+        });
+        if (variant === 'c') {
+          const ring = document.createElement('em');
+          ring.className = 'ping-ring';
+          ping.prepend(ring);
+          animations.push(ring.animate(
+            [
+              { transform: 'scale(.25)', opacity: 0 },
+              { opacity: .9, offset: .14 },
+              { transform: 'scale(3.15)', opacity: 0 },
+            ],
+            { duration: config.duration, easing: 'ease-out', fill: 'forwards' },
+          ));
+        }
+      }
+
+      Promise.all(animations.map(animation => animation.finished.catch(() => undefined)))
+        .then(() => {
+          ping.remove();
+          updatePingCounter(sample);
+        });
+    }
+
+    function beginTextAt(x, y, existing = null) {
+      finishDraftText(true);
+      setMode(existing ? 'editText' : 'text');
+      const input = document.createElement('input');
+      input.className = 'text-draft';
+      input.value = existing ? existing.textContent : '';
+      input.placeholder = '텍스트 입력';
+      input.style.left = x + 'px';
+      input.style.top = y + 'px';
+      input.style.fontSize = getTextSize() + 'px';
+      input.dataset.existing = existing ? 'true' : 'false';
+      if (existing) { existing.hidden = true; input._sourceMark = existing; }
+      overlay.append(input);
+      draftText = input;
+      requestAnimationFrame(() => { input.focus(); input.select(); });
+      input.addEventListener('keydown', e => {
+        if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); finishDraftText(false); }
+        if (e.key === 'Escape') { e.preventDefault(); finishDraftText(false); }
+      });
+    }
+
+    function finishDraftText(cancel) {
+      if (!draftText) return;
+      const input = draftText;
+      draftText = null;
+      const source = input._sourceMark;
+      const value = input.value.trim();
+      if (source) {
+        source.hidden = false;
+        if (!cancel && value) source.textContent = value;
+      } else if (!cancel && value) {
+        const mark = document.createElement('div');
+        mark.className = 'mark text';
+        mark.dataset.mark = 'text';
+        mark.textContent = value;
+        mark.style.left = input.style.left;
+        mark.style.top = input.style.top;
+        mark.style.fontSize = input.style.fontSize;
+        mark.style.color = color;
+        overlay.append(mark);
+      }
+      input.remove();
+      if (!cancel) { setMode('freehand'); showToast('텍스트 확정 · 자유곡선으로 복귀'); }
+    }
+
+    function createDraft(kind, x, y) {
+      const el = document.createElement('div');
+      el.className = kind === 'line' || kind === 'arrow' ? 'draft-' + kind : 'draft-shape ' + kind;
+      el.style.left = x + 'px';
+      el.style.top = y + 'px';
+      el.style.borderColor = color;
+      el.style.background = (kind === 'line' || kind === 'arrow') ? color : '';
+      overlay.append(el);
+      return el;
+    }
+
+    function sizeDraft(el, kind, start, point) {
+      const dx = point.x - start.x;
+      const dy = point.y - start.y;
+      if (kind === 'line' || kind === 'arrow') {
+        el.style.width = Math.hypot(dx, dy) + 'px';
+        el.style.transform = 'rotate(' + Math.atan2(dy, dx) + 'rad)';
+      } else if (kind === 'triangle') {
+        const w = Math.max(40, Math.abs(dx));
+        const h = Math.max(36, Math.abs(dy));
+        el.style.left = (dx < 0 ? start.x - w : start.x) + 'px';
+        el.style.top = (dy < 0 ? start.y - h : start.y) + 'px';
+        el.style.setProperty('--draft-w', w + 'px');
+        el.style.setProperty('--draft-h', h + 'px');
+      } else {
+        el.style.left = Math.min(start.x, point.x) + 'px';
+        el.style.top = Math.min(start.y, point.y) + 'px';
+        el.style.width = Math.max(24, Math.abs(dx)) + 'px';
+        el.style.height = Math.max(24, Math.abs(dy)) + 'px';
+      }
+    }
+
+    function overlayPoint(event) {
+      const rect = overlay.getBoundingClientRect();
+      return { x: event.clientX - rect.left, y: event.clientY - rect.top };
+    }
+
+    penTool.addEventListener('click', e => {
+      e.stopPropagation();
+      if (mode !== 'freehand') setMode('freehand');
+      else inspector.hidden = !inspector.hidden;
+    });
+    textTool.addEventListener('click', e => { e.stopPropagation(); setMode('text'); });
+    eraseTool.addEventListener('click', e => { e.stopPropagation(); setMode('erase'); });
+    inspector.addEventListener('click', e => {
+      e.stopPropagation();
+      const action = e.target.closest('[data-action]');
+      const colorButton = e.target.closest('[data-color]');
+      const widthButton = e.target.closest('[data-width]');
+      if (action) setMode(action.dataset.action);
+      if (colorButton) {
+        color = colorButton.dataset.color;
+        document.documentElement.style.setProperty('--pink', color);
+        penTool.style.color = color;
+        inspector.querySelectorAll('[data-color]').forEach(b => {
+          b.classList.toggle('active', b === colorButton);
+          b.querySelector('.color-dot').classList.toggle('current', b === colorButton);
+        });
+      }
+      if (widthButton) {
+        widthIndex = widths.indexOf(Number(widthButton.dataset.width));
+        updateSize(0);
+      }
+    });
+
+    overlay.addEventListener('pointerdown', e => {
+      if (e.target.closest('.marker-stack, .prototype-hud, .text-draft')) return;
+      const mark = e.target.closest('[data-mark]');
+      if (mode === 'erase') {
+        if (mark) {
+          removed.push({ node: mark, parent: mark.parentNode, next: mark.nextSibling });
+          mark.remove();
+          showToast('마크 삭제 · 삭제 도구 유지');
+        }
+        return;
+      }
+      if (mode === 'text') {
+        const point = overlayPoint(e);
+        beginTextAt(point.x, point.y);
+        return;
+      }
+      if (['rect','ellipse','triangle','line','arrow'].includes(mode)) {
+        const point = overlayPoint(e);
+        drawStart = { x: point.x, y: point.y, kind: mode };
+        draft = createDraft(mode, drawStart.x, drawStart.y);
+        draft.style.color = color;
+        overlay.setPointerCapture?.(e.pointerId);
+      }
+    });
+    overlay.addEventListener('pointermove', e => {
+      if (!drawStart || !draft) return;
+      sizeDraft(draft, drawStart.kind, drawStart, overlayPoint(e));
+    });
+    overlay.addEventListener('pointerup', e => {
+      if (!drawStart || !draft) return;
+      sizeDraft(draft, drawStart.kind, drawStart, overlayPoint(e));
+      draft.dataset.mark = drawStart.kind === 'rect' || drawStart.kind === 'ellipse' || drawStart.kind === 'triangle' ? 'shape' : 'line';
+      draft.classList.add('mark');
+      drawStart = null;
+      draft = null;
+      setMode('freehand');
+      showToast('마크 추가 · 자유곡선으로 복귀');
+    });
+    overlay.addEventListener('dblclick', e => {
+      if (e.target.closest('.marker-stack, .prototype-hud, .text-draft')) return;
+      e.preventDefault();
+      const textMark = e.target.closest('[data-mark="text"]');
+      if (textMark) beginTextAt(textMark.offsetLeft, textMark.offsetTop, textMark);
+      else {
+        const rect = overlay.getBoundingClientRect();
+        pingAt(e.clientX - rect.left, e.clientY - rect.top);
+      }
+    });
+
+    document.getElementById('decSize').onclick = e => { e.stopPropagation(); updateSize(-1); };
+    document.getElementById('incSize').onclick = e => { e.stopPropagation(); updateSize(1); };
+    document.getElementById('armText').onclick = e => { e.stopPropagation(); setMode('text'); };
+    document.getElementById('armErase').onclick = e => { e.stopPropagation(); setMode('erase'); };
+    document.getElementById('undo').onclick = e => {
+      e.stopPropagation();
+      const item = removed.pop();
+      if (!item) { showToast('복원할 삭제가 없습니다'); return; }
+      item.parent.insertBefore(item.node, item.next);
+      showToast('삭제한 마크 복원');
+    };
+
+    document.querySelectorAll('.ping-sample').forEach(sample => {
+      const variant = sample.closest('[data-variant]').dataset.variant;
+      sample.addEventListener('dblclick', e => {
+        if (e.target.closest('button')) return;
+        const rect = sample.getBoundingClientRect();
+        playPingVariant(sample, variant, e.clientX - rect.left, e.clientY - rect.top);
+      });
+    });
+    document.querySelectorAll('[data-play-ping]').forEach(button => {
+      button.addEventListener('pointerdown', e => {
+        e.preventDefault();
+        e.stopPropagation();
+        const sample = button.closest('.ping-sample');
+        playPingVariant(sample, button.dataset.playPing, sample.clientWidth * .69, sample.clientHeight * .59);
+      });
+    });
+
+    addEventListener('keydown', e => {
+      if (e.target.matches('input')) return;
+      if (e.key === 'm') { vpBtn.click(); return; }
+      if (e.key.toLowerCase() === 't') { e.preventDefault(); setMode('text'); }
+      if (e.key.toLowerCase() === 'e') { e.preventDefault(); setMode('erase'); }
+      if (e.metaKey && (e.key === '+' || e.key === '=')) { e.preventDefault(); updateSize(1); }
+      if (e.metaKey && e.key === '-') { e.preventDefault(); updateSize(-1); }
+      if (e.metaKey && e.key.toLowerCase() === 'z') { e.preventDefault(); document.getElementById('undo').click(); }
+    });
+
+    addEventListener('hashchange', () => show(location.hash.slice(1)));
+    show(location.hash.slice(1));
+    setMode('freehand', true);
+  </script>
+</body>
+</html>
