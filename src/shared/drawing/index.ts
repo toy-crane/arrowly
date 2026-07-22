@@ -2,6 +2,7 @@
 export {
   drawMark,
   findMarkAt,
+  findMovableMarkAt,
   findTextMarkAt,
   fontString,
   layoutText,
@@ -24,6 +25,7 @@ export type {
   PenMark,
   RectGeometry,
   ShapeMark,
+  TriangleGeometry,
   TextMark,
   TextHit,
   TextLayout,

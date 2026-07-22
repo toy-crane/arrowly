@@ -3,6 +3,7 @@ import { createCanvasContext, installCanvasMock } from "../../../test/canvas";
 import {
   drawMark,
   findMarkAt,
+  findMovableMarkAt,
   findTextMarkAt,
   fontString,
   layoutText,
@@ -180,6 +181,7 @@ describe("mark movement", () => {
         kind: "shape",
         shape: "line",
         geometry: { from: { x: 5, y: 6 }, to: { x: 15, y: 16 } },
+        arrowhead: "none",
         color: "green",
         width: 2,
       },
@@ -200,6 +202,7 @@ describe("mark movement", () => {
         kind: "shape",
         shape: "line",
         geometry: { from: { x: 12, y: 3 }, to: { x: 22, y: 13 } },
+        arrowhead: "none",
         color: "green",
         width: 2,
       },
@@ -224,6 +227,7 @@ describe("mark movement", () => {
       kind: "shape",
       shape: "line",
       geometry: { from: { x: 120, y: 20 }, to: { x: 200, y: 20 } },
+      arrowhead: "none",
       color: "orange",
       width: 2,
     };
@@ -241,6 +245,13 @@ describe("mark movement", () => {
       color: "blue",
       width: 3,
     };
+    const triangle: Mark = {
+      kind: "shape",
+      shape: "triangle",
+      geometry: { x: 360, y: 10, w: 60, h: 50 },
+      color: "yellow",
+      width: 3,
+    };
     const text: TextMark = { ...textMark, x: 400, y: 10 };
 
     expect(findMarkAt([pen], { x: 50, y: 55 })).toEqual({ index: 0, mark: pen });
@@ -248,10 +259,34 @@ describe("mark movement", () => {
     expect(findMarkAt([line], { x: 160, y: 26 })).toEqual({ index: 0, mark: line });
     expect(findMarkAt([rect], { x: 245, y: 30 })).toEqual({ index: 0, mark: rect });
     expect(findMarkAt([ellipse], { x: 330, y: 30 })).toEqual({ index: 0, mark: ellipse });
+    expect(findMarkAt([triangle], { x: 390, y: 30 })).toEqual({ index: 0, mark: triangle });
+    expect(findMarkAt([triangle], { x: 365, y: 12 })).toBeNull();
     expect(findMarkAt([text], { x: 405, y: 20 })).toEqual({ index: 0, mark: text });
 
     const topLine = { ...line, geometry: { from: { x: 0, y: 0 }, to: { x: 100, y: 100 } } };
     expect(findMarkAt([pen, topLine], { x: 50, y: 50 })).toEqual({ index: 1, mark: topLine });
+  });
+
+  it("offers only pen and text marks to the move gesture", () => {
+    installCanvasMock();
+    const pen: Mark = {
+      kind: "pen",
+      points: [{ x: 0, y: 0 }, { x: 100, y: 100 }],
+      color: "red",
+      width: 2,
+    };
+    const shape: Mark = {
+      kind: "shape",
+      shape: "rect",
+      geometry: { x: 20, y: 20, w: 60, h: 60 },
+      color: "green",
+      width: 3,
+    };
+    const text: TextMark = { ...textMark, x: 20, y: 20 };
+
+    expect(findMovableMarkAt([pen, shape], { x: 50, y: 50 })).toEqual({ index: 0, mark: pen });
+    expect(findMovableMarkAt([shape], { x: 50, y: 50 })).toBeNull();
+    expect(findMovableMarkAt([shape, text], { x: 25, y: 60 })).toEqual({ index: 1, mark: text });
   });
 
   it("exposes frames for text and closed shapes but not path marks", () => {
@@ -412,6 +447,22 @@ describe("drawMark", () => {
     expect(ellipseCtx.stroke).toHaveBeenCalledOnce();
   });
 
+  it("renders an upright triangle inside its drag bounds", () => {
+    const ctx = createCanvasContext();
+    drawMark(ctx, {
+      kind: "shape",
+      shape: "triangle",
+      geometry: { x: 10, y: 20, w: 100, h: 60 },
+      color: "#FFD400",
+      width: 4,
+    });
+    expect(ctx.moveTo).toHaveBeenCalledWith(60, 20);
+    expect(ctx.lineTo).toHaveBeenNthCalledWith(1, 110, 80);
+    expect(ctx.lineTo).toHaveBeenNthCalledWith(2, 10, 80);
+    expect(ctx.closePath).toHaveBeenCalledOnce();
+    expect(ctx.stroke).toHaveBeenCalledOnce();
+  });
+
   it("renders a line as exactly one straight shaft", () => {
     const ctx = createCanvasContext();
     const geometry: LineGeometry = { from: { x: 8, y: 12 }, to: { x: 100, y: 64 } };
@@ -419,6 +470,7 @@ describe("drawMark", () => {
       kind: "shape",
       shape: "line",
       geometry,
+      arrowhead: "none",
       color: "#FF2D95",
       width: 5,
     });
@@ -427,6 +479,24 @@ describe("drawMark", () => {
     expect(ctx.moveTo).toHaveBeenCalledWith(8, 12);
     expect(ctx.lineTo).toHaveBeenCalledOnce();
     expect(ctx.lineTo).toHaveBeenCalledWith(100, 64);
+    expect(ctx.stroke).toHaveBeenCalledOnce();
+  });
+
+  it("renders an end arrowhead as part of a line mark", () => {
+    const ctx = createCanvasContext();
+    drawMark(ctx, {
+      kind: "shape",
+      shape: "line",
+      geometry: { from: { x: 8, y: 12 }, to: { x: 100, y: 64 } },
+      arrowhead: "end",
+      color: "#FF2D95",
+      width: 5,
+    });
+    expect(ctx.moveTo).toHaveBeenCalledTimes(3);
+    expect(ctx.moveTo).toHaveBeenNthCalledWith(1, 8, 12);
+    expect(ctx.moveTo).toHaveBeenNthCalledWith(2, 100, 64);
+    expect(ctx.moveTo).toHaveBeenNthCalledWith(3, 100, 64);
+    expect(ctx.lineTo).toHaveBeenCalledTimes(3);
     expect(ctx.stroke).toHaveBeenCalledOnce();
   });
 });

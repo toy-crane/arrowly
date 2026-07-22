@@ -16,16 +16,19 @@ export type TextMark = {
 
 export type RectGeometry = { x: number; y: number; w: number; h: number };
 export type EllipseGeometry = { cx: number; cy: number; rx: number; ry: number };
+export type TriangleGeometry = RectGeometry;
 export type LineGeometry = { from: Point; to: Point };
 /** 홀드 보정으로 정리된 닫힌 도형 마크. */
 export type ShapeMark =
   | { kind: "shape"; shape: "rect"; geometry: RectGeometry; color: string; width: number }
-  | { kind: "shape"; shape: "ellipse"; geometry: EllipseGeometry; color: string; width: number };
+  | { kind: "shape"; shape: "ellipse"; geometry: EllipseGeometry; color: string; width: number }
+  | { kind: "shape"; shape: "triangle"; geometry: TriangleGeometry; color: string; width: number };
 /** 홀드 보정으로 잠긴 직선 마크. */
 export type LineMark = {
   kind: "shape";
   shape: "line";
   geometry: LineGeometry;
+  arrowhead: "none" | "end";
   color: string;
   width: number;
 };
@@ -43,7 +46,7 @@ export function translateMark(mark: Mark, dx: number, dy: number): Mark {
   if (mark.kind === "text") {
     return { ...mark, x: mark.x + dx, y: mark.y + dy };
   }
-  if (mark.shape === "rect") {
+  if (mark.shape === "rect" || mark.shape === "triangle") {
     return {
       ...mark,
       geometry: { ...mark.geometry, x: mark.geometry.x + dx, y: mark.geometry.y + dy },
@@ -279,7 +282,7 @@ export function markFrameBounds(mark: Mark): RectGeometry | null {
     };
   }
   const padding = mark.width / 2 + MARK_HIT_PADDING_PX;
-  if (mark.shape === "rect") {
+  if (mark.shape === "rect" || mark.shape === "triangle") {
     return {
       x: mark.geometry.x - padding,
       y: mark.geometry.y - padding,
@@ -337,6 +340,25 @@ function hitsPath(points: Point[], width: number, point: Point): boolean {
   return false;
 }
 
+function hitsTriangle(geometry: TriangleGeometry, width: number, point: Point): boolean {
+  const top = { x: geometry.x + geometry.w / 2, y: geometry.y };
+  const right = { x: geometry.x + geometry.w, y: geometry.y + geometry.h };
+  const left = { x: geometry.x, y: geometry.y + geometry.h };
+  const cross = (a: Point, b: Point, p: Point) =>
+    (p.x - b.x) * (a.y - b.y) - (a.x - b.x) * (p.y - b.y);
+  const d1 = cross(top, right, point);
+  const d2 = cross(right, left, point);
+  const d3 = cross(left, top, point);
+  const inside = !((d1 < 0 || d2 < 0 || d3 < 0) && (d1 > 0 || d2 > 0 || d3 > 0));
+  if (inside) return true;
+  const tolerance = width / 2 + MARK_HIT_PADDING_PX;
+  return (
+    distanceToSegment(point, top, right) <= tolerance ||
+    distanceToSegment(point, right, left) <= tolerance ||
+    distanceToSegment(point, left, top) <= tolerance
+  );
+}
+
 function hitsMark(mark: Mark, point: Point): boolean {
   if (mark.kind === "pen") return hitsPath(mark.points, mark.width, point);
   if (mark.kind === "text") return hitsTextMark(mark, point);
@@ -353,6 +375,7 @@ function hitsMark(mark: Mark, point: Point): boolean {
       point.y <= y + h + padding
     );
   }
+  if (mark.shape === "triangle") return hitsTriangle(mark.geometry, mark.width, point);
   const { cx, cy, rx, ry } = mark.geometry;
   const padding = mark.width / 2 + MARK_HIT_PADDING_PX;
   const nx = (point.x - cx) / (rx + padding);
@@ -364,6 +387,16 @@ function hitsMark(mark: Mark, point: Point): boolean {
 export function findMarkAt(marks: Mark[], point: Point): MarkHit | null {
   for (let index = marks.length - 1; index >= 0; index -= 1) {
     const mark = marks[index];
+    if (hitsMark(mark, point)) return { index, mark };
+  }
+  return null;
+}
+
+/** 이동 가능한 펜·텍스트 마크만 가장 위에서부터 찾는다. */
+export function findMovableMarkAt(marks: Mark[], point: Point): MarkHit | null {
+  for (let index = marks.length - 1; index >= 0; index -= 1) {
+    const mark = marks[index];
+    if (mark.kind === "shape") continue;
     if (hitsMark(mark, point)) return { index, mark };
   }
   return null;
@@ -471,11 +504,27 @@ export function drawMark(ctx: CanvasRenderingContext2D, m: Mark) {
     ctx.beginPath();
     ctx.ellipse(g.cx, g.cy, g.rx, g.ry, 0, 0, Math.PI * 2);
     ctx.stroke();
+  } else if (m.shape === "triangle") {
+    const g = m.geometry;
+    ctx.beginPath();
+    ctx.moveTo(g.x + g.w / 2, g.y);
+    ctx.lineTo(g.x + g.w, g.y + g.h);
+    ctx.lineTo(g.x, g.y + g.h);
+    ctx.closePath();
+    ctx.stroke();
   } else {
     const { from, to } = m.geometry;
     ctx.beginPath();
     ctx.moveTo(from.x, from.y);
     ctx.lineTo(to.x, to.y);
+    if (m.arrowhead === "end") {
+      const angle = Math.atan2(to.y - from.y, to.x - from.x);
+      const length = Math.max(12, m.width * 3);
+      ctx.moveTo(to.x, to.y);
+      ctx.lineTo(to.x + Math.cos(angle + (Math.PI * 5) / 6) * length, to.y + Math.sin(angle + (Math.PI * 5) / 6) * length);
+      ctx.moveTo(to.x, to.y);
+      ctx.lineTo(to.x + Math.cos(angle - (Math.PI * 5) / 6) * length, to.y + Math.sin(angle - (Math.PI * 5) / 6) * length);
+    }
     ctx.stroke();
   }
 }

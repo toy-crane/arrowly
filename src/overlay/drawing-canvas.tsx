@@ -14,7 +14,7 @@ import {
 } from "../shared/constants";
 import {
   drawMark,
-  findMarkAt,
+  findMovableMarkAt,
   findTextMarkAt,
   LineMark,
   markFrameBounds,
@@ -36,7 +36,6 @@ import { matchesAccelerator } from "../shared/shortcuts";
 import {
   classifyStroke,
   HOLD_MS,
-  projectLineEndpoint,
   RING_DELAY_MS,
   STILL_RADIUS_PX,
 } from "./shapes";
@@ -316,23 +315,9 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
     let holdStart = 0;
     let holdTimer = 0;
     let snapped: ShapeMark | LineMark | null = null;
-    let lineRawEndpoint: Point | null = null;
-    let lineShiftHeld = false;
+    let previewAnchor: Point | null = null;
     let ringVisible = false;
     let ringProgress = 0;
-
-    const updateLockedLine = () => {
-      if (!snapped || snapped.shape !== "line" || !lineRawEndpoint) return false;
-      const from = snapped.geometry.from;
-      snapped = {
-        ...snapped,
-        geometry: {
-          from,
-          to: lineShiftHeld ? projectLineEndpoint(from, lineRawEndpoint) : lineRawEndpoint,
-        },
-      };
-      return true;
-    };
 
     const stopHold = () => {
       if (holdTimer) window.clearInterval(holdTimer);
@@ -450,16 +435,14 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
         const result = classifyStroke(store.live.points);
         if (result) {
           const { color, widthKey } = toolRef.current;
-          snapped = {
-            kind: "shape",
-            ...result,
+          const ink = {
             color,
             width: strokeWidthPx(widthKey, Math.min(window.innerWidth, window.innerHeight)),
-          } as ShapeMark | LineMark;
-          if (snapped.shape === "line") {
-            lineRawEndpoint = snapped.geometry.to;
-            updateLockedLine();
-          }
+          };
+          snapped = result.shape === "line"
+            ? { kind: "shape", ...result, arrowhead: "none", ...ink }
+            : { kind: "shape", ...result, ...ink };
+          previewAnchor = store.live.points[store.live.points.length - 1];
           stopHold();
         } else {
           armHold(store.live.points[store.live.points.length - 1]); // 과소 획 — 재무장
@@ -538,8 +521,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       dblPending = null;
       stopHold();
       snapped = null;
-      lineRawEndpoint = null;
-      lineShiftHeld = false;
+      previewAnchor = null;
       moveGesture = null;
       movingMark = null;
       movingMarkIndex = -1;
@@ -564,7 +546,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
         if (editingRef.current) return;
         clearMoveRevealTimer();
         const point = toPoint(e);
-        const hit = findMarkAt(store.marks, point);
+        const hit = findMovableMarkAt(store.marks, point);
         commandPointerActive = true;
         activePointerId = e.pointerId;
         live.setPointerCapture(e.pointerId);
@@ -607,8 +589,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       live.setPointerCapture(e.pointerId);
       activePointerId = e.pointerId;
       snapped = null;
-      lineRawEndpoint = null;
-      lineShiftHeld = e.shiftKey;
+      previewAnchor = null;
       armHold(p);
       scheduleLive();
     };
@@ -616,7 +597,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
     const onPointerMove = (e: PointerEvent) => {
       if (activePointerId !== null && e.pointerId !== activePointerId) return;
       if (activePointerId === null && moveDiscoveryVisible) {
-        const nextHovered = findMarkAt(store.marks, toPoint(e))?.index ?? -1;
+        const nextHovered = findMovableMarkAt(store.marks, toPoint(e))?.index ?? -1;
         if (nextHovered !== hoveredMarkIndex) {
           hoveredMarkIndex = nextHovered;
           live.style.cursor = nextHovered >= 0 ? "grab" : "default";
@@ -641,10 +622,15 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       }
       if (commandPointerActive) return;
       if (snapped) {
-        if (snapped.shape === "line") {
-          lineRawEndpoint = toPoint(e);
-          lineShiftHeld = e.shiftKey;
-          updateLockedLine();
+        const point = toPoint(e);
+        if (
+          previewAnchor &&
+          Math.hypot(point.x - previewAnchor.x, point.y - previewAnchor.y) > STILL_RADIUS_PX
+        ) {
+          snapped = null;
+          previewAnchor = null;
+          store.extendLive([point]);
+          armHold(point);
           scheduleLive();
         }
         return;
@@ -687,7 +673,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
           renderBase();
         }
         hoveredMarkIndex = moveDiscoveryVisible
-          ? (findMarkAt(store.marks, point)?.index ?? -1)
+          ? (findMovableMarkAt(store.marks, point)?.index ?? -1)
           : -1;
         live.style.cursor = hoveredMarkIndex >= 0 ? "grab" : "default";
         renderLive();
@@ -711,16 +697,10 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       }
       stopHold();
       if (snapped) {
-        if (snapped.shape === "line") {
-          lineRawEndpoint = toPoint(e);
-          lineShiftHeld = e.shiftKey;
-          updateLockedLine();
-        }
         // 스냅 확정: 손그림 live를 버리고 도형 마크를 커밋한다 (undo 1단위)
         const mark = snapped;
         snapped = null;
-        lineRawEndpoint = null;
-        lineShiftHeld = false;
+        previewAnchor = null;
         activePointerId = null;
         store.cancelLive();
         store.push(mark);
@@ -782,11 +762,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
         return;
       }
       if (!isModifierKey(e.key)) suppressMoveDiscovery();
-      if (e.key === "Shift") {
-        lineShiftHeld = true;
-        if (updateLockedLine()) scheduleLive();
-        return;
-      }
+      if (e.key === "Shift") return;
       const sizeDelta =
         e.metaKey &&
         !e.altKey &&
@@ -836,8 +812,6 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
         return;
       }
       if (e.key !== "Shift") return;
-      lineShiftHeld = e.shiftKey;
-      if (updateLockedLine()) scheduleLive();
     };
 
     const resetLostCommandState = () => {

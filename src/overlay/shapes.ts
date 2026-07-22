@@ -1,8 +1,14 @@
-import type { EllipseGeometry, LineGeometry, Point, RectGeometry } from "../shared/drawing";
+import type {
+  EllipseGeometry,
+  LineGeometry,
+  Point,
+  RectGeometry,
+  TriangleGeometry,
+} from "../shared/drawing";
 
 // 홀드 보정 파라미터 — 감도 튜닝은 이 상수들로만 한다 (Mac 수동 체크리스트가 게이트).
 /** 이 시간 동안 버튼을 누른 채 멈추면 보정한다. */
-export const HOLD_MS = 450;
+export const HOLD_MS = 350;
 /** 멈춘 뒤 진행 링이 보이기 시작하는 시점. */
 export const RING_DELAY_MS = 150;
 /** 이 반경 안의 움직임은 "멈춤"으로 친다. */
@@ -24,6 +30,7 @@ export const MIN_ELLIPSE_MINOR_PX = 8; // MIN_SNAP_DIAG_PX / 3
 export type SnapResult =
   | { shape: "rect"; geometry: RectGeometry }
   | { shape: "ellipse"; geometry: EllipseGeometry }
+  | { shape: "triangle"; geometry: TriangleGeometry }
   | { shape: "line"; geometry: LineGeometry };
 
 const LINE_ANGLE_STEP_RAD = Math.PI / 4;
@@ -121,8 +128,13 @@ export function classifyStroke(points: Point[]): SnapResult | null {
   if (closed) {
     const step = Math.min(12, Math.max(4, diag / 48));
     const rs = resample(points, step);
-    if (countCorners(rs) >= MIN_RECT_CORNERS) {
+    const corners = countCorners(rs);
+    if (corners >= MIN_RECT_CORNERS) {
       return { shape: "rect", geometry: bbox };
+    }
+    // 닫힌 경로의 시작/끝 모서리는 선형 스캔에서 제외되므로 삼각형은 내부 모서리 2개가 잡힌다.
+    if (corners === MIN_RECT_CORNERS - 1) {
+      return { shape: "triangle", geometry: bbox };
     }
     const minorAxis = Math.min(bbox.w, bbox.h) / 2;
     if (minorAxis < MIN_ELLIPSE_MINOR_PX) return null; // 직선 왕복 등 — 찌그러진 타원으로 오인하지 않는다
