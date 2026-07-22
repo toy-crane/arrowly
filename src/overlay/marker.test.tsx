@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Marker } from "./marker";
@@ -110,7 +110,7 @@ describe("Marker", () => {
     expect(screen.getByRole("group", { name: "Text properties" })).toBeInTheDocument();
   });
 
-  it("arms one of five quick inserts from the pen panel and reflects it in the pen tool", async () => {
+  it("arms one of four quick inserts from the pen panel and reflects it in the pen tool", async () => {
     const user = userEvent.setup();
     const onToolChange = vi.fn();
     const props = {
@@ -129,7 +129,7 @@ describe("Marker", () => {
 
     await user.click(screen.getByRole("button", { name: "Freehand tool" }));
     expect(screen.getByRole("group", { name: "Quick insert" })).toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: /Insert .* once/ })).toHaveLength(5);
+    expect(screen.getAllByRole("button", { name: /Insert .* once/ })).toHaveLength(4);
 
     await user.click(screen.getByRole("button", { name: "Insert triangle once" }));
     expect(onToolChange).toHaveBeenCalledWith("triangle");
@@ -141,7 +141,44 @@ describe("Marker", () => {
     expect(freehand.querySelector("svg")).toHaveAttribute("data-quick-insert-icon", "triangle");
   });
 
-  it("shows every quick insert icon in neutral white", async () => {
+  it("orders drawing choices by usage and returns to freehand from the first choice", async () => {
+    const user = userEvent.setup();
+    const onToolChange = vi.fn();
+    render(
+      <Marker
+        color="#FF2D95"
+        widthKey="medium"
+        textSizeKey="medium"
+        board={false}
+        tool="freehand"
+        onColorChange={vi.fn()}
+        onWidthChange={vi.fn()}
+        onTextSizeChange={vi.fn()}
+        onBoardToggle={vi.fn()}
+        onToolChange={onToolChange}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Freehand tool" }));
+    const choices = within(screen.getByRole("group", { name: "Quick insert" })).getAllByRole(
+      "button",
+    );
+
+    expect(choices.map((button) => button.getAttribute("aria-label"))).toEqual([
+      "Freehand tool",
+      "Insert arrow once",
+      "Insert rectangle once",
+      "Insert ellipse once",
+      "Insert triangle once",
+    ]);
+    expect(screen.queryByRole("button", { name: "Insert line once" })).not.toBeInTheDocument();
+
+    await user.click(choices[0]);
+    expect(onToolChange).toHaveBeenCalledWith("freehand");
+    expect(screen.queryByRole("group", { name: "Freehand properties" })).not.toBeInTheDocument();
+  });
+
+  it("shows every drawing choice icon in neutral white", async () => {
     const user = userEvent.setup();
     render(
       <Marker
@@ -159,10 +196,12 @@ describe("Marker", () => {
     );
 
     await user.click(screen.getByRole("button", { name: "Freehand tool" }));
-    const quickInsertButtons = screen.getAllByRole("button", { name: /Insert .* once/ });
+    const drawingChoiceButtons = within(
+      screen.getByRole("group", { name: "Quick insert" }),
+    ).getAllByRole("button");
 
-    expect(quickInsertButtons).toHaveLength(5);
-    for (const button of quickInsertButtons) {
+    expect(drawingChoiceButtons).toHaveLength(5);
+    for (const button of drawingChoiceButtons) {
       expect(button.style.color).toBe("rgb(232, 234, 240)");
       expect(button.querySelector("svg")).toHaveAttribute("stroke", "currentColor");
     }

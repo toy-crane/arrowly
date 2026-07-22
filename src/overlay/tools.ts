@@ -3,6 +3,8 @@ import type { LineMark, Point, ShapeMark } from "../shared/drawing";
 export const QUICK_INSERT_TOOLS = ["rect", "ellipse", "triangle", "line", "arrow"] as const;
 
 export type QuickInsertTool = (typeof QUICK_INSERT_TOOLS)[number];
+export const PEN_INSPECTOR_TOOLS = ["freehand", "arrow", "rect", "ellipse", "triangle"] as const;
+export type PenInspectorTool = (typeof PEN_INSPECTOR_TOOLS)[number];
 export type DrawingTool = "freehand" | "text" | "delete" | QuickInsertTool;
 
 export function isQuickInsertTool(tool: string): tool is QuickInsertTool {

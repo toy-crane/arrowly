@@ -16,7 +16,8 @@ import { ToolInspector } from "./tool-inspector";
 import {
   DrawingTool,
   isQuickInsertTool,
-  QUICK_INSERT_TOOLS,
+  PEN_INSPECTOR_TOOLS,
+  PenInspectorTool,
   QuickInsertTool,
 } from "./tools";
 
@@ -168,7 +169,7 @@ export function Marker({
     onTextSizeChange(size);
     setPanel("collapsed");
   };
-  const pickQuickInsert = (next: QuickInsertTool) => {
+  const pickPenTool = (next: PenInspectorTool) => {
     onToolChange(next);
     setPanel("collapsed");
   };
@@ -268,14 +269,18 @@ export function Marker({
             <>
               <div role="group" aria-label={t("marker.quickInsertLabel")} style={inspectorRow}>
                 <div style={choiceStrip}>
-                  {QUICK_INSERT_TOOLS.map((quickTool) => (
+                  {PEN_INSPECTOR_TOOLS.map((penTool) => (
                     <button
-                      key={quickTool}
+                      key={penTool}
                       style={{ ...choice, color: NEUTRAL }}
-                      aria-label={t(`marker.quickInsert.${quickTool}` as Key)}
-                      onClick={() => pickQuickInsert(quickTool)}
+                      aria-label={
+                        penTool === "freehand"
+                          ? t("marker.freehandTool")
+                          : t(`marker.quickInsert.${penTool}` as Key)
+                      }
+                      onClick={() => pickPenTool(penTool)}
                     >
-                      <QuickInsertIcon tool={quickTool} />
+                      <QuickInsertIcon tool={penTool} />
                     </button>
                   ))}
                 </div>
@@ -428,7 +433,7 @@ const toolSpacing: CSSProperties = {
   marginRight: 4,
 };
 
-function QuickInsertIcon({ tool }: { tool: QuickInsertTool }) {
+function QuickInsertIcon({ tool }: { tool: QuickInsertTool | "freehand" }) {
   return (
     <svg
       data-quick-insert-icon={tool}
@@ -442,6 +447,9 @@ function QuickInsertIcon({ tool }: { tool: QuickInsertTool }) {
       strokeLinejoin="round"
       aria-hidden="true"
     >
+      {tool === "freehand" && (
+        <path d="M3 15.8c3.2-7.4 6.3-7.5 8.2-3.2 2.1 4.8 6 3.7 9.8-2.5" />
+      )}
       {tool === "rect" && <rect x="4" y="5" width="16" height="14" rx="1.5" />}
       {tool === "ellipse" && <ellipse cx="12" cy="12" rx="8" ry="6.5" />}
       {tool === "triangle" && <path d="m12 4 8 15H4Z" />}
