@@ -29,6 +29,7 @@ import {
 import { applyPenCursor, applyTextCursor, resetCursor } from "./cursor";
 import { DrawingCanvas, type DrawingCanvasHandle } from "./drawing-canvas";
 import { Marker } from "./marker";
+import { PointerPingLayer, type PointerPingLayerHandle } from "./pointer-ping-layer";
 import type { DrawingTool } from "./tools";
 
 export function OverlayApp() {
@@ -43,6 +44,7 @@ export function OverlayApp() {
   const [tool, setTool] = useState<DrawingTool>("freehand");
   const [editingTextSizeKey, setEditingTextSizeKey] = useState<TextSizeKey | null>(null);
   const canvasRef = useRef<DrawingCanvasHandle>(null);
+  const pingLayerRef = useRef<PointerPingLayerHandle>(null);
 
   useEffect(() => {
     loadShortcuts().then((s) => {
@@ -124,12 +126,14 @@ export function OverlayApp() {
         onToolChange={setTool}
         onWidthStep={changeWidthBy}
         onTextSizeStep={changeTextSizeBy}
+        onPointerPing={(point) => pingLayerRef.current?.pingAt(point)}
         onEditingTextSizeChange={setEditingTextSizeKey}
         onNewTextSizeCommit={(size) => {
           setTextSizeKey(size);
           void saveTextSize(size);
         }}
       />
+      <PointerPingLayer ref={pingLayerRef} />
       {drawing && !markerHidden && (
         <Marker
           color={color}

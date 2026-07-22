@@ -67,6 +67,7 @@ type Props = {
   onToolChange: (tool: DrawingTool) => void;
   onWidthStep?: (delta: -1 | 1) => void;
   onTextSizeStep?: (delta: -1 | 1) => void;
+  onPointerPing?: (point: Point) => void;
   onEditingTextSizeChange?: (size: TextSizeKey | null) => void;
   onNewTextSizeCommit?: (size: TextSizeKey) => void;
 };
@@ -111,6 +112,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
     onToolChange,
     onWidthStep,
     onTextSizeStep,
+    onPointerPing,
     onEditingTextSizeChange,
     onNewTextSizeCommit,
   },
@@ -134,6 +136,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
   onWidthStepRef.current = onWidthStep;
   const onTextSizeStepRef = useRef(onTextSizeStep);
   onTextSizeStepRef.current = onTextSizeStep;
+  const onPointerPingRef = useRef(onPointerPing);
+  onPointerPingRef.current = onPointerPing;
   const onEditingTextSizeChangeRef = useRef(onEditingTextSizeChange);
   onEditingTextSizeChangeRef.current = onEditingTextSizeChange;
   const onNewTextSizeCommitRef = useRef(onNewTextSizeCommit);
@@ -789,7 +793,12 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
           }
         }
         lastClick = null;
-        beginTextAt(at);
+        const textHit = findTextMarkAt(store.marks, at);
+        if (textHit) {
+          beginExistingText(textHit.index, textHit.mark, at);
+        } else {
+          onPointerPingRef.current?.(at);
+        }
         return;
       }
       stopHold();

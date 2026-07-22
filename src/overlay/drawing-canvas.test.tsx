@@ -30,6 +30,7 @@ function Harness({
   onChange = vi.fn() as Mock,
   onWidthStep = vi.fn(),
   onTextSizeStep = vi.fn(),
+  onPointerPing = vi.fn(),
   onEditingSize = vi.fn(),
   onNewTextSizeCommit = vi.fn(),
 }: {
@@ -38,6 +39,7 @@ function Harness({
   onChange?: Mock;
   onWidthStep?: (delta: -1 | 1) => void;
   onTextSizeStep?: (delta: -1 | 1) => void;
+  onPointerPing?: (point: { x: number; y: number }) => void;
   onEditingSize?: (size: "xsmall" | "small" | "medium" | "large" | "xlarge" | null) => void;
   onNewTextSizeCommit?: (size: "xsmall" | "small" | "medium" | "large" | "xlarge") => void;
 }) {
@@ -52,6 +54,7 @@ function Harness({
         onNewTextSizeCommit={onNewTextSizeCommit}
         onWidthStep={onWidthStep}
         onTextSizeStep={onTextSizeStep}
+        onPointerPing={onPointerPing}
         onToolChange={(next) => {
           onChange(next === "text");
           setTool(next);
@@ -629,9 +632,10 @@ describe("DrawingCanvas", () => {
       vi.useRealTimers();
     });
 
-    it("retracts the first click's dot and opens the editor", async () => {
+    it("retracts the first click's dot and emits a pointer ping", async () => {
       const onChange = vi.fn();
-      const { container } = render(<Harness onChange={onChange} />);
+      const onPointerPing = vi.fn();
+      const { container } = render(<Harness onChange={onChange} onPointerPing={onPointerPing} />);
       const [baseCtx] = contexts;
       const live = container.querySelectorAll("canvas")[1];
 
@@ -643,10 +647,9 @@ describe("DrawingCanvas", () => {
       vi.advanceTimersByTime(100);
       fireEvent.pointerDown(live, { button: 0, clientX: 52, clientY: 51, pointerId: 2 });
       fireEvent.pointerUp(live, { clientX: 52, clientY: 51, pointerId: 2 });
-      await flushTextEditingStart();
-
-      expect(screen.getByRole("textbox")).toBeInTheDocument();
-      expect(onChange).toHaveBeenLastCalledWith(true);
+      expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+      expect(onPointerPing).toHaveBeenCalledWith({ x: 50, y: 50 });
+      expect(onChange).not.toHaveBeenCalled();
       // 점이 회수됐으므로 renderBase 재실행에서 stroke가 다시 그려지지 않는다
       expect(baseCtx.stroke).toHaveBeenCalledTimes(1);
     });
@@ -688,6 +691,22 @@ describe("DrawingCanvas", () => {
       fireEvent.pointerUp(live, { clientX: 200, clientY: 200, pointerId: 3 });
       expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
       expect(baseCtx.stroke).toHaveBeenCalledTimes(3);
+    });
+
+    it("does not emit a ping while the deletion tool owns the clicks", () => {
+      const onPointerPing = vi.fn();
+      const { container } = render(
+        <Harness initialTool="delete" onPointerPing={onPointerPing} />,
+      );
+      const live = container.querySelectorAll("canvas")[1];
+
+      fireEvent.pointerDown(live, { button: 0, clientX: 50, clientY: 50, pointerId: 1 });
+      fireEvent.pointerUp(live, { clientX: 50, clientY: 50, pointerId: 1 });
+      vi.advanceTimersByTime(100);
+      fireEvent.pointerDown(live, { button: 0, clientX: 50, clientY: 50, pointerId: 2 });
+      fireEvent.pointerUp(live, { clientX: 50, clientY: 50, pointerId: 2 });
+
+      expect(onPointerPing).not.toHaveBeenCalled();
     });
   });
 

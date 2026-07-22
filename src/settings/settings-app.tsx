@@ -7,6 +7,7 @@ const FIXED_ROWS: { label: string; accel: string }[] = [
   { label: t("settings.undo"), accel: "Cmd+KeyZ" },
   { label: t("settings.textLarger"), accel: "Cmd+Equal" },
   { label: t("settings.textSmaller"), accel: "Cmd+Minus" },
+  { label: t("settings.deleteTool"), accel: "KeyE" },
   { label: t("settings.exit"), accel: "Escape" },
 ];
 

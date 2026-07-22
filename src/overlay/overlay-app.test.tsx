@@ -1,3 +1,4 @@
+import { forwardRef, useImperativeHandle } from "react";
 import { emit } from "@tauri-apps/api/event";
 import { mockIPC } from "@tauri-apps/api/mocks";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
@@ -13,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   applyPenCursor: vi.fn(),
   applyTextCursor: vi.fn(),
   resetCursor: vi.fn(),
+  pingAt: vi.fn(),
 }));
 
 vi.mock("../shared/settings", async (importOriginal) => {
@@ -41,6 +43,7 @@ vi.mock("./drawing-canvas", () => ({
     onToolChange,
     onWidthStep,
     onTextSizeStep,
+    onPointerPing,
   }: {
     clearAccel: string;
     textAccel: string;
@@ -49,6 +52,7 @@ vi.mock("./drawing-canvas", () => ({
     onToolChange: (tool: "freehand" | "text" | "delete") => void;
     onWidthStep: (delta: -1 | 1) => void;
     onTextSizeStep: (delta: -1 | 1) => void;
+    onPointerPing: (point: { x: number; y: number }) => void;
   }) => (
     <div
       data-testid="canvas"
@@ -60,9 +64,16 @@ vi.mock("./drawing-canvas", () => ({
       <button onClick={() => onToolChange("delete")}>delete-tool</button>
       <button onClick={() => onWidthStep(1)}>width-step</button>
       <button onClick={() => onTextSizeStep(-1)}>text-step</button>
+      <button onClick={() => onPointerPing({ x: 80, y: 90 })}>pointer-ping</button>
       {clearAccel}
     </div>
   ),
+}));
+vi.mock("./pointer-ping-layer", () => ({
+  PointerPingLayer: forwardRef(function MockPointerPingLayer(_, ref) {
+    useImperativeHandle(ref, () => ({ pingAt: mocks.pingAt }));
+    return <div data-testid="ping-layer" />;
+  }),
 }));
 vi.mock("./marker", () => ({
   Marker: (props: {
@@ -105,6 +116,7 @@ describe("OverlayApp", () => {
     mocks.applyPenCursor.mockReset();
     mocks.applyTextCursor.mockReset();
     mocks.resetCursor.mockReset();
+    mocks.pingAt.mockReset();
     mockIPC((cmd) => void commands.push(cmd), { shouldMockEvents: true });
     Object.defineProperty(window, "innerWidth", { configurable: true, value: 1200 });
     Object.defineProperty(window, "innerHeight", { configurable: true, value: 800 });
@@ -131,6 +143,8 @@ describe("OverlayApp", () => {
     expect(mocks.saveTextSize).toHaveBeenCalledWith("large");
     expect(screen.getByTestId("canvas")).toHaveAttribute("data-textsize", "large");
     expect(commands).toContain("toggle_board");
+    fireEvent.click(screen.getByRole("button", { name: "pointer-ping" }));
+    expect(mocks.pingAt).toHaveBeenCalledWith({ x: 80, y: 90 });
 
     await act(async () => {
       await emit("board-changed", { on: false });
