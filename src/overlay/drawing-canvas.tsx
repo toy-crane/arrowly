@@ -15,7 +15,6 @@ import {
 import {
   drawMark,
   findMarkAt,
-  findMovableMarkAt,
   findTextMarkAt,
   LineMark,
   markFrameBounds,
@@ -35,23 +34,40 @@ import {
 } from "../shared/ipc";
 import { matchesAccelerator } from "../shared/shortcuts";
 import {
+  DISCOVERY_REVEAL_DELAY_MS,
+  initialMarkInteraction,
+  type MarkAction,
+  type MarkInteractionEvent,
+  type MarkInteractionState,
+  transitionMarkInteraction,
+} from "./mark-interaction";
+import {
   classifyStroke,
   HOLD_MS,
   RING_DELAY_MS,
   STILL_RADIUS_PX,
-} from "./shapes";
+} from "./stroke-correction";
 import { TextEditor } from "./text-editor";
 import {
-  createQuickInsertMark,
+  createGeometricMark,
   type DrawingTool,
-  isQuickInsertTool,
-  type QuickInsertTool,
+  isGeometricTool,
+  type GeometricTool,
 } from "./tools";
 
-const MOVE_REVEAL_DELAY_MS = 120;
-const MOVE_FOCUS_SCRIM = "rgba(7, 10, 18, 0.38)";
-const MOVE_FOCUS_PATH = "rgba(255, 255, 255, 0.68)";
-const MOVE_FOCUS_FRAME = "rgba(255, 255, 255, 0.78)";
+const ACTION_FOCUS_SCRIM = "rgba(7, 10, 18, 0.38)";
+const ACTION_FOCUS_COLORS: Record<MarkAction, { path: string; strong: string; frame: string }> = {
+  move: {
+    path: "rgba(255, 255, 255, 0.68)",
+    strong: "rgba(255, 255, 255, 0.94)",
+    frame: "rgba(255, 255, 255, 0.78)",
+  },
+  delete: {
+    path: "rgba(255, 92, 92, 0.72)",
+    strong: "rgba(255, 76, 76, 0.96)",
+    frame: "rgba(255, 92, 92, 0.86)",
+  },
+};
 
 function isModifierKey(key: string): boolean {
   return key === "Meta" || key === "Shift" || key === "Alt" || key === "Control";
@@ -157,6 +173,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
 
   const renderBaseRef = useRef<() => void>(() => undefined);
   const resetGestureRef = useRef<() => void>(() => undefined);
+  const syncDeleteToolRef = useRef<(latched: boolean) => void>(() => undefined);
   const rememberOutsideClickRef = useRef<(point: Point) => void>(() => undefined);
   const finishSessionRef = useRef<(commit: boolean) => void>(() => undefined);
 
@@ -189,6 +206,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
     // 텍스트 편집기 바깥 클릭은 text → freehand 전환과 함께 첫 클릭을 기억한다.
     // 그 전환에서 추적 상태까지 지우면 두 번째 클릭이 점 마크로 남는다.
     if (!(previousTool === "text" && tool === "freehand")) resetGestureRef.current();
+    syncDeleteToolRef.current(tool === "delete");
     if (tool === "text") return;
     if (sessionRef.current) {
       finishSessionRef.current(true);
@@ -210,22 +228,13 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
     const baseCtx = base.getContext("2d")!;
     const liveCtx = live.getContext("2d")!;
     let rafId = 0;
-    let commandHeld = false;
-    let moveDiscoveryVisible = false;
-    let moveDiscoverySuppressed = false;
-    let moveRevealTimer = 0;
+    let interaction: MarkInteractionState = initialMarkInteraction;
+    let revealTimer = 0;
     let hoveredMarkIndex = -1;
-    let deletionHoverIndex = -1;
-    let deletionPointer: Point | null = null;
+    let hoverPointer: Point | null = null;
     let movingMarkIndex = -1;
     let movingMark: Mark | null = null;
-    let commandPointerActive = false;
-    let moveGesture: {
-      origin: Point;
-      index: number;
-      original: Mark;
-      moving: boolean;
-    } | null = null;
+    let movingOriginal: Mark | null = null;
 
     const renderBase = () => {
       baseCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
@@ -337,57 +346,79 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       }
     };
 
-    // ---- 홀드 보정: 버튼을 누른 채 STILL_RADIUS_PX 안에서 HOLD_MS 멈추면 도형·직선으로 치환 ----
+    let geometricGesture: {
+      tool: GeometricTool;
+      origin: Point;
+      current: Point;
+    } | null = null;
+    let geometricPreview: ShapeMark | LineMark | null = null;
     const HOLD_TICK_MS = 50;
     let holdAnchor: Point | null = null;
     let holdStart = 0;
     let holdTimer = 0;
-    let snapped: ShapeMark | LineMark | null = null;
-    let previewAnchor: Point | null = null;
-    let ringVisible = false;
-    let ringProgress = 0;
-    let quickGesture: {
-      tool: QuickInsertTool;
-      origin: Point;
-      current: Point;
-      shiftHeld: boolean;
-    } | null = null;
-    let quickPreview: ShapeMark | LineMark | null = null;
+    let correctionPreview: ShapeMark | LineMark | null = null;
+    let correctionAnchor: Point | null = null;
+    let correctionRingVisible = false;
+    let correctionProgress = 0;
 
     const stopHold = () => {
       if (holdTimer) window.clearInterval(holdTimer);
       holdTimer = 0;
       holdAnchor = null;
-      ringVisible = false;
-      ringProgress = 0;
+      correctionRingVisible = false;
+      correctionProgress = 0;
     };
 
-    const drawHoldRing = (ctx: CanvasRenderingContext2D, p: Point, progress: number) => {
-      const cx = p.x + 18;
-      const cy = p.y - 18;
-      ctx.lineWidth = 2;
-      ctx.lineCap = "round";
-      ctx.strokeStyle = "rgba(232,234,240,0.25)";
-      ctx.beginPath();
-      ctx.arc(cx, cy, 13, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.strokeStyle = "rgba(232,234,240,0.9)";
-      ctx.beginPath();
-      ctx.arc(cx, cy, 13, -Math.PI / 2, -Math.PI / 2 + progress * Math.PI * 2);
-      ctx.stroke();
+    const drawCorrectionRing = (
+      context: CanvasRenderingContext2D,
+      point: Point,
+      progress: number,
+    ) => {
+      const centerX = point.x + 18;
+      const centerY = point.y - 18;
+      context.lineWidth = 2;
+      context.lineCap = "round";
+      context.strokeStyle = "rgba(232,234,240,0.25)";
+      context.beginPath();
+      context.arc(centerX, centerY, 13, 0, Math.PI * 2);
+      context.stroke();
+      context.strokeStyle = "rgba(232,234,240,0.9)";
+      context.beginPath();
+      context.arc(
+        centerX,
+        centerY,
+        13,
+        -Math.PI / 2,
+        -Math.PI / 2 + progress * Math.PI * 2,
+      );
+      context.stroke();
     };
 
-    const drawMoveCandidate = (
+    const interactionAction = (): MarkAction | null =>
+      interaction.phase === "discovery" || interaction.phase === "gesture"
+        ? interaction.action
+        : null;
+
+    const interactionFieldVisible = () =>
+      (interaction.phase === "discovery" && interaction.visible) ||
+      (interaction.phase === "gesture" && interaction.fieldVisible);
+
+    const interactionTargetIndex = () =>
+      interaction.phase === "gesture" ? interaction.targetIndex : null;
+
+    const drawActionCandidate = (
       ctx: CanvasRenderingContext2D,
       mark: Mark,
+      action: MarkAction,
       emphasized = false,
     ) => {
+      const colors = ACTION_FOCUS_COLORS[action];
       if (mark.kind === "pen" || (mark.kind === "shape" && mark.shape === "line")) {
         ctx.save();
         drawMark(ctx, {
           ...mark,
-          color: emphasized ? "rgba(255, 255, 255, 0.94)" : MOVE_FOCUS_PATH,
-          width: mark.width + (emphasized ? 12 : 8),
+          color: emphasized ? colors.strong : colors.path,
+          width: mark.width + (emphasized ? 16 : 12),
         });
         ctx.restore();
         drawMark(ctx, mark);
@@ -398,7 +429,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       const frame = markFrameBounds(mark);
       if (!frame) return;
       ctx.save();
-      ctx.strokeStyle = MOVE_FOCUS_FRAME;
+      ctx.strokeStyle = colors.frame;
       ctx.lineWidth = emphasized ? 3 : 1.5;
       ctx.strokeRect(frame.x, frame.y, frame.w, frame.h);
       ctx.restore();
@@ -406,107 +437,90 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
 
     const renderLive = () => {
       liveCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+      const action = interactionAction();
+      const fieldVisible = interactionFieldVisible();
+      const targetIndex = interactionTargetIndex();
       if (movingMark) {
-        if (moveDiscoveryVisible) {
+        if (action && fieldVisible) {
           liveCtx.save();
-          liveCtx.fillStyle = MOVE_FOCUS_SCRIM;
+          liveCtx.fillStyle = ACTION_FOCUS_SCRIM;
           liveCtx.fillRect(0, 0, window.innerWidth, window.innerHeight);
           liveCtx.restore();
           store.marks.forEach((mark, index) => {
-            if (index !== moveGesture?.index) {
-              drawMoveCandidate(liveCtx, mark, index === hoveredMarkIndex);
+            if (index !== targetIndex) {
+              drawActionCandidate(liveCtx, mark, action, index === hoveredMarkIndex);
             }
           });
         }
-        drawMoveCandidate(liveCtx, movingMark, true);
+        drawActionCandidate(liveCtx, movingMark, "move", true);
         return;
       }
-      if (quickPreview) {
-        drawMark(liveCtx, quickPreview);
+      if (geometricPreview) {
+        drawMark(liveCtx, geometricPreview);
         return;
       }
-      if (snapped) {
-        drawMark(liveCtx, snapped); // 스냅 미리보기 — 떼면 확정
+      if (correctionPreview) {
+        drawMark(liveCtx, correctionPreview);
         return;
       }
       if (store.live) {
         drawMark(liveCtx, store.live);
-        if (ringVisible) {
-          drawHoldRing(liveCtx, store.live.points[store.live.points.length - 1], ringProgress);
+        if (correctionRingVisible) {
+          drawCorrectionRing(
+            liveCtx,
+            store.live.points[store.live.points.length - 1],
+            correctionProgress,
+          );
         }
         return;
       }
-      if (moveDiscoveryVisible) {
+      if (action && fieldVisible) {
         liveCtx.save();
-        liveCtx.fillStyle = MOVE_FOCUS_SCRIM;
+        liveCtx.fillStyle = ACTION_FOCUS_SCRIM;
         liveCtx.fillRect(0, 0, window.innerWidth, window.innerHeight);
         liveCtx.restore();
         store.marks.forEach((mark, index) =>
-          drawMoveCandidate(liveCtx, mark, index === hoveredMarkIndex),
+          drawActionCandidate(
+            liveCtx,
+            mark,
+            action,
+            index === (targetIndex ?? hoveredMarkIndex),
+          ),
         );
         return;
       }
-      if (activeToolRef.current === "delete" && deletionHoverIndex >= 0) {
-        const mark = store.marks[deletionHoverIndex];
-        if (mark) drawMoveCandidate(liveCtx, mark, true);
+      if (action && targetIndex !== null) {
+        const mark = store.marks[targetIndex];
+        if (mark) drawActionCandidate(liveCtx, mark, action, true);
       }
     };
 
-    const clearMoveRevealTimer = () => {
-      if (moveRevealTimer) window.clearTimeout(moveRevealTimer);
-      moveRevealTimer = 0;
+    const clearRevealTimer = () => {
+      if (revealTimer) window.clearTimeout(revealTimer);
+      revealTimer = 0;
     };
 
-    const hideMoveDiscovery = () => {
-      clearMoveRevealTimer();
-      if (!moveDiscoveryVisible) return;
-      moveDiscoveryVisible = false;
-      hoveredMarkIndex = -1;
-      live.style.cursor = movingMark ? "grabbing" : "default";
-      renderLive();
+    const applyInteractionEvent = (event: MarkInteractionEvent) => {
+      const result = transitionMarkInteraction(interaction, event);
+      interaction = result.state;
+      return result;
     };
 
-    const suppressMoveDiscovery = () => {
-      if (!commandHeld) return;
-      moveDiscoverySuppressed = true;
-      hideMoveDiscovery();
-    };
-
-    const holdTick = () => {
-      if (!store.live || snapped) return;
-      const still = Date.now() - holdStart;
-      if (still >= HOLD_MS) {
-        const result = classifyStroke(store.live.points);
-        if (result) {
-          const { color, widthKey } = toolRef.current;
-          const ink = {
-            color,
-            width: strokeWidthPx(widthKey, Math.min(window.innerWidth, window.innerHeight)),
-          };
-          snapped = result.shape === "line"
-            ? { kind: "shape", ...result, arrowhead: "none", ...ink }
-            : { kind: "shape", ...result, ...ink };
-          previewAnchor = store.live.points[store.live.points.length - 1];
-          stopHold();
-        } else {
-          armHold(store.live.points[store.live.points.length - 1]); // 과소 획 — 재무장
-        }
-        scheduleLive();
-      } else if (still >= RING_DELAY_MS) {
-        ringVisible = true;
-        ringProgress = (still - RING_DELAY_MS) / (HOLD_MS - RING_DELAY_MS);
-        scheduleLive();
+    const scheduleReveal = () => {
+      clearRevealTimer();
+      if (
+        interaction.phase !== "discovery" ||
+        interaction.source !== "modifier" ||
+        interaction.visible
+      ) {
+        return;
       }
+      revealTimer = window.setTimeout(() => {
+        revealTimer = 0;
+        applyInteractionEvent({ type: "reveal" });
+        renderLive();
+      }, DISCOVERY_REVEAL_DELAY_MS);
     };
-
-    function armHold(anchor: Point) {
-      if (holdTimer) window.clearInterval(holdTimer);
-      holdAnchor = anchor;
-      holdStart = Date.now();
-      ringVisible = false;
-      ringProgress = 0;
-      holdTimer = window.setInterval(holdTick, HOLD_TICK_MS);
-    }
 
     // Retina 백킹: 물리 픽셀 크기 + dpr 스케일 (setTransform이라 재호출 누적 없음)
     const setupBacking = () => {
@@ -538,31 +552,68 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
 
     const toPoint = (e: PointerEvent): Point => ({ x: e.clientX, y: e.clientY });
 
-    const refreshDeletionHover = () => {
-      const previous = deletionHoverIndex;
-      deletionHoverIndex =
-        activeToolRef.current === "delete" && deletionPointer
-          ? (findMarkAt(store.marks, deletionPointer)?.index ?? -1)
+    const refreshInteractionHover = () => {
+      const previous = hoveredMarkIndex;
+      hoveredMarkIndex =
+        interaction.phase === "discovery" && interaction.visible && hoverPointer
+          ? (findMarkAt(store.marks, hoverPointer)?.index ?? -1)
           : -1;
-      live.style.cursor = deletionHoverIndex >= 0 ? "pointer" : "default";
-      return deletionHoverIndex !== previous;
+      const action = interactionAction();
+      live.style.cursor =
+        hoveredMarkIndex < 0 ? "default" : action === "move" ? "grab" : "pointer";
+      return hoveredMarkIndex !== previous;
     };
 
-    const updateQuickPreview = (point: Point, shiftHeld: boolean) => {
-      if (!quickGesture) return;
-      quickGesture.current = point;
-      quickGesture.shiftHeld = shiftHeld;
+    const updateGeometricPreview = (point: Point) => {
+      if (!geometricGesture) return;
+      geometricGesture.current = point;
       const { color, widthKey } = toolRef.current;
-      quickPreview = createQuickInsertMark(
-        quickGesture.tool,
-        quickGesture.origin,
+      geometricPreview = createGeometricMark(
+        geometricGesture.tool,
+        geometricGesture.origin,
         point,
         color,
         strokeWidthPx(widthKey, Math.min(window.innerWidth, window.innerHeight)),
-        shiftHeld,
       );
       scheduleLive();
     };
+
+    const holdTick = () => {
+      if (!store.live || correctionPreview) return;
+      const stillFor = Date.now() - holdStart;
+      if (stillFor >= HOLD_MS) {
+        const result = classifyStroke(store.live.points);
+        if (result) {
+          const { color, widthKey } = toolRef.current;
+          const ink = {
+            color,
+            width: strokeWidthPx(widthKey, Math.min(window.innerWidth, window.innerHeight)),
+          };
+          correctionPreview =
+            result.shape === "line"
+              ? { kind: "shape", ...result, arrowhead: "none", ...ink }
+              : { kind: "shape", ...result, ...ink };
+          correctionAnchor = store.live.points[store.live.points.length - 1];
+          stopHold();
+        } else {
+          armHold(store.live.points[store.live.points.length - 1]);
+        }
+        scheduleLive();
+      } else if (stillFor >= RING_DELAY_MS) {
+        correctionRingVisible = true;
+        correctionProgress = (stillFor - RING_DELAY_MS) / (HOLD_MS - RING_DELAY_MS);
+        scheduleLive();
+      }
+    };
+
+    function armHold(anchor: Point) {
+      if (holdTimer) window.clearInterval(holdTimer);
+      holdAnchor = anchor;
+      holdStart = Date.now();
+      correctionRingVisible = false;
+      correctionProgress = 0;
+      holdTimer = window.setInterval(holdTick, HOLD_TICK_MS);
+    }
 
     // 더블클릭 = 텍스트 진입. 첫 클릭의 점은 두 번째 클릭에서 사후 회수한다(≤350ms 노출 트레이드오프).
     const DBLCLICK_MS = 350;
@@ -580,8 +631,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
     const isClick = (points: Point[], origin: Point) =>
       points.every((q) => Math.hypot(q.x - origin.x, q.y - origin.y) <= CLICK_SLOP_PX);
 
-    // 포인터 격리: 제스처를 소유한 포인터 하나만 이어지는 move/up/cancel에 반응한다
-    // (두 번째 입력 장치·멀티터치가 첫 포인터의 홀드·스냅 상태를 덮어쓰지 못하게 한다)
+    // 포인터 격리: 제스처를 소유한 포인터 하나만 이어지는 move/up/cancel에 반응한다.
     let activePointerId: number | null = null;
 
     /** 제스처 상태 전체를 취소한다 — 이동 중인 마크는 즉시 원위치로 다시 그린다. */
@@ -590,23 +640,32 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       lastClick = null;
       dblPending = null;
       stopHold();
-      snapped = null;
-      previewAnchor = null;
-      quickGesture = null;
-      quickPreview = null;
-      moveGesture = null;
+      correctionPreview = null;
+      correctionAnchor = null;
+      geometricGesture = null;
+      geometricPreview = null;
+      clearRevealTimer();
+      applyInteractionEvent({ type: "reset" });
       movingMark = null;
+      movingOriginal = null;
       movingMarkIndex = -1;
-      commandPointerActive = false;
       hoveredMarkIndex = -1;
-      deletionHoverIndex = -1;
-      deletionPointer = null;
+      hoverPointer = null;
       live.style.cursor = "default";
       store.cancelLive();
       activePointerId = null;
       if (wasMovingMark) renderBase();
     };
     resetGestureRef.current = resetGestureState;
+
+    syncDeleteToolRef.current = (latched) => {
+      clearRevealTimer();
+      applyInteractionEvent({ type: latched ? "latch-delete" : "unlatch-delete" });
+      hoverPointer = null;
+      hoveredMarkIndex = -1;
+      live.style.cursor = "default";
+      renderLive();
+    };
 
     const onPointerDown = (e: PointerEvent) => {
       if (e.button !== 0) return;
@@ -616,58 +675,55 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
         e.preventDefault();
         return;
       }
-      if (e.metaKey || commandHeld) {
+      const p = toPoint(e);
+      if ((e.metaKey || e.altKey) && interaction.phase === "idle") {
+        applyInteractionEvent({
+          type: "modifier-down",
+          action: e.metaKey ? "move" : "delete",
+        });
+      }
+      if (interaction.phase === "discovery") {
         e.preventDefault();
         if (editingRef.current) return;
-        clearMoveRevealTimer();
-        const point = toPoint(e);
-        const hit = findMovableMarkAt(store.marks, point);
-        commandPointerActive = true;
+        clearRevealTimer();
+        const hit = findMarkAt(store.marks, p);
+        applyInteractionEvent({
+          type: "pointer-down",
+          pointerId: e.pointerId,
+          point: p,
+          targetIndex: hit?.index ?? null,
+        });
         activePointerId = e.pointerId;
         live.setPointerCapture(e.pointerId);
+        hoveredMarkIndex = hit?.index ?? -1;
         if (hit) {
-          moveGesture = {
-            origin: point,
-            index: hit.index,
-            original: hit.mark,
-            moving: false,
-          };
-          movingMark = hit.mark;
-          hoveredMarkIndex = hit.index;
-          live.style.cursor = "grabbing";
-          renderLive();
+          if (interactionAction() === "move") {
+            movingOriginal = hit.mark;
+            movingMark = hit.mark;
+          }
+          live.style.cursor = interactionAction() === "move" ? "grabbing" : "pointer";
         }
+        renderLive();
+        return;
+      }
+      if (e.metaKey || e.altKey || interaction.phase === "suppressed") {
+        e.preventDefault();
         return;
       }
       if (activeToolRef.current === "text") {
         e.preventDefault();
         if (editingRef.current) return;
-        const point = toPoint(e);
-        beginTextAt(point);
+        beginTextAt(p);
         return;
       }
-      const p = toPoint(e);
-      if (activeToolRef.current === "delete") {
+      if (isGeometricTool(activeToolRef.current)) {
         e.preventDefault();
-        deletionPointer = p;
-        const hit = findMarkAt(store.marks, p);
-        if (hit) {
-          store.remove(hit.index);
-          refreshDeletionHover();
-          renderBase();
-          renderLive();
-        }
-        return;
-      }
-      if (isQuickInsertTool(activeToolRef.current)) {
-        e.preventDefault();
-        quickGesture = {
+        geometricGesture = {
           tool: activeToolRef.current,
           origin: p,
           current: p,
-          shiftHeld: e.shiftKey,
         };
-        quickPreview = null;
+        geometricPreview = null;
         activePointerId = e.pointerId;
         live.setPointerCapture(e.pointerId);
         return;
@@ -688,56 +744,56 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       store.beginLive(color, width, p);
       live.setPointerCapture(e.pointerId);
       activePointerId = e.pointerId;
-      snapped = null;
-      previewAnchor = null;
+      correctionPreview = null;
+      correctionAnchor = null;
       armHold(p);
       scheduleLive();
     };
 
     const onPointerMove = (e: PointerEvent) => {
       if (activePointerId !== null && e.pointerId !== activePointerId) return;
-      if (activePointerId === null && activeToolRef.current === "delete") {
-        deletionPointer = toPoint(e);
-        if (refreshDeletionHover()) renderLive();
+      if (activePointerId === null && interaction.phase === "discovery" && interaction.visible) {
+        hoverPointer = toPoint(e);
+        if (refreshInteractionHover()) renderLive();
         return;
       }
-      if (activePointerId === null && moveDiscoveryVisible) {
-        const nextHovered = findMovableMarkAt(store.marks, toPoint(e))?.index ?? -1;
-        if (nextHovered !== hoveredMarkIndex) {
-          hoveredMarkIndex = nextHovered;
-          live.style.cursor = nextHovered >= 0 ? "grab" : "default";
-          renderLive();
-        }
-        return;
-      }
-      if (moveGesture) {
+      if (interaction.phase === "gesture") {
         const point = toPoint(e);
-        const dx = point.x - moveGesture.origin.x;
-        const dy = point.y - moveGesture.origin.y;
-        if (!moveGesture.moving && Math.hypot(dx, dy) > CLICK_SLOP_PX) {
-          moveGesture.moving = true;
-          movingMarkIndex = moveGesture.index;
-          renderBase();
-        }
-        if (moveGesture.moving) {
-          movingMark = translateMark(moveGesture.original, dx, dy);
+        applyInteractionEvent({ type: "pointer-move", pointerId: e.pointerId, point });
+        if (
+          interaction.phase === "gesture" &&
+          interaction.action === "move" &&
+          interaction.targetIndex !== null &&
+          movingOriginal
+        ) {
+          if (interaction.moving && movingMarkIndex < 0) {
+            movingMarkIndex = interaction.targetIndex;
+            renderBase();
+          }
+          if (interaction.moving) {
+            movingMark = translateMark(
+              movingOriginal,
+              point.x - interaction.origin.x,
+              point.y - interaction.origin.y,
+            );
+          }
           scheduleLive();
         }
         return;
       }
-      if (commandPointerActive) return;
-      if (quickGesture) {
-        updateQuickPreview(toPoint(e), e.shiftKey);
+      if (geometricGesture) {
+        updateGeometricPreview(toPoint(e));
         return;
       }
-      if (snapped) {
+      if (correctionPreview) {
         const point = toPoint(e);
         if (
-          previewAnchor &&
-          Math.hypot(point.x - previewAnchor.x, point.y - previewAnchor.y) > STILL_RADIUS_PX
+          correctionAnchor &&
+          Math.hypot(point.x - correctionAnchor.x, point.y - correctionAnchor.y) >
+            STILL_RADIUS_PX
         ) {
-          snapped = null;
-          previewAnchor = null;
+          correctionPreview = null;
+          correctionAnchor = null;
           store.extendLive([point]);
           armHold(point);
           scheduleLive();
@@ -750,8 +806,11 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       const points = (coalesced.length ? coalesced : [e]).map(toPoint);
       store.extendLive(points);
       for (const point of points) {
-        if (holdAnchor && Math.hypot(point.x - holdAnchor.x, point.y - holdAnchor.y) > STILL_RADIUS_PX) {
-          armHold(point); // coalesced 중간 표본도 유의미한 이동이면 홀드 리셋
+        if (
+          holdAnchor &&
+          Math.hypot(point.x - holdAnchor.x, point.y - holdAnchor.y) > STILL_RADIUS_PX
+        ) {
+          armHold(point);
         }
       }
       scheduleLive();
@@ -759,56 +818,58 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
 
     const onPointerUp = (e: PointerEvent) => {
       if (activePointerId !== null && e.pointerId !== activePointerId) return;
-      if (commandPointerActive) {
-        const gesture = moveGesture;
+      if (interaction.phase === "gesture") {
         const point = toPoint(e);
-        const moved =
-          gesture &&
-          (gesture.moving ||
-            Math.hypot(point.x - gesture.origin.x, point.y - gesture.origin.y) > CLICK_SLOP_PX)
-            ? translateMark(
-                gesture.original,
-                point.x - gesture.origin.x,
-                point.y - gesture.origin.y,
-              )
-            : null;
-        moveGesture = null;
+        const releaseTarget = findMarkAt(store.marks, point)?.index ?? null;
+        const result = applyInteractionEvent({
+          type: "pointer-up",
+          pointerId: e.pointerId,
+          point,
+          targetIndex: releaseTarget,
+        });
+        const original = movingOriginal;
+        const wasMoving = movingMarkIndex >= 0;
         movingMark = null;
+        movingOriginal = null;
         movingMarkIndex = -1;
-        commandPointerActive = false;
         activePointerId = null;
-        if (gesture && moved) {
-          store.replace(gesture.index, moved);
+        if (result.outcome?.kind === "move" && original) {
+          store.replace(
+            result.outcome.index,
+            translateMark(original, result.outcome.dx, result.outcome.dy),
+          );
+          renderBase();
+        } else if (result.outcome?.kind === "delete") {
+          store.remove(result.outcome.index);
+          renderBase();
+        } else if (wasMoving) {
           renderBase();
         }
-        hoveredMarkIndex = moveDiscoveryVisible
-          ? (findMovableMarkAt(store.marks, point)?.index ?? -1)
-          : -1;
-        live.style.cursor = hoveredMarkIndex >= 0 ? "grab" : "default";
+        hoverPointer = point;
+        refreshInteractionHover();
+        scheduleReveal();
         renderLive();
         return;
       }
-      if (quickGesture) {
+      if (geometricGesture) {
         const point = toPoint(e);
-        const { origin, tool: quickTool } = quickGesture;
-        quickGesture = null;
+        const { origin, tool: geometricTool } = geometricGesture;
+        geometricGesture = null;
         activePointerId = null;
         if (Math.hypot(point.x - origin.x, point.y - origin.y) > CLICK_SLOP_PX) {
           const { color, widthKey } = toolRef.current;
-          const mark = createQuickInsertMark(
-            quickTool,
+          const mark = createGeometricMark(
+            geometricTool,
             origin,
             point,
             color,
             strokeWidthPx(widthKey, Math.min(window.innerWidth, window.innerHeight)),
-            e.shiftKey,
           );
-          quickPreview = null;
+          geometricPreview = null;
           store.push(mark);
           drawMark(baseCtx, mark);
-          onToolChangeRef.current("freehand");
         } else {
-          quickPreview = null;
+          geometricPreview = null;
         }
         renderLive();
         return;
@@ -835,12 +896,12 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
         return;
       }
       stopHold();
-      if (snapped) {
-        // 스냅 확정: 손그림 live를 버리고 도형 마크를 커밋한다 (undo 1단위)
-        const mark = snapped;
-        snapped = null;
-        previewAnchor = null;
+      if (correctionPreview) {
+        const mark = correctionPreview;
+        correctionPreview = null;
+        correctionAnchor = null;
         activePointerId = null;
+        lastClick = null;
         store.cancelLive();
         store.push(mark);
         drawMark(baseCtx, mark);
@@ -865,22 +926,30 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
 
     const onPointerCancel = (e: PointerEvent) => {
       if (activePointerId !== null && e.pointerId !== activePointerId) return;
+      if (interaction.phase === "gesture") {
+        const wasMoving = movingMarkIndex >= 0;
+        applyInteractionEvent({ type: "pointer-cancel", pointerId: e.pointerId });
+        movingMark = null;
+        movingOriginal = null;
+        movingMarkIndex = -1;
+        activePointerId = null;
+        if (wasMoving) renderBase();
+        scheduleReveal();
+        refreshInteractionHover();
+        renderLive();
+        return;
+      }
       resetGestureState();
       renderLive();
     };
 
     const clearAll = () => {
       resetGestureState();
-      commandHeld = false;
-      moveDiscoverySuppressed = false;
-      hideMoveDiscovery();
+      if (activeToolRef.current === "delete") {
+        applyInteractionEvent({ type: "latch-delete" });
+      }
       if (sessionRef.current || wantsEditingRef.current) {
         finishSession(false);
-      } else if (
-        activeToolRef.current !== "freehand" &&
-        activeToolRef.current !== "delete"
-      ) {
-        onToolChangeRef.current("freehand");
       }
       store.clear();
       renderBase();
@@ -888,29 +957,26 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
     };
 
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Meta") {
+      if (e.key === "Meta" || e.key === "Alt") {
         if (
           isEditableTarget(e) ||
           editingRef.current ||
-          activePointerId !== null ||
-          commandHeld
+          activePointerId !== null
         ) {
           return;
         }
-        commandHeld = true;
-        moveDiscoverySuppressed = false;
-        moveRevealTimer = window.setTimeout(() => {
-          moveRevealTimer = 0;
-          if (!commandHeld || moveDiscoverySuppressed || editingRef.current) return;
-          moveDiscoveryVisible = true;
-          renderLive();
-        }, MOVE_REVEAL_DELAY_MS);
+        applyInteractionEvent({
+          type: "modifier-down",
+          action: e.key === "Meta" ? "move" : "delete",
+        });
+        scheduleReveal();
         return;
       }
-      if (!isModifierKey(e.key)) suppressMoveDiscovery();
-      if (e.key === "Shift") {
-        if (quickGesture) updateQuickPreview(quickGesture.current, true);
-        return;
+      if (!isModifierKey(e.key)) {
+        const previous = interaction;
+        clearRevealTimer();
+        applyInteractionEvent({ type: "shortcut-chord" });
+        if (interaction !== previous) renderLive();
       }
       const sizeDelta =
         e.metaKey &&
@@ -933,7 +999,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
           onTextSizeStepRef.current?.(sizeDelta as -1 | 1);
         } else if (
           activeToolRef.current === "freehand" ||
-          isQuickInsertTool(activeToolRef.current)
+          isGeometricTool(activeToolRef.current)
         ) {
           onWidthStepRef.current?.(sizeDelta as -1 | 1);
         }
@@ -950,8 +1016,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
         dblPending = null;
         if (e.shiftKey ? store.redo() : store.undo()) {
           renderBase();
-          if (activeToolRef.current === "delete") {
-            refreshDeletionHover();
+          if (interaction.phase === "discovery" && interaction.visible) {
+            refreshInteractionHover();
             renderLive();
           }
         }
@@ -963,6 +1029,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
         !e.altKey &&
         !e.ctrlKey &&
         !e.shiftKey &&
+        activePointerId === null &&
         e.code === "KeyE"
       ) {
         e.preventDefault();
@@ -971,41 +1038,47 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
         onToolChangeRef.current("delete");
       } else if (matchesAccelerator(e, textAccelRef.current)) {
         e.preventDefault();
-        resetGestureState(); // 그리던 획·홀드·더블클릭 대기를 끊고 모드를 바꾼다
+        resetGestureState();
         renderLive();
         onToolChangeRef.current(activeToolRef.current === "text" ? "freehand" : "text");
       }
     };
 
     const onKeyUp = (e: KeyboardEvent) => {
-      if (e.key === "Meta") {
-        commandHeld = false;
-        moveDiscoverySuppressed = false;
-        hideMoveDiscovery();
+      if (e.key === "Meta" || e.key === "Alt") {
+        clearRevealTimer();
+        applyInteractionEvent({
+          type: "modifier-up",
+          action: e.key === "Meta" ? "move" : "delete",
+        });
+        if (interaction.phase === "gesture") {
+          live.style.cursor = interaction.action === "move" ? "grabbing" : "pointer";
+        } else {
+          refreshInteractionHover();
+        }
+        renderLive();
         return;
       }
-      if (e.key !== "Shift") return;
-      if (quickGesture) updateQuickPreview(quickGesture.current, false);
     };
 
-    const resetLostCommandState = () => {
+    const resetLostInteractionState = () => {
       resetGestureState();
-      commandHeld = false;
-      moveDiscoverySuppressed = false;
-      hideMoveDiscovery();
       live.style.cursor = "default";
       renderLive();
     };
 
     const onVisibilityChange = () => {
-      if (document.visibilityState === "hidden") resetLostCommandState();
+      if (document.visibilityState === "hidden") resetLostInteractionState();
     };
 
+    if (activeToolRef.current === "delete") {
+      applyInteractionEvent({ type: "latch-delete" });
+    }
     setupBacking();
     window.addEventListener("resize", setupBacking);
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("keyup", onKeyUp);
-    window.addEventListener("blur", resetLostCommandState);
+    window.addEventListener("blur", resetLostInteractionState);
     document.addEventListener("visibilitychange", onVisibilityChange);
     live.addEventListener("pointerdown", onPointerDown);
     live.addEventListener("pointermove", onPointerMove);
@@ -1019,9 +1092,6 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
         // 숨김≠삭제: 텍스트는 현재 내용 확정, 진행 중 live 획만 취소한다.
         finishSession(true);
         resetGestureState();
-        commandHeld = false;
-        moveDiscoverySuppressed = false;
-        hideMoveDiscovery();
         renderLive();
       }
     });
@@ -1032,7 +1102,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       window.removeEventListener("resize", setupBacking);
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
-      window.removeEventListener("blur", resetLostCommandState);
+      window.removeEventListener("blur", resetLostInteractionState);
       document.removeEventListener("visibilitychange", onVisibilityChange);
       live.removeEventListener("pointerdown", onPointerDown);
       live.removeEventListener("pointermove", onPointerMove);
@@ -1042,7 +1112,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       unlistenClear.then((f) => f());
       unlistenFinishText.then((f) => f());
       if (rafId) cancelAnimationFrame(rafId);
-      clearMoveRevealTimer();
+      clearRevealTimer();
       stopHold();
       const hadEditingRequest = wantsEditingRef.current;
       wantsEditingRef.current = false;
@@ -1050,6 +1120,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       if (hadEditingRequest) void setTextEditing(false);
       renderBaseRef.current = () => undefined;
       resetGestureRef.current = () => undefined;
+      syncDeleteToolRef.current = () => undefined;
       rememberOutsideClickRef.current = () => undefined;
       finishSessionRef.current = () => undefined;
     };

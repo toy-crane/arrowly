@@ -10,15 +10,18 @@ import {
 } from "../shared/constants";
 import { t, type Key } from "../shared/i18n";
 import { loadMarkerPos, MarkerPos, saveMarkerPos } from "../shared/settings";
-import { FreehandToolLiveStrokeIcon } from "./freehand-tool-live-stroke-icon";
+import {
+  drawingToolIconStrokeWidth,
+  FreehandToolLiveStrokeIcon,
+} from "./freehand-tool-live-stroke-icon";
 import { LiveTextSizeIcon } from "./live-text-size-icon";
 import { ToolInspector } from "./tool-inspector";
 import {
+  DRAWING_INSPECTOR_TOOLS,
+  DrawingInspectorTool,
   DrawingTool,
-  isQuickInsertTool,
-  PEN_INSPECTOR_TOOLS,
-  PenInspectorTool,
-  QuickInsertTool,
+  GeometricTool,
+  isGeometricTool,
 } from "./tools";
 
 type Panel = "collapsed" | "pen" | "text";
@@ -29,6 +32,7 @@ type Props = {
   textSizeKey: TextSizeKey;
   board: boolean;
   tool: DrawingTool;
+  drawingTool: DrawingInspectorTool;
   onColorChange: (c: Color) => void;
   onWidthChange: (w: WidthKey) => void;
   onTextSizeChange: (size: TextSizeKey) => void;
@@ -64,6 +68,7 @@ export function Marker({
   textSizeKey,
   board,
   tool,
+  drawingTool,
   onColorChange,
   onWidthChange,
   onTextSizeChange,
@@ -112,7 +117,7 @@ export function Marker({
   // 단축키나 외부 이벤트가 도구·블랙보드 상태를 바꾸면 열려 있던 속성을 접는다.
   useEffect(() => {
     setPanel("collapsed");
-  }, [tool, board]);
+  }, [tool, drawingTool, board]);
 
   const onPointerDown = (e: React.PointerEvent) => {
     e.stopPropagation(); // 마커 위에서 획이 시작되면 안 된다
@@ -169,12 +174,13 @@ export function Marker({
     onTextSizeChange(size);
     setPanel("collapsed");
   };
-  const pickPenTool = (next: PenInspectorTool) => {
+  const pickDrawingTool = (next: DrawingInspectorTool) => {
     onToolChange(next);
     setPanel("collapsed");
   };
 
-  const penActive = tool === "freehand" || isQuickInsertTool(tool);
+  const drawingActive = tool === drawingTool;
+  const collapsedIconWidth = drawingToolIconStrokeWidth(widthKey);
 
   return (
     <div
@@ -188,21 +194,21 @@ export function Marker({
     >
       <button
         ref={penButtonRef}
-        style={{ ...btn, ...toolSpacing, color, ...(penActive ? modeOn : undefined) }}
-        aria-label={t("marker.freehandTool")}
-        aria-pressed={penActive}
+        style={{ ...btn, ...toolSpacing, color, ...(drawingActive ? modeOn : undefined) }}
+        aria-label={t("marker.drawingTool")}
+        aria-pressed={drawingActive}
         aria-expanded={panel === "pen"}
         onClick={() => {
-          if (tool !== "freehand") {
+          if (!drawingActive) {
             setPanel("collapsed");
-            onToolChange("freehand");
+            onToolChange(drawingTool);
           } else {
             togglePanel("pen");
           }
         }}
       >
-        {isQuickInsertTool(tool)
-          ? <QuickInsertIcon tool={tool} />
+        {isGeometricTool(drawingTool)
+          ? <DrawingToolIcon tool={drawingTool} strokeWidth={collapsedIconWidth} />
           : <FreehandToolLiveStrokeIcon widthKey={widthKey} />}
       </button>
       <button
@@ -263,24 +269,20 @@ export function Marker({
         <ToolInspector
           markerRef={rootRef}
           anchorRef={panel === "pen" ? penButtonRef : textButtonRef}
-          ariaLabel={panel === "pen" ? t("marker.freehandProperties") : t("marker.textProperties")}
+          ariaLabel={panel === "pen" ? t("marker.drawingProperties") : t("marker.textProperties")}
         >
           {panel === "pen" && (
             <>
-              <div role="group" aria-label={t("marker.quickInsertLabel")} style={inspectorRow}>
+              <div role="group" aria-label={t("marker.drawingToolsLabel")} style={inspectorRow}>
                 <div style={choiceStrip}>
-                  {PEN_INSPECTOR_TOOLS.map((penTool) => (
+                  {DRAWING_INSPECTOR_TOOLS.map((drawingTool) => (
                     <button
-                      key={penTool}
+                      key={drawingTool}
                       style={{ ...choice, color: NEUTRAL }}
-                      aria-label={
-                        penTool === "freehand"
-                          ? t("marker.freehandTool")
-                          : t(`marker.quickInsert.${penTool}` as Key)
-                      }
-                      onClick={() => pickPenTool(penTool)}
+                      aria-label={t(`marker.drawingTool.${drawingTool}` as Key)}
+                      onClick={() => pickDrawingTool(drawingTool)}
                     >
-                      <QuickInsertIcon tool={penTool} />
+                      <DrawingToolIcon tool={drawingTool} strokeWidth={1.8} />
                     </button>
                   ))}
                 </div>
@@ -433,16 +435,22 @@ const toolSpacing: CSSProperties = {
   marginRight: 4,
 };
 
-function QuickInsertIcon({ tool }: { tool: QuickInsertTool | "freehand" }) {
+function DrawingToolIcon({
+  tool,
+  strokeWidth,
+}: {
+  tool: GeometricTool | "freehand";
+  strokeWidth: number;
+}) {
   return (
     <svg
-      data-quick-insert-icon={tool}
+      data-drawing-tool-icon={tool}
       width="24"
       height="22"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth="1.8"
+      strokeWidth={strokeWidth}
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"
@@ -453,7 +461,6 @@ function QuickInsertIcon({ tool }: { tool: QuickInsertTool | "freehand" }) {
       {tool === "rect" && <rect x="4" y="5" width="16" height="14" rx="1.5" />}
       {tool === "ellipse" && <ellipse cx="12" cy="12" rx="8" ry="6.5" />}
       {tool === "triangle" && <path d="m12 4 8 15H4Z" />}
-      {tool === "line" && <path d="M4 18 20 6" />}
       {tool === "arrow" && <path d="M4 18 19 7M13 6l6 1-1 6" />}
     </svg>
   );

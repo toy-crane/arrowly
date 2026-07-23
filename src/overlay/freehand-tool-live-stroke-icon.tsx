@@ -8,6 +8,10 @@ const ICON_STROKE_WIDTHS: Record<WidthKey, number> = {
   xthick: 5.6,
 };
 
+export function drawingToolIconStrokeWidth(widthKey: WidthKey): number {
+  return ICON_STROKE_WIDTHS[widthKey];
+}
+
 export function FreehandToolLiveStrokeIcon({ widthKey }: { widthKey: WidthKey }) {
   return (
     <svg
@@ -16,7 +20,7 @@ export function FreehandToolLiveStrokeIcon({ widthKey }: { widthKey: WidthKey })
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth={ICON_STROKE_WIDTHS[widthKey]}
+      strokeWidth={drawingToolIconStrokeWidth(widthKey)}
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"

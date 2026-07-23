@@ -2,7 +2,6 @@
 export {
   drawMark,
   findMarkAt,
-  findMovableMarkAt,
   findTextMarkAt,
   fontString,
   layoutText,

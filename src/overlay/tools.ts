@@ -1,42 +1,29 @@
 import type { LineMark, Point, ShapeMark } from "../shared/drawing";
 
-export const QUICK_INSERT_TOOLS = ["rect", "ellipse", "triangle", "line", "arrow"] as const;
+export const GEOMETRIC_TOOLS = ["arrow", "rect", "ellipse", "triangle"] as const;
 
-export type QuickInsertTool = (typeof QUICK_INSERT_TOOLS)[number];
-export const PEN_INSPECTOR_TOOLS = ["freehand", "arrow", "rect", "ellipse", "triangle"] as const;
-export type PenInspectorTool = (typeof PEN_INSPECTOR_TOOLS)[number];
-export type DrawingTool = "freehand" | "text" | "delete" | QuickInsertTool;
+export type GeometricTool = (typeof GEOMETRIC_TOOLS)[number];
+export const DRAWING_INSPECTOR_TOOLS = ["freehand", ...GEOMETRIC_TOOLS] as const;
+export type DrawingInspectorTool = (typeof DRAWING_INSPECTOR_TOOLS)[number];
+export type DrawingTool = "freehand" | "text" | "delete" | GeometricTool;
 
-export function isQuickInsertTool(tool: string): tool is QuickInsertTool {
-  return QUICK_INSERT_TOOLS.includes(tool as QuickInsertTool);
+export function isGeometricTool(tool: string): tool is GeometricTool {
+  return GEOMETRIC_TOOLS.includes(tool as GeometricTool);
 }
 
-function constrainedEndpoint(from: Point, to: Point): Point {
-  const dx = to.x - from.x;
-  const dy = to.y - from.y;
-  const distance = Math.hypot(dx, dy);
-  if (distance === 0) return to;
-  const angle = Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) * (Math.PI / 4);
-  return {
-    x: from.x + Math.cos(angle) * distance,
-    y: from.y + Math.sin(angle) * distance,
-  };
-}
-
-export function createQuickInsertMark(
-  tool: QuickInsertTool,
+export function createGeometricMark(
+  tool: GeometricTool,
   from: Point,
   to: Point,
   color: string,
   width: number,
-  constrainLine: boolean,
 ): ShapeMark | LineMark {
-  if (tool === "line" || tool === "arrow") {
+  if (tool === "arrow") {
     return {
       kind: "shape",
       shape: "line",
-      geometry: { from, to: constrainLine ? constrainedEndpoint(from, to) : to },
-      arrowhead: tool === "arrow" ? "end" : "none",
+      geometry: { from, to },
+      arrowhead: "end",
       color,
       width,
     };

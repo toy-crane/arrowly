@@ -3,7 +3,6 @@ import { createCanvasContext, installCanvasMock } from "../../../test/canvas";
 import {
   drawMark,
   findMarkAt,
-  findMovableMarkAt,
   findTextMarkAt,
   fontString,
   layoutText,
@@ -258,9 +257,9 @@ describe("mark movement", () => {
     expect(findMarkAt([pen], { x: 0, y: 100 })).toBeNull();
     expect(findMarkAt([line], { x: 160, y: 26 })).toEqual({ index: 0, mark: line });
     expect(findMarkAt([rect], { x: 245, y: 30 })).toEqual({ index: 0, mark: rect });
-    expect(findMarkAt([ellipse], { x: 330, y: 30 })).toEqual({ index: 0, mark: ellipse });
+    expect(findMarkAt([ellipse], { x: 296, y: 6 })).toEqual({ index: 0, mark: ellipse });
     expect(findMarkAt([triangle], { x: 390, y: 30 })).toEqual({ index: 0, mark: triangle });
-    expect(findMarkAt([triangle], { x: 365, y: 12 })).toBeNull();
+    expect(findMarkAt([triangle], { x: 365, y: 12 })).toEqual({ index: 0, mark: triangle });
     expect(findMarkAt([text], { x: 405, y: 20 })).toEqual({ index: 0, mark: text });
 
     const topLine = { ...line, geometry: { from: { x: 0, y: 0 }, to: { x: 100, y: 100 } } };
@@ -283,7 +282,25 @@ describe("mark movement", () => {
     expect(findMarkAt([arrow], arrowheadTip)).toEqual({ index: 0, mark: arrow });
   });
 
-  it("offers only pen and text marks to the move gesture", () => {
+  it("uses the full multiline text frame for actions while caret targeting stays line-specific", () => {
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(() => {
+      const context = createCanvasContext();
+      context.measureText = vi.fn((text: string) => ({
+        width: text.length * 10 || 10,
+      })) as unknown as typeof context.measureText;
+      return context;
+    });
+    const multiline: TextMark = { ...textMark, text: "긴 첫 번째 줄\n짧음" };
+    const blankAreaOnShortLine = { x: 90, y: 122 };
+
+    expect(findMarkAt([multiline], blankAreaOnShortLine)).toEqual({
+      index: 0,
+      mark: multiline,
+    });
+    expect(findTextMarkAt([multiline], blankAreaOnShortLine)).toBeNull();
+  });
+
+  it("offers every committed mark to the same topmost action target", () => {
     installCanvasMock();
     const pen: Mark = {
       kind: "pen",
@@ -300,9 +317,9 @@ describe("mark movement", () => {
     };
     const text: TextMark = { ...textMark, x: 20, y: 20 };
 
-    expect(findMovableMarkAt([pen, shape], { x: 50, y: 50 })).toEqual({ index: 0, mark: pen });
-    expect(findMovableMarkAt([shape], { x: 50, y: 50 })).toBeNull();
-    expect(findMovableMarkAt([shape, text], { x: 25, y: 60 })).toEqual({ index: 1, mark: text });
+    expect(findMarkAt([pen, shape], { x: 50, y: 50 })).toEqual({ index: 1, mark: shape });
+    expect(findMarkAt([shape], { x: 50, y: 50 })).toEqual({ index: 0, mark: shape });
+    expect(findMarkAt([shape, text], { x: 25, y: 60 })).toEqual({ index: 1, mark: text });
   });
 
   it("exposes frames for text and closed shapes but not path marks", () => {

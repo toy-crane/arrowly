@@ -26,6 +26,7 @@ describe("Marker saved position", () => {
         textSizeKey="medium"
         board={false}
         tool="freehand"
+        drawingTool="freehand"
         onColorChange={vi.fn()}
         onWidthChange={vi.fn()}
         onTextSizeChange={vi.fn()}

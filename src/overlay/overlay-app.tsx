@@ -30,7 +30,11 @@ import { applyPenCursor, applyTextCursor, resetCursor } from "./cursor";
 import { DrawingCanvas, type DrawingCanvasHandle } from "./drawing-canvas";
 import { Marker } from "./marker";
 import { PointerPingLayer, type PointerPingLayerHandle } from "./pointer-ping-layer";
-import type { DrawingTool } from "./tools";
+import {
+  isGeometricTool,
+  type DrawingInspectorTool,
+  type DrawingTool,
+} from "./tools";
 
 export function OverlayApp() {
   const [drawing, setDrawing] = useState(false);
@@ -42,9 +46,34 @@ export function OverlayApp() {
   const [clearAccel, setClearAccel] = useState(DEFAULT_SHORTCUTS.clear);
   const [textAccel, setTextAccel] = useState(DEFAULT_SHORTCUTS.text);
   const [tool, setTool] = useState<DrawingTool>("freehand");
+  const [drawingTool, setDrawingTool] = useState<DrawingInspectorTool>("freehand");
   const [editingTextSizeKey, setEditingTextSizeKey] = useState<TextSizeKey | null>(null);
   const canvasRef = useRef<DrawingCanvasHandle>(null);
   const pingLayerRef = useRef<PointerPingLayerHandle>(null);
+  const activeToolRef = useRef<DrawingTool>("freehand");
+  const drawingToolRef = useRef<DrawingInspectorTool>("freehand");
+  const lastToolBeforeDeleteRef = useRef<DrawingTool>("freehand");
+
+  const changeTool = (next: DrawingTool) => {
+    const current = activeToolRef.current;
+    let resolved = next;
+
+    if (next === "delete") {
+      if (current === "delete") {
+        resolved = lastToolBeforeDeleteRef.current;
+      } else {
+        lastToolBeforeDeleteRef.current = current;
+      }
+    } else if (next === "freehand" && current === "text") {
+      resolved = drawingToolRef.current;
+    } else if (next === "freehand" || isGeometricTool(next)) {
+      drawingToolRef.current = next;
+      setDrawingTool(next);
+    }
+
+    activeToolRef.current = resolved;
+    setTool(resolved);
+  };
 
   useEffect(() => {
     loadShortcuts().then((s) => {
@@ -60,7 +89,13 @@ export function OverlayApp() {
     const unMode = onModeChanged((p) => {
       setDrawing(p.drawing);
       setBoard(p.board);
-      if (!p.drawing) setTool("freehand"); // Esc·토글로 나가면 일시 도구 선택도 폐기
+      if (!p.drawing) {
+        activeToolRef.current = "freehand";
+        drawingToolRef.current = "freehand";
+        lastToolBeforeDeleteRef.current = "freehand";
+        setDrawingTool("freehand");
+        setTool("freehand"); // Esc·토글로 나가면 일시 도구 선택도 폐기
+      }
     });
     const unBoard = onBoardChanged((p) => setBoard(p.on));
     const unMarker = onMarkerHiddenChanged((p) => setMarkerHidden(p.hidden));
@@ -69,7 +104,10 @@ export function OverlayApp() {
       setTextAccel(p.text);
     });
     // 트레이 "텍스트 입력" — Rust가 그리기 진입을 보장한 뒤 emit한다
-    const unEnterText = onEnterTextMode(() => setTool("text"));
+    const unEnterText = onEnterTextMode(() => {
+      activeToolRef.current = "text";
+      setTool("text");
+    });
     return () => {
       unMode.then((f) => f());
       unBoard.then((f) => f());
@@ -123,7 +161,7 @@ export function OverlayApp() {
         clearAccel={clearAccel}
         textAccel={textAccel}
         tool={tool}
-        onToolChange={setTool}
+        onToolChange={changeTool}
         onWidthStep={changeWidthBy}
         onTextSizeStep={changeTextSizeBy}
         onPointerPing={(point) => pingLayerRef.current?.pingAt(point)}
@@ -141,6 +179,7 @@ export function OverlayApp() {
           textSizeKey={editingTextSizeKey ?? textSizeKey}
           board={board}
           tool={tool}
+          drawingTool={drawingTool}
           onColorChange={(c) => {
             setColor(c);
             void saveColor(c);
@@ -159,10 +198,13 @@ export function OverlayApp() {
           }}
           onBoardToggle={() => void toggleBoard()}
           onToolChange={(next) => {
+            if (next === "delete" && canvasRef.current?.isEditing()) {
+              return;
+            }
             if (canvasRef.current?.isEditing()) {
               canvasRef.current.finishTextEditing();
             }
-            setTool(next);
+            changeTool(next);
           }}
         />
       )}

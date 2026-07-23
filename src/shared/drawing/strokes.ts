@@ -18,12 +18,12 @@ export type RectGeometry = { x: number; y: number; w: number; h: number };
 export type EllipseGeometry = { cx: number; cy: number; rx: number; ry: number };
 export type TriangleGeometry = RectGeometry;
 export type LineGeometry = { from: Point; to: Point };
-/** 홀드 보정으로 정리된 닫힌 도형 마크. */
+/** 명시적인 기하 그리기 도구로 만든 닫힌 도형 마크. */
 export type ShapeMark =
   | { kind: "shape"; shape: "rect"; geometry: RectGeometry; color: string; width: number }
   | { kind: "shape"; shape: "ellipse"; geometry: EllipseGeometry; color: string; width: number }
   | { kind: "shape"; shape: "triangle"; geometry: TriangleGeometry; color: string; width: number };
-/** 홀드 보정으로 잠긴 직선 마크. */
+/** 직선 또는 화살표 도구로 만든 열린 기하 마크. */
 export type LineMark = {
   kind: "shape";
   shape: "line";
@@ -340,25 +340,6 @@ function hitsPath(points: Point[], width: number, point: Point): boolean {
   return false;
 }
 
-function hitsTriangle(geometry: TriangleGeometry, width: number, point: Point): boolean {
-  const top = { x: geometry.x + geometry.w / 2, y: geometry.y };
-  const right = { x: geometry.x + geometry.w, y: geometry.y + geometry.h };
-  const left = { x: geometry.x, y: geometry.y + geometry.h };
-  const cross = (a: Point, b: Point, p: Point) =>
-    (p.x - b.x) * (a.y - b.y) - (a.x - b.x) * (p.y - b.y);
-  const d1 = cross(top, right, point);
-  const d2 = cross(right, left, point);
-  const d3 = cross(left, top, point);
-  const inside = !((d1 < 0 || d2 < 0 || d3 < 0) && (d1 > 0 || d2 > 0 || d3 > 0));
-  if (inside) return true;
-  const tolerance = width / 2 + MARK_HIT_PADDING_PX;
-  return (
-    distanceToSegment(point, top, right) <= tolerance ||
-    distanceToSegment(point, right, left) <= tolerance ||
-    distanceToSegment(point, left, top) <= tolerance
-  );
-}
-
 function arrowheadEndpoints(geometry: LineGeometry, width: number): [Point, Point] {
   const { from, to } = geometry;
   const angle = Math.atan2(to.y - from.y, to.x - from.x);
@@ -376,8 +357,17 @@ function arrowheadEndpoints(geometry: LineGeometry, width: number): [Point, Poin
 }
 
 function hitsMark(mark: Mark, point: Point): boolean {
+  const frame = markFrameBounds(mark);
+  if (frame) {
+    return (
+      point.x >= frame.x &&
+      point.x <= frame.x + frame.w &&
+      point.y >= frame.y &&
+      point.y <= frame.y + frame.h
+    );
+  }
   if (mark.kind === "pen") return hitsPath(mark.points, mark.width, point);
-  if (mark.kind === "text") return hitsTextMark(mark, point);
+  if (mark.kind === "text") return false;
   if (mark.shape === "line") {
     if (hitsPath([mark.geometry.from, mark.geometry.to], mark.width, point)) return true;
     if (mark.arrowhead === "none") return false;
@@ -387,38 +377,13 @@ function hitsMark(mark: Mark, point: Point): boolean {
       hitsPath([mark.geometry.to, right], mark.width, point)
     );
   }
-  if (mark.shape === "rect") {
-    const { x, y, w, h } = mark.geometry;
-    const padding = mark.width / 2 + MARK_HIT_PADDING_PX;
-    return (
-      point.x >= x - padding &&
-      point.x <= x + w + padding &&
-      point.y >= y - padding &&
-      point.y <= y + h + padding
-    );
-  }
-  if (mark.shape === "triangle") return hitsTriangle(mark.geometry, mark.width, point);
-  const { cx, cy, rx, ry } = mark.geometry;
-  const padding = mark.width / 2 + MARK_HIT_PADDING_PX;
-  const nx = (point.x - cx) / (rx + padding);
-  const ny = (point.y - cy) / (ry + padding);
-  return nx * nx + ny * ny <= 1;
+  return false;
 }
 
-/** 화면에서 가장 위에 그려진 마크부터 실제 형태의 hit 영역으로 찾는다. */
+/** 화면에서 가장 위에 그려진 마크부터 공통 동작 hit 영역으로 찾는다. */
 export function findMarkAt(marks: Mark[], point: Point): MarkHit | null {
   for (let index = marks.length - 1; index >= 0; index -= 1) {
     const mark = marks[index];
-    if (hitsMark(mark, point)) return { index, mark };
-  }
-  return null;
-}
-
-/** 이동 가능한 펜·텍스트 마크만 가장 위에서부터 찾는다. */
-export function findMovableMarkAt(marks: Mark[], point: Point): MarkHit | null {
-  for (let index = marks.length - 1; index >= 0; index -= 1) {
-    const mark = marks[index];
-    if (mark.kind === "shape") continue;
     if (hitsMark(mark, point)) return { index, mark };
   }
   return null;

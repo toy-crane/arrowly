@@ -171,7 +171,7 @@ describe("DrawingCanvas", () => {
     fireEvent.keyDown(input, { key: "Enter" });
     expect(baseCtx.fillText).toHaveBeenCalledOnce();
     expect(baseCtx.fillText).toHaveBeenCalledWith("서버 캐시", 120, 90);
-    expect(onChange).toHaveBeenLastCalledWith(false); // one-shot 펜 복귀
+    expect(onChange).toHaveBeenLastCalledWith(false); // 텍스트 세션 종료 후 자유곡선 복귀
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
 
     // 확정된 텍스트 마크는 ⌘Z 한 번에 통째로 사라진다 (renderBase에 fillText 재호출 없음)
@@ -312,8 +312,8 @@ describe("DrawingCanvas", () => {
     }
   });
 
-  describe("quick insert, deletion and tool sizing", () => {
-    it("commits a dragged quick rectangle once and returns to freehand", () => {
+  describe("geometric drawing, deletion and tool sizing", () => {
+    it("commits consecutive rectangles without changing the selected tool", () => {
       const onToolChange = vi.fn();
       const { container } = render(
         <DrawingCanvas {...baseProps} tool="rect" onToolChange={onToolChange} />,
@@ -328,10 +328,15 @@ describe("DrawingCanvas", () => {
 
       fireEvent.pointerUp(live, { clientX: 180, clientY: 150, pointerId: 1 });
       expect(baseCtx.rect).toHaveBeenCalledWith(80, 90, 100, 60);
-      expect(onToolChange).toHaveBeenCalledWith("freehand");
+      fireEvent.pointerDown(live, { button: 0, clientX: 200, clientY: 60, pointerId: 2 });
+      fireEvent.pointerMove(live, { clientX: 260, clientY: 140, pointerId: 2 });
+      fireEvent.pointerUp(live, { clientX: 260, clientY: 140, pointerId: 2 });
+      expect(baseCtx.rect).toHaveBeenCalledWith(200, 60, 60, 80);
+      expect(baseCtx.rect).toHaveBeenCalledTimes(2);
+      expect(onToolChange).not.toHaveBeenCalled();
     });
 
-    it("keeps a quick insert armed after a sub-threshold release or cancellation", () => {
+    it("keeps a geometric tool selected after a sub-threshold release or cancellation", () => {
       const onToolChange = vi.fn();
       const { container } = render(
         <DrawingCanvas {...baseProps} tool="triangle" onToolChange={onToolChange} />,
@@ -366,7 +371,7 @@ describe("DrawingCanvas", () => {
       expect(onToolChange).not.toHaveBeenCalled();
     });
 
-    it("constrains a quick arrow with Shift and draws an end arrowhead", () => {
+    it("uses the raw pointer endpoint for a geometric arrow even while Shift is held", () => {
       const { container } = render(
         <DrawingCanvas {...baseProps} tool="arrow" onToolChange={vi.fn()} />,
       );
@@ -378,29 +383,27 @@ describe("DrawingCanvas", () => {
       fireEvent.pointerUp(live, { clientX: 110, clientY: 35, pointerId: 1, shiftKey: true });
 
       expect(baseCtx.moveTo).toHaveBeenCalledWith(10, 10);
-      expect(baseCtx.lineTo).toHaveBeenCalledWith(expect.closeTo(113.077, 2), expect.closeTo(10, 2));
+      expect(baseCtx.lineTo).toHaveBeenCalledWith(110, 35);
       expect(baseCtx.lineTo).toHaveBeenCalledTimes(3); // shaft + two arrowhead sides
     });
 
-    it("updates a stationary quick line preview when Shift changes", () => {
+    it("does not change a stationary arrow preview when Shift changes", () => {
       const { container } = render(
-        <DrawingCanvas {...baseProps} tool="line" onToolChange={vi.fn()} />,
+        <DrawingCanvas {...baseProps} tool="arrow" onToolChange={vi.fn()} />,
       );
       const [, liveCtx] = contexts;
       const live = container.querySelectorAll("canvas")[1];
 
       fireEvent.pointerDown(live, { button: 0, clientX: 10, clientY: 10, pointerId: 1 });
       fireEvent.pointerMove(live, { clientX: 110, clientY: 35, pointerId: 1 });
-      expect(liveCtx.lineTo).toHaveBeenLastCalledWith(110, 35);
+      expect(liveCtx.lineTo).toHaveBeenCalledWith(110, 35);
+      const previewCallCount = vi.mocked(liveCtx.lineTo).mock.calls.length;
 
       fireEvent.keyDown(window, { key: "Shift", code: "ShiftLeft", shiftKey: true });
-      expect(liveCtx.lineTo).toHaveBeenLastCalledWith(
-        expect.closeTo(113.077, 2),
-        expect.closeTo(10, 2),
-      );
+      expect(liveCtx.lineTo).toHaveBeenCalledTimes(previewCallCount);
 
       fireEvent.keyUp(window, { key: "Shift", code: "ShiftLeft" });
-      expect(liveCtx.lineTo).toHaveBeenLastCalledWith(110, 35);
+      expect(liveCtx.lineTo).toHaveBeenCalledTimes(previewCallCount);
     });
 
     it("keeps deletion active across delete, undo and another delete", () => {
@@ -415,6 +418,8 @@ describe("DrawingCanvas", () => {
       expect(live).toHaveStyle({ cursor: "pointer" });
 
       fireEvent.pointerDown(live, { button: 0, clientX: 50, clientY: 20, pointerId: 2 });
+      expect(live).toHaveStyle({ cursor: "pointer" });
+      fireEvent.pointerUp(live, { clientX: 50, clientY: 20, pointerId: 2 });
       expect(live).toHaveStyle({ cursor: "default" });
 
       fireEvent.keyDown(window, { code: "KeyZ", metaKey: true });
@@ -427,6 +432,7 @@ describe("DrawingCanvas", () => {
       expect(live).toHaveStyle({ cursor: "pointer" });
 
       fireEvent.pointerDown(live, { button: 0, clientX: 50, clientY: 20, pointerId: 3 });
+      fireEvent.pointerUp(live, { clientX: 50, clientY: 20, pointerId: 3 });
       expect(live).toHaveStyle({ cursor: "default" });
 
       fireEvent.keyDown(window, { code: "KeyZ", metaKey: true });
@@ -460,6 +466,22 @@ describe("DrawingCanvas", () => {
 
       fireEvent.keyDown(window, { code: "KeyE" });
       expect(onToolChange).toHaveBeenLastCalledWith("delete");
+    });
+
+    it("does not enter deletion when E is pressed during an active pointer gesture", () => {
+      const onToolChange = vi.fn();
+      const { container } = render(
+        <DrawingCanvas {...baseProps} tool="freehand" onToolChange={onToolChange} />,
+      );
+      const live = container.querySelectorAll("canvas")[1];
+
+      fireEvent.pointerDown(live, { button: 0, clientX: 20, clientY: 20, pointerId: 1 });
+      fireEvent.keyDown(window, { code: "KeyE" });
+      expect(onToolChange).not.toHaveBeenCalled();
+
+      fireEvent.pointerUp(live, { clientX: 80, clientY: 40, pointerId: 1 });
+      fireEvent.keyDown(window, { code: "KeyE" });
+      expect(onToolChange).toHaveBeenCalledWith("delete");
     });
 
     it("routes Command plus and minus to the active tool and ignores them in deletion", () => {
@@ -514,7 +536,7 @@ describe("DrawingCanvas", () => {
       vi.useRealTimers();
     });
 
-    it("reveals movable marks after holding Command for 120ms and suppresses shortcut chords", () => {
+    it("reveals modifier discovery after 200ms and suppresses Command and Option chords", () => {
       const { container } = render(<Harness />);
       const live = container.querySelectorAll("canvas")[1];
       const liveCtx = contexts[1];
@@ -525,7 +547,7 @@ describe("DrawingCanvas", () => {
       vi.mocked(liveCtx.fillRect).mockClear();
 
       fireEvent.keyDown(window, { key: "Meta", code: "MetaLeft", metaKey: true });
-      vi.advanceTimersByTime(119);
+      vi.advanceTimersByTime(199);
       expect(liveCtx.fillRect).not.toHaveBeenCalled();
       vi.advanceTimersByTime(1);
       expect(liveCtx.fillRect).toHaveBeenCalledWith(0, 0, 800, 600);
@@ -534,7 +556,7 @@ describe("DrawingCanvas", () => {
       vi.mocked(liveCtx.fillRect).mockClear();
       fireEvent.keyDown(window, { key: "Meta", code: "MetaLeft", metaKey: true });
       fireEvent.keyDown(window, { key: "z", code: "KeyZ", metaKey: true });
-      vi.advanceTimersByTime(120);
+      vi.advanceTimersByTime(200);
       expect(liveCtx.fillRect).not.toHaveBeenCalled();
       fireEvent.keyUp(window, { key: "Meta", code: "MetaLeft", metaKey: false });
 
@@ -545,10 +567,83 @@ describe("DrawingCanvas", () => {
         vi.mocked(liveCtx.fillRect).mockClear();
         fireEvent.keyDown(window, { key: "Meta", code: "MetaLeft", metaKey: true });
         fireEvent.keyDown(window, { key, code, metaKey: true });
-        vi.advanceTimersByTime(120);
+        vi.advanceTimersByTime(200);
         expect(liveCtx.fillRect).not.toHaveBeenCalled();
         fireEvent.keyUp(window, { key: "Meta", code: "MetaLeft", metaKey: false });
       }
+
+      for (const [key, code] of [
+        ["Backspace", "Backspace"],
+        ["Tab", "Tab"],
+      ]) {
+        vi.mocked(liveCtx.fillRect).mockClear();
+        fireEvent.keyDown(window, { key: "Alt", code: "AltLeft", altKey: true });
+        fireEvent.keyDown(window, { key, code, altKey: true });
+        vi.advanceTimersByTime(200);
+        expect(liveCtx.fillRect).not.toHaveBeenCalled();
+        fireEvent.keyUp(window, { key: "Alt", code: "AltLeft", altKey: false });
+      }
+    });
+
+    it("reveals deletion after 200ms and deletes only on pointer-up over the pressed mark", () => {
+      const { container } = render(<Harness />);
+      const [baseCtx, liveCtx] = contexts;
+      const live = container.querySelectorAll("canvas")[1];
+
+      fireEvent.pointerDown(live, { button: 0, clientX: 20, clientY: 30, pointerId: 1 });
+      fireEvent.pointerMove(live, { clientX: 80, clientY: 70, pointerId: 1 });
+      fireEvent.pointerUp(live, { clientX: 80, clientY: 70, pointerId: 1 });
+      vi.mocked(liveCtx.fillRect).mockClear();
+
+      fireEvent.keyDown(window, { key: "Alt", code: "AltLeft", altKey: true });
+      vi.advanceTimersByTime(199);
+      expect(liveCtx.fillRect).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(1);
+      expect(liveCtx.fillRect).toHaveBeenCalledWith(0, 0, 800, 600);
+
+      const clearsBeforePress = vi.mocked(baseCtx.clearRect).mock.calls.length;
+      fireEvent.pointerDown(live, {
+        button: 0,
+        clientX: 20,
+        clientY: 30,
+        pointerId: 2,
+        altKey: true,
+      });
+      expect(baseCtx.clearRect).toHaveBeenCalledTimes(clearsBeforePress);
+      fireEvent.keyUp(window, { key: "Alt", code: "AltLeft" });
+      fireEvent.pointerUp(live, { clientX: 20, clientY: 30, pointerId: 2 });
+      expect(baseCtx.clearRect).toHaveBeenCalledTimes(clearsBeforePress + 1);
+
+      fireEvent.keyDown(window, { key: "z", code: "KeyZ", metaKey: true });
+      expect(baseCtx.stroke).toHaveBeenCalledTimes(2);
+    });
+
+    it("highlights and deletes an Option-click target without waiting for the full field", () => {
+      const { container } = render(<Harness />);
+      const [baseCtx, liveCtx] = contexts;
+      const live = container.querySelectorAll("canvas")[1];
+
+      fireEvent.pointerDown(live, { button: 0, clientX: 20, clientY: 30, pointerId: 1 });
+      fireEvent.pointerMove(live, { clientX: 80, clientY: 70, pointerId: 1 });
+      fireEvent.pointerUp(live, { clientX: 80, clientY: 70, pointerId: 1 });
+      vi.mocked(liveCtx.fillRect).mockClear();
+      vi.mocked(liveCtx.stroke).mockClear();
+
+      fireEvent.keyDown(window, { key: "Alt", code: "AltLeft", altKey: true });
+      fireEvent.pointerDown(live, {
+        button: 0,
+        clientX: 20,
+        clientY: 30,
+        pointerId: 2,
+        altKey: true,
+      });
+      expect(liveCtx.fillRect).not.toHaveBeenCalled();
+      expect(liveCtx.stroke).toHaveBeenCalledTimes(2); // 붉은 경로 강조 + 원래 잉크
+
+      const clearsBeforeRelease = vi.mocked(baseCtx.clearRect).mock.calls.length;
+      fireEvent.keyUp(window, { key: "Alt", code: "AltLeft" });
+      fireEvent.pointerUp(live, { clientX: 20, clientY: 30, pointerId: 2 });
+      expect(baseCtx.clearRect).toHaveBeenCalledTimes(clearsBeforeRelease + 1);
     });
 
     it("moves a pen mark immediately with Command-drag and records one undoable change", () => {
@@ -588,6 +683,42 @@ describe("DrawingCanvas", () => {
       expect(baseCtx.moveTo).toHaveBeenLastCalledWith(70, 60);
     });
 
+    it("moves a geometric mark through the same Command-drag path", () => {
+      const { container } = render(
+        <DrawingCanvas {...baseProps} tool="rect" onToolChange={vi.fn()} />,
+      );
+      const [baseCtx, liveCtx] = contexts;
+      const live = container.querySelectorAll("canvas")[1];
+
+      fireEvent.pointerDown(live, { button: 0, clientX: 80, clientY: 90, pointerId: 1 });
+      fireEvent.pointerMove(live, { clientX: 180, clientY: 150, pointerId: 1 });
+      fireEvent.pointerUp(live, { clientX: 180, clientY: 150, pointerId: 1 });
+      vi.mocked(baseCtx.rect).mockClear();
+
+      fireEvent.keyDown(window, { key: "Meta", code: "MetaLeft", metaKey: true });
+      fireEvent.pointerDown(live, {
+        button: 0,
+        clientX: 120,
+        clientY: 120,
+        pointerId: 2,
+        metaKey: true,
+      });
+      fireEvent.pointerMove(live, {
+        clientX: 150,
+        clientY: 140,
+        pointerId: 2,
+        metaKey: true,
+      });
+      expect(liveCtx.rect).toHaveBeenLastCalledWith(110, 110, 100, 60);
+
+      fireEvent.pointerUp(live, { clientX: 160, clientY: 150, pointerId: 2, metaKey: true });
+      fireEvent.keyUp(window, { key: "Meta", code: "MetaLeft" });
+      expect(baseCtx.rect).toHaveBeenLastCalledWith(120, 120, 100, 60);
+
+      fireEvent.keyDown(window, { code: "KeyZ", metaKey: true });
+      expect(baseCtx.rect).toHaveBeenLastCalledWith(80, 90, 100, 60);
+    });
+
     it("highlights the hit target immediately and leaves an empty Command-drag inert", () => {
       const { container } = render(<Harness />);
       const [baseCtx, liveCtx] = contexts;
@@ -608,7 +739,7 @@ describe("DrawingCanvas", () => {
         metaKey: true,
       });
       expect(liveCtx.stroke).toHaveBeenCalledTimes(2); // 경로 강조 + 원래 잉크
-      vi.advanceTimersByTime(120);
+      vi.advanceTimersByTime(200);
       expect(liveCtx.fillRect).not.toHaveBeenCalled(); // 활성 제스처 중에는 전체 focus field를 열지 않는다
       fireEvent.pointerUp(live, { clientX: 20, clientY: 30, pointerId: 2, metaKey: true });
 
@@ -639,7 +770,7 @@ describe("DrawingCanvas", () => {
 
       vi.mocked(liveCtx.strokeRect).mockClear();
       fireEvent.keyDown(window, { key: "Meta", code: "MetaLeft", metaKey: true });
-      vi.advanceTimersByTime(120);
+      vi.advanceTimersByTime(200);
       expect(liveCtx.strokeRect).toHaveBeenCalled();
       expect(liveCtx.lineWidth).toBe(1.5);
 
@@ -659,14 +790,14 @@ describe("DrawingCanvas", () => {
       fireEvent.pointerDown(live, { button: 0, clientX: 20, clientY: 30, pointerId: 1 });
       vi.mocked(liveCtx.fillRect).mockClear();
       fireEvent.keyDown(window, { key: "Meta", code: "MetaLeft", metaKey: true });
-      vi.advanceTimersByTime(120);
+      vi.advanceTimersByTime(200);
       fireEvent.pointerMove(live, { clientX: 80, clientY: 70, pointerId: 1, metaKey: true });
       fireEvent.pointerUp(live, { clientX: 80, clientY: 70, pointerId: 1, metaKey: true });
       expect(liveCtx.fillRect).not.toHaveBeenCalled();
       fireEvent.keyUp(window, { key: "Meta", code: "MetaLeft", metaKey: false });
 
       fireEvent.keyDown(window, { key: "Meta", code: "MetaLeft", metaKey: true });
-      vi.advanceTimersByTime(120);
+      vi.advanceTimersByTime(200);
       expect(liveCtx.fillRect).toHaveBeenCalled();
       fireEvent.pointerMove(live, { clientX: 20, clientY: 30, pointerId: 2, metaKey: true });
       expect(live).toHaveStyle({ cursor: "grab" });
@@ -685,7 +816,7 @@ describe("DrawingCanvas", () => {
       fireEvent.pointerDown(live, { button: 0, clientX: 20, clientY: 30, pointerId: 1 });
       fireEvent.pointerUp(live, { clientX: 20, clientY: 30, pointerId: 1 });
       fireEvent.keyDown(window, { key: "Meta", code: "MetaLeft", metaKey: true });
-      vi.advanceTimersByTime(120);
+      vi.advanceTimersByTime(200);
 
       fireEvent.pointerDown(live, {
         button: 0,
@@ -966,16 +1097,17 @@ describe("DrawingCanvas", () => {
     });
   });
 
-  describe("hold-to-snap", () => {
+  describe("hold-to-correct freehand strokes", () => {
     beforeEach(() => {
-      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "Date"] });
-      // 반복 스케줄 검증에는 id=0 반환이 필요하다 — 동기 스텁이 1을 반환하면
-      // rafId가 콜백 후에 1로 덮여 다음 scheduleLive가 조기 반환된다.
+      vi.useFakeTimers({
+        toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "Date"],
+      });
       vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
         callback(1);
         return 0;
       });
     });
+
     afterEach(() => {
       vi.useRealTimers();
     });
@@ -984,265 +1116,126 @@ describe("DrawingCanvas", () => {
       const { container } = render(
         <DrawingCanvas {...baseProps} tool="freehand" onToolChange={vi.fn()} />,
       );
-      return { live: container.querySelectorAll("canvas")[1], baseCtx: contexts[0], liveCtx: contexts[1] };
+      return {
+        live: container.querySelectorAll("canvas")[1],
+        baseCtx: contexts[0],
+        liveCtx: contexts[1],
+      };
     }
 
-    function traceSquare(live: Element, x: number, y: number, size: number, pointerId = 1) {
-      fireEvent.pointerDown(live, { button: 0, clientX: x, clientY: y, pointerId });
-      const perSide = 12;
-      const sides: [number, number][] = [];
-      for (let i = 1; i <= perSide; i++) sides.push([x + (size * i) / perSide, y]);
-      for (let i = 1; i <= perSide; i++) sides.push([x + size, y + (size * i) / perSide]);
-      for (let i = 1; i <= perSide; i++) sides.push([x + size - (size * i) / perSide, y + size]);
-      for (let i = 1; i <= perSide; i++) sides.push([x, y + size - (size * i) / perSide]);
-      for (const [px, py] of sides) fireEvent.pointerMove(live, { clientX: px, clientY: py, pointerId });
-    }
-
-    function traceOpenStroke(live: Element, from: [number, number], to: [number, number], pointerId = 1) {
-      fireEvent.pointerDown(live, { button: 0, clientX: from[0], clientY: from[1], pointerId });
+    function traceOpenStroke(
+      live: Element,
+      from: [number, number],
+      to: [number, number],
+      pointerId = 1,
+    ) {
+      fireEvent.pointerDown(live, {
+        button: 0,
+        clientX: from[0],
+        clientY: from[1],
+        pointerId,
+      });
       fireEvent.pointerMove(live, { clientX: to[0], clientY: to[1], pointerId });
     }
 
-    it("snaps a held closed stroke to a rectangle committed as one undoable mark", () => {
+    it("shows progress and corrects a held open stroke to its raw endpoints", () => {
       const { live, baseCtx, liveCtx } = renderCanvas();
-      traceSquare(live, 100, 100, 120);
-      expect(liveCtx.rect).not.toHaveBeenCalled();
-
-      vi.advanceTimersByTime(350); // HOLD_MS 도달 → 보정 미리보기
-      expect(liveCtx.rect).toHaveBeenCalled();
-      expect(baseCtx.rect).not.toHaveBeenCalled();
-
-      fireEvent.pointerUp(live, { clientX: 100, clientY: 100, pointerId: 1 });
-      expect(baseCtx.rect).toHaveBeenCalledTimes(1); // 증분 커밋 1회
-
-      // 스냅된 도형도 ⌘Z 한 번에 통째로 사라진다
-      fireEvent.keyDown(window, { code: "KeyZ", metaKey: true });
-      expect(baseCtx.rect).toHaveBeenCalledTimes(1); // renderBase 재실행에서 재호출 없음
-    });
-
-    it("shows the progress ring at 150ms and corrects an open stroke to a line at 350ms", () => {
-      const { live, liveCtx } = renderCanvas();
-      traceOpenStroke(live, [50, 50], [170, 90]);
+      traceOpenStroke(live, [20, 30], [180, 120]);
       vi.mocked(liveCtx.arc).mockClear();
 
       vi.advanceTimersByTime(149);
       expect(liveCtx.arc).not.toHaveBeenCalled();
-
       vi.advanceTimersByTime(1);
       expect(liveCtx.arc).toHaveBeenCalled();
 
-      vi.advanceTimersByTime(199);
+      fireEvent.keyDown(window, { key: "Shift", code: "ShiftLeft", shiftKey: true });
       vi.mocked(liveCtx.moveTo).mockClear();
       vi.mocked(liveCtx.lineTo).mockClear();
-      vi.advanceTimersByTime(1);
-      expect(liveCtx.moveTo).toHaveBeenCalledWith(50, 50);
-      expect(liveCtx.lineTo).toHaveBeenCalledOnce();
-      expect(liveCtx.lineTo).toHaveBeenCalledWith(170, 90);
-
-      fireEvent.pointerUp(live, { clientX: 170, clientY: 90, pointerId: 1 });
-    });
-
-    it("cancels a correction preview after meaningful movement and can correct again", () => {
-      const { live, liveCtx } = renderCanvas();
-      traceOpenStroke(live, [20, 30], [120, 70]);
-      vi.advanceTimersByTime(350);
-      vi.mocked(liveCtx.moveTo).mockClear();
-      vi.mocked(liveCtx.lineTo).mockClear();
-      vi.mocked(liveCtx.bezierCurveTo).mockClear();
-
-      fireEvent.pointerMove(live, { clientX: 260, clientY: 190, pointerId: 1 });
-
-      expect(liveCtx.lineTo).toHaveBeenCalledTimes(2);
-      expect(liveCtx.lineTo).toHaveBeenLastCalledWith(260, 190);
-
-      vi.mocked(liveCtx.moveTo).mockClear();
-      vi.mocked(liveCtx.lineTo).mockClear();
-      vi.advanceTimersByTime(350);
+      vi.advanceTimersByTime(200);
       expect(liveCtx.moveTo).toHaveBeenCalledWith(20, 30);
-      expect(liveCtx.lineTo).toHaveBeenCalledWith(260, 190);
-      fireEvent.pointerUp(live, { clientX: 260, clientY: 190, pointerId: 1 });
-    });
+      expect(liveCtx.lineTo).toHaveBeenCalledWith(180, 120);
 
-    it("commits the visible preview endpoint as one undoable and redoable line mark", () => {
-      const { live, baseCtx } = renderCanvas();
-      traceOpenStroke(live, [10, 10], [100, 40]);
-      vi.advanceTimersByTime(350);
-
-      fireEvent.pointerUp(live, { clientX: 220, clientY: 140, pointerId: 1 });
-      expect(baseCtx.moveTo).toHaveBeenCalledWith(10, 10);
-      expect(baseCtx.lineTo).toHaveBeenCalledOnce();
-      expect(baseCtx.lineTo).toHaveBeenCalledWith(100, 40);
-
-      fireEvent.keyDown(window, { code: "KeyZ", metaKey: true });
-      expect(baseCtx.lineTo).toHaveBeenCalledOnce();
-
-      fireEvent.keyDown(window, { code: "KeyZ", metaKey: true, shiftKey: true });
-      expect(baseCtx.lineTo).toHaveBeenCalledTimes(2);
-      expect(baseCtx.lineTo).toHaveBeenLastCalledWith(100, 40);
-    });
-
-    it("does not move a corrected line with Command drag", () => {
-      const { live, baseCtx } = renderCanvas();
-      traceOpenStroke(live, [20, 30], [120, 70]);
-      vi.advanceTimersByTime(350);
-      fireEvent.pointerUp(live, { clientX: 120, clientY: 70, pointerId: 1 });
-      vi.mocked(baseCtx.moveTo).mockClear();
-      vi.mocked(baseCtx.lineTo).mockClear();
-
-      fireEvent.keyDown(window, { key: "Meta", code: "MetaLeft", metaKey: true });
-      fireEvent.pointerDown(live, {
-        button: 0,
-        clientX: 70,
-        clientY: 50,
-        pointerId: 2,
-        metaKey: true,
-      });
-      fireEvent.pointerMove(live, { clientX: 90, clientY: 80, pointerId: 2, metaKey: true });
-      fireEvent.pointerUp(live, { clientX: 100, clientY: 90, pointerId: 2, metaKey: true });
-      fireEvent.keyUp(window, { key: "Meta", code: "MetaLeft", metaKey: false });
-
-      expect(baseCtx.moveTo).not.toHaveBeenCalled();
-      expect(baseCtx.lineTo).not.toHaveBeenCalled();
-    });
-
-    it("does not move a corrected rectangle with Command drag", () => {
-      const { live, baseCtx } = renderCanvas();
-      traceSquare(live, 100, 100, 120);
-      vi.advanceTimersByTime(350);
-      fireEvent.pointerUp(live, { clientX: 100, clientY: 100, pointerId: 1 });
-      const rectCalls = vi.mocked(baseCtx.rect).mock.calls;
-      const [x, y, width, height] = rectCalls[rectCalls.length - 1];
-      vi.mocked(baseCtx.rect).mockClear();
-
-      fireEvent.keyDown(window, { key: "Meta", code: "MetaLeft", metaKey: true });
-      fireEvent.pointerDown(live, {
-        button: 0,
-        clientX: x + width / 2,
-        clientY: y + height / 2,
-        pointerId: 2,
-        metaKey: true,
-      });
-      fireEvent.pointerMove(live, {
-        clientX: x + width / 2 + 20,
-        clientY: y + height / 2 + 10,
-        pointerId: 2,
-        metaKey: true,
-      });
       fireEvent.pointerUp(live, {
-        clientX: x + width / 2 + 30,
-        clientY: y + height / 2 + 20,
-        pointerId: 2,
-        metaKey: true,
+        clientX: 220,
+        clientY: 160,
+        pointerId: 1,
+        shiftKey: true,
       });
-      fireEvent.keyUp(window, { key: "Meta", code: "MetaLeft", metaKey: false });
-
-      expect(baseCtx.rect).not.toHaveBeenCalled();
+      expect(baseCtx.moveTo).toHaveBeenCalledWith(20, 30);
+      expect(baseCtx.lineTo).toHaveBeenCalledWith(180, 120);
     });
 
-    it("restarts the full 350ms hold window after meaningful pointer movement", () => {
-      const { live, liveCtx } = renderCanvas();
+    it("corrects a held closed stroke to a rectangle committed as one undoable mark", () => {
+      const { live, baseCtx, liveCtx } = renderCanvas();
+      fireEvent.pointerDown(live, {
+        button: 0,
+        clientX: 100,
+        clientY: 100,
+        pointerId: 1,
+      });
+      const size = 120;
+      const perSide = 12;
+      const sides: [number, number][] = [];
+      for (let i = 1; i <= perSide; i += 1) sides.push([100 + (size * i) / perSide, 100]);
+      for (let i = 1; i <= perSide; i += 1) sides.push([220, 100 + (size * i) / perSide]);
+      for (let i = 1; i <= perSide; i += 1) sides.push([220 - (size * i) / perSide, 220]);
+      for (let i = 1; i <= perSide; i += 1) sides.push([100, 220 - (size * i) / perSide]);
+      for (const [x, y] of sides) {
+        fireEvent.pointerMove(live, { clientX: x, clientY: y, pointerId: 1 });
+      }
+
+      vi.advanceTimersByTime(350);
+      expect(liveCtx.rect).toHaveBeenCalled();
+      expect(baseCtx.rect).not.toHaveBeenCalled();
+
+      fireEvent.pointerUp(live, { clientX: 100, clientY: 100, pointerId: 1 });
+      expect(baseCtx.rect).toHaveBeenCalledTimes(1);
+      fireEvent.keyDown(window, { code: "KeyZ", metaKey: true });
+      expect(baseCtx.rect).toHaveBeenCalledTimes(1);
+    });
+
+    it("restarts the hold window after movement and keeps early releases as freehand", () => {
+      const { live, baseCtx, liveCtx } = renderCanvas();
       traceOpenStroke(live, [0, 0], [100, 100]);
       vi.advanceTimersByTime(325);
       fireEvent.pointerMove(live, { clientX: 140, clientY: 120, pointerId: 1 });
 
       vi.advanceTimersByTime(349);
-      vi.mocked(liveCtx.moveTo).mockClear();
       vi.mocked(liveCtx.lineTo).mockClear();
       vi.advanceTimersByTime(1);
-
-      expect(liveCtx.moveTo).toHaveBeenCalledWith(0, 0);
-      expect(liveCtx.lineTo).toHaveBeenCalledOnce();
       expect(liveCtx.lineTo).toHaveBeenCalledWith(140, 120);
       fireEvent.pointerUp(live, { clientX: 140, clientY: 120, pointerId: 1 });
-    });
 
-    it("restarts the hold when an intermediate coalesced sample leaves the still radius", () => {
-      const { live, liveCtx } = renderCanvas();
-      traceOpenStroke(live, [0, 0], [100, 0]);
-      vi.advanceTimersByTime(325);
-
-      const move = new Event("pointermove") as PointerEvent;
-      Object.defineProperties(move, {
-        clientX: { value: 100 },
-        clientY: { value: 0 },
-        pointerId: { value: 1 },
-        getCoalescedEvents: {
-          value: () => [
-            { clientX: 150, clientY: 0 },
-            { clientX: 100, clientY: 0 },
-          ],
-        },
+      vi.mocked(baseCtx.lineTo).mockClear();
+      vi.mocked(baseCtx.bezierCurveTo).mockClear();
+      fireEvent.pointerDown(live, {
+        button: 0,
+        clientX: 30,
+        clientY: 40,
+        pointerId: 2,
       });
-      live.dispatchEvent(move);
-
-      vi.mocked(liveCtx.moveTo).mockClear();
-      vi.mocked(liveCtx.lineTo).mockClear();
-      vi.advanceTimersByTime(25);
-      expect(liveCtx.lineTo).not.toHaveBeenCalled();
-
-      vi.advanceTimersByTime(324);
-      vi.advanceTimersByTime(1);
-      expect(liveCtx.moveTo).toHaveBeenCalledWith(0, 0);
-      expect(liveCtx.lineTo).toHaveBeenCalledWith(100, 0);
-      fireEvent.pointerUp(live, { clientX: 100, clientY: 0, pointerId: 1 });
-    });
-
-    it("keeps a hand-drawn arrow freehand when released before the hold completes", () => {
-      const { live, baseCtx } = renderCanvas();
-      fireEvent.pointerDown(live, { button: 0, clientX: 0, clientY: 0, pointerId: 1 });
-      fireEvent.pointerMove(live, { clientX: 120, clientY: 0, pointerId: 1 });
-      fireEvent.pointerMove(live, { clientX: 96, clientY: -18, pointerId: 1 });
-      fireEvent.pointerUp(live, { clientX: 120, clientY: 0, pointerId: 1 });
-
+      fireEvent.pointerMove(live, { clientX: 70, clientY: 55, pointerId: 2 });
+      fireEvent.pointerMove(live, { clientX: 100, clientY: 65, pointerId: 2 });
+      fireEvent.pointerMove(live, { clientX: 130, clientY: 70, pointerId: 2 });
+      fireEvent.pointerUp(live, { clientX: 130, clientY: 70, pointerId: 2 });
       expect(baseCtx.bezierCurveTo).toHaveBeenCalled();
       expect(baseCtx.lineTo).not.toHaveBeenCalled();
-      expect(baseCtx.stroke).toHaveBeenCalledOnce();
     });
 
-    it("never snaps strokes below the minimum size", () => {
-      const { live, baseCtx } = renderCanvas();
-      fireEvent.pointerDown(live, { button: 0, clientX: 10, clientY: 10, pointerId: 1 });
-      fireEvent.pointerMove(live, { clientX: 18, clientY: 14, pointerId: 1 }); // 대각 < 24px
-      vi.advanceTimersByTime(900);
-      fireEvent.pointerUp(live, { clientX: 18, clientY: 14, pointerId: 1 });
-
-      expect(baseCtx.rect).not.toHaveBeenCalled();
-      expect(baseCtx.ellipse).not.toHaveBeenCalled();
-      expect(baseCtx.stroke).toHaveBeenCalledTimes(1);
-    });
-
-    it("discards a locked line on Clear All instead of committing it on release", () => {
+    it("discards a correction preview on Clear All and pointer cancellation", () => {
       const { live, baseCtx, liveCtx } = renderCanvas();
       traceOpenStroke(live, [100, 100], [220, 160]);
       vi.advanceTimersByTime(350);
-      expect(liveCtx.lineTo).toHaveBeenCalled();
+      expect(liveCtx.lineTo).toHaveBeenCalledWith(220, 160);
 
-      fireEvent.keyDown(window, { code: "Backspace", altKey: true }); // 전체 지우기
-      fireEvent.pointerUp(live, { clientX: 260, clientY: 180, pointerId: 1 });
+      fireEvent.keyDown(window, { code: "Backspace", altKey: true });
+      fireEvent.pointerUp(live, { clientX: 220, clientY: 160, pointerId: 1 });
       expect(baseCtx.lineTo).not.toHaveBeenCalled();
-    });
 
-    it("clears a locked line on mode-changed without committing", async () => {
-      const { live, baseCtx, liveCtx } = renderCanvas();
-      traceOpenStroke(live, [100, 100], [220, 160]);
+      traceOpenStroke(live, [80, 80], [200, 140], 2);
       vi.advanceTimersByTime(350);
-      expect(liveCtx.lineTo).toHaveBeenCalled();
-
-      await act(async () => {
-        await emit("mode-changed", { drawing: false });
-      });
-      fireEvent.pointerUp(live, { clientX: 260, clientY: 180, pointerId: 1 });
-      expect(baseCtx.lineTo).not.toHaveBeenCalled();
-    });
-
-    it("clears a locked line on pointer cancel without committing", () => {
-      const { live, baseCtx, liveCtx } = renderCanvas();
-      traceOpenStroke(live, [100, 100], [220, 160]);
-      vi.advanceTimersByTime(350);
-      expect(liveCtx.lineTo).toHaveBeenCalled();
-
-      fireEvent.pointerCancel(live, { pointerId: 1 });
-      fireEvent.pointerUp(live, { clientX: 260, clientY: 180, pointerId: 1 });
+      fireEvent.pointerCancel(live, { pointerId: 2 });
+      fireEvent.pointerUp(live, { clientX: 200, clientY: 140, pointerId: 2 });
       expect(baseCtx.lineTo).not.toHaveBeenCalled();
     });
   });
