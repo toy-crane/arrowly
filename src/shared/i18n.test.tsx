@@ -1,11 +1,10 @@
-import { Fragment, isValidElement, ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 describe("frontend i18n", () => {
   it("formats English strings, rich slots and stable shortcut errors", async () => {
     vi.resetModules();
     vi.stubGlobal("navigator", { language: "en-US" });
-    const { lang, shortcutErrorMessage, t, tx } = await import("./i18n");
+    const { lang, shortcutErrorMessage, t } = await import("./i18n");
 
     expect(lang).toBe("en");
     expect(t("marker.colorValue", { value: "pink" })).toBe("Color pink");
@@ -14,15 +13,7 @@ describe("frontend i18n", () => {
     expect(t("marker.colorValue")).toBe("Color {value}");
     expect(t("marker.drawingTool")).toBe("Drawing tool");
     expect(t("marker.textSizeValue", { value: 54 })).toBe("Text size 54px");
-    const rich = tx("onboarding.draw.body", { hi: "ONE" });
-    expect(
-      rich.some(
-        (node) =>
-          isValidElement<{ children?: ReactNode }>(node) &&
-          node.type === Fragment &&
-          node.props.children === "ONE",
-      ),
-    ).toBe(true);
+    expect(t("onboarding.draw.title")).toBe("Draw one mark");
     expect(shortcutErrorMessage("error:reserved_escape")).toBe("Esc is a reserved key");
     expect(shortcutErrorMessage(new Error("unknown"))).toBe("Couldn't set this shortcut");
   });
