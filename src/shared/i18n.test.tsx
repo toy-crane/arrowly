@@ -14,8 +14,12 @@ describe("frontend i18n", () => {
     expect(t("marker.drawingTool")).toBe("Drawing tool");
     expect(t("marker.textSizeValue", { value: 54 })).toBe("Text size 54px");
     expect(t("onboarding.draw.title")).toBe("Draw one mark");
-    expect(shortcutErrorMessage("error:reserved_escape")).toBe("Esc is a reserved key");
-    expect(shortcutErrorMessage(new Error("unknown"))).toBe("Couldn't set this shortcut");
+    expect(shortcutErrorMessage("error:reserved_escape")).toBe(
+      "Esc always finishes drawing. Try another combination.",
+    );
+    expect(shortcutErrorMessage(new Error("unknown"))).toBe(
+      "This shortcut couldn't be saved. Try another combination.",
+    );
   });
 
   it("selects Korean from the navigator language", async () => {
@@ -23,7 +27,7 @@ describe("frontend i18n", () => {
     vi.stubGlobal("navigator", { language: "ko-KR" });
     const { lang, t } = await import("./i18n");
     expect(lang).toBe("ko");
-    expect(t("shortcut.toggle")).toBe("그리기 토글");
+    expect(t("shortcut.toggle")).toBe("그리기 시작·끝내기");
     expect(t("marker.drawingProperties")).toBe("그리기 속성");
     expect(t("marker.drawingTool.triangle")).toBe("삼각형 도구");
     expect(t("marker.colorName.blue")).toBe("파랑");
