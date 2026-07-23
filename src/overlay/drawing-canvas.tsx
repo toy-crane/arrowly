@@ -33,6 +33,14 @@ import {
   setTextEditing,
 } from "../shared/ipc";
 import { matchesAccelerator } from "../shared/shortcuts";
+import {
+  DISCOVERY_REVEAL_DELAY_MS,
+  initialMarkInteraction,
+  type MarkAction,
+  type MarkInteractionEvent,
+  type MarkInteractionState,
+  transitionMarkInteraction,
+} from "./mark-interaction";
 import { TextEditor } from "./text-editor";
 import {
   createGeometricMark,
@@ -41,10 +49,19 @@ import {
   type GeometricTool,
 } from "./tools";
 
-const MOVE_REVEAL_DELAY_MS = 120;
-const MOVE_FOCUS_SCRIM = "rgba(7, 10, 18, 0.38)";
-const MOVE_FOCUS_PATH = "rgba(255, 255, 255, 0.68)";
-const MOVE_FOCUS_FRAME = "rgba(255, 255, 255, 0.78)";
+const ACTION_FOCUS_SCRIM = "rgba(7, 10, 18, 0.38)";
+const ACTION_FOCUS_COLORS: Record<MarkAction, { path: string; strong: string; frame: string }> = {
+  move: {
+    path: "rgba(255, 255, 255, 0.68)",
+    strong: "rgba(255, 255, 255, 0.94)",
+    frame: "rgba(255, 255, 255, 0.78)",
+  },
+  delete: {
+    path: "rgba(255, 92, 92, 0.72)",
+    strong: "rgba(255, 76, 76, 0.96)",
+    frame: "rgba(255, 92, 92, 0.86)",
+  },
+};
 
 function isModifierKey(key: string): boolean {
   return key === "Meta" || key === "Shift" || key === "Alt" || key === "Control";
@@ -150,6 +167,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
 
   const renderBaseRef = useRef<() => void>(() => undefined);
   const resetGestureRef = useRef<() => void>(() => undefined);
+  const syncDeleteToolRef = useRef<(latched: boolean) => void>(() => undefined);
   const rememberOutsideClickRef = useRef<(point: Point) => void>(() => undefined);
   const finishSessionRef = useRef<(commit: boolean) => void>(() => undefined);
 
@@ -182,6 +200,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
     // 텍스트 편집기 바깥 클릭은 text → freehand 전환과 함께 첫 클릭을 기억한다.
     // 그 전환에서 추적 상태까지 지우면 두 번째 클릭이 점 마크로 남는다.
     if (!(previousTool === "text" && tool === "freehand")) resetGestureRef.current();
+    syncDeleteToolRef.current(tool === "delete");
     if (tool === "text") return;
     if (sessionRef.current) {
       finishSessionRef.current(true);
@@ -203,22 +222,13 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
     const baseCtx = base.getContext("2d")!;
     const liveCtx = live.getContext("2d")!;
     let rafId = 0;
-    let commandHeld = false;
-    let moveDiscoveryVisible = false;
-    let moveDiscoverySuppressed = false;
-    let moveRevealTimer = 0;
+    let interaction: MarkInteractionState = initialMarkInteraction;
+    let revealTimer = 0;
     let hoveredMarkIndex = -1;
-    let deletionHoverIndex = -1;
-    let deletionPointer: Point | null = null;
+    let hoverPointer: Point | null = null;
     let movingMarkIndex = -1;
     let movingMark: Mark | null = null;
-    let commandPointerActive = false;
-    let moveGesture: {
-      origin: Point;
-      index: number;
-      original: Mark;
-      moving: boolean;
-    } | null = null;
+    let movingOriginal: Mark | null = null;
 
     const renderBase = () => {
       baseCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
@@ -337,17 +347,31 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
     } | null = null;
     let geometricPreview: ShapeMark | LineMark | null = null;
 
-    const drawMoveCandidate = (
+    const interactionAction = (): MarkAction | null =>
+      interaction.phase === "discovery" || interaction.phase === "gesture"
+        ? interaction.action
+        : null;
+
+    const interactionFieldVisible = () =>
+      (interaction.phase === "discovery" && interaction.visible) ||
+      (interaction.phase === "gesture" && interaction.fieldVisible);
+
+    const interactionTargetIndex = () =>
+      interaction.phase === "gesture" ? interaction.targetIndex : null;
+
+    const drawActionCandidate = (
       ctx: CanvasRenderingContext2D,
       mark: Mark,
+      action: MarkAction,
       emphasized = false,
     ) => {
+      const colors = ACTION_FOCUS_COLORS[action];
       if (mark.kind === "pen" || (mark.kind === "shape" && mark.shape === "line")) {
         ctx.save();
         drawMark(ctx, {
           ...mark,
-          color: emphasized ? "rgba(255, 255, 255, 0.94)" : MOVE_FOCUS_PATH,
-          width: mark.width + (emphasized ? 12 : 8),
+          color: emphasized ? colors.strong : colors.path,
+          width: mark.width + (emphasized ? 16 : 12),
         });
         ctx.restore();
         drawMark(ctx, mark);
@@ -358,7 +382,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       const frame = markFrameBounds(mark);
       if (!frame) return;
       ctx.save();
-      ctx.strokeStyle = MOVE_FOCUS_FRAME;
+      ctx.strokeStyle = colors.frame;
       ctx.lineWidth = emphasized ? 3 : 1.5;
       ctx.strokeRect(frame.x, frame.y, frame.w, frame.h);
       ctx.restore();
@@ -366,19 +390,22 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
 
     const renderLive = () => {
       liveCtx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+      const action = interactionAction();
+      const fieldVisible = interactionFieldVisible();
+      const targetIndex = interactionTargetIndex();
       if (movingMark) {
-        if (moveDiscoveryVisible) {
+        if (action && fieldVisible) {
           liveCtx.save();
-          liveCtx.fillStyle = MOVE_FOCUS_SCRIM;
+          liveCtx.fillStyle = ACTION_FOCUS_SCRIM;
           liveCtx.fillRect(0, 0, window.innerWidth, window.innerHeight);
           liveCtx.restore();
           store.marks.forEach((mark, index) => {
-            if (index !== moveGesture?.index) {
-              drawMoveCandidate(liveCtx, mark, index === hoveredMarkIndex);
+            if (index !== targetIndex) {
+              drawActionCandidate(liveCtx, mark, action, index === hoveredMarkIndex);
             }
           });
         }
-        drawMoveCandidate(liveCtx, movingMark, true);
+        drawActionCandidate(liveCtx, movingMark, "move", true);
         return;
       }
       if (geometricPreview) {
@@ -389,40 +416,52 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
         drawMark(liveCtx, store.live);
         return;
       }
-      if (moveDiscoveryVisible) {
+      if (action && fieldVisible) {
         liveCtx.save();
-        liveCtx.fillStyle = MOVE_FOCUS_SCRIM;
+        liveCtx.fillStyle = ACTION_FOCUS_SCRIM;
         liveCtx.fillRect(0, 0, window.innerWidth, window.innerHeight);
         liveCtx.restore();
         store.marks.forEach((mark, index) =>
-          drawMoveCandidate(liveCtx, mark, index === hoveredMarkIndex),
+          drawActionCandidate(
+            liveCtx,
+            mark,
+            action,
+            index === (targetIndex ?? hoveredMarkIndex),
+          ),
         );
         return;
       }
-      if (activeToolRef.current === "delete" && deletionHoverIndex >= 0) {
-        const mark = store.marks[deletionHoverIndex];
-        if (mark) drawMoveCandidate(liveCtx, mark, true);
+      if (action && targetIndex !== null) {
+        const mark = store.marks[targetIndex];
+        if (mark) drawActionCandidate(liveCtx, mark, action, true);
       }
     };
 
-    const clearMoveRevealTimer = () => {
-      if (moveRevealTimer) window.clearTimeout(moveRevealTimer);
-      moveRevealTimer = 0;
+    const clearRevealTimer = () => {
+      if (revealTimer) window.clearTimeout(revealTimer);
+      revealTimer = 0;
     };
 
-    const hideMoveDiscovery = () => {
-      clearMoveRevealTimer();
-      if (!moveDiscoveryVisible) return;
-      moveDiscoveryVisible = false;
-      hoveredMarkIndex = -1;
-      live.style.cursor = movingMark ? "grabbing" : "default";
-      renderLive();
+    const applyInteractionEvent = (event: MarkInteractionEvent) => {
+      const result = transitionMarkInteraction(interaction, event);
+      interaction = result.state;
+      return result;
     };
 
-    const suppressMoveDiscovery = () => {
-      if (!commandHeld) return;
-      moveDiscoverySuppressed = true;
-      hideMoveDiscovery();
+    const scheduleReveal = () => {
+      clearRevealTimer();
+      if (
+        interaction.phase !== "discovery" ||
+        interaction.source !== "modifier" ||
+        interaction.visible
+      ) {
+        return;
+      }
+      revealTimer = window.setTimeout(() => {
+        revealTimer = 0;
+        applyInteractionEvent({ type: "reveal" });
+        renderLive();
+      }, DISCOVERY_REVEAL_DELAY_MS);
     };
 
     // Retina 백킹: 물리 픽셀 크기 + dpr 스케일 (setTransform이라 재호출 누적 없음)
@@ -455,14 +494,16 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
 
     const toPoint = (e: PointerEvent): Point => ({ x: e.clientX, y: e.clientY });
 
-    const refreshDeletionHover = () => {
-      const previous = deletionHoverIndex;
-      deletionHoverIndex =
-        activeToolRef.current === "delete" && deletionPointer
-          ? (findMarkAt(store.marks, deletionPointer)?.index ?? -1)
+    const refreshInteractionHover = () => {
+      const previous = hoveredMarkIndex;
+      hoveredMarkIndex =
+        interaction.phase === "discovery" && interaction.visible && hoverPointer
+          ? (findMarkAt(store.marks, hoverPointer)?.index ?? -1)
           : -1;
-      live.style.cursor = deletionHoverIndex >= 0 ? "pointer" : "default";
-      return deletionHoverIndex !== previous;
+      const action = interactionAction();
+      live.style.cursor =
+        hoveredMarkIndex < 0 ? "default" : action === "move" ? "grab" : "pointer";
+      return hoveredMarkIndex !== previous;
     };
 
     const updateGeometricPreview = (point: Point) => {
@@ -495,8 +536,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
     const isClick = (points: Point[], origin: Point) =>
       points.every((q) => Math.hypot(q.x - origin.x, q.y - origin.y) <= CLICK_SLOP_PX);
 
-    // 포인터 격리: 제스처를 소유한 포인터 하나만 이어지는 move/up/cancel에 반응한다
-    // (두 번째 입력 장치·멀티터치가 첫 포인터의 홀드·스냅 상태를 덮어쓰지 못하게 한다)
+    // 포인터 격리: 제스처를 소유한 포인터 하나만 이어지는 move/up/cancel에 반응한다.
     let activePointerId: number | null = null;
 
     /** 제스처 상태 전체를 취소한다 — 이동 중인 마크는 즉시 원위치로 다시 그린다. */
@@ -506,19 +546,28 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       dblPending = null;
       geometricGesture = null;
       geometricPreview = null;
-      moveGesture = null;
+      clearRevealTimer();
+      applyInteractionEvent({ type: "reset" });
       movingMark = null;
+      movingOriginal = null;
       movingMarkIndex = -1;
-      commandPointerActive = false;
       hoveredMarkIndex = -1;
-      deletionHoverIndex = -1;
-      deletionPointer = null;
+      hoverPointer = null;
       live.style.cursor = "default";
       store.cancelLive();
       activePointerId = null;
       if (wasMovingMark) renderBase();
     };
     resetGestureRef.current = resetGestureState;
+
+    syncDeleteToolRef.current = (latched) => {
+      clearRevealTimer();
+      applyInteractionEvent({ type: latched ? "latch-delete" : "unlatch-delete" });
+      hoverPointer = null;
+      hoveredMarkIndex = -1;
+      live.style.cursor = "default";
+      renderLive();
+    };
 
     const onPointerDown = (e: PointerEvent) => {
       if (e.button !== 0) return;
@@ -528,47 +577,45 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
         e.preventDefault();
         return;
       }
-      if (e.metaKey || commandHeld) {
+      const p = toPoint(e);
+      if ((e.metaKey || e.altKey) && interaction.phase === "idle") {
+        applyInteractionEvent({
+          type: "modifier-down",
+          action: e.metaKey ? "move" : "delete",
+        });
+      }
+      if (interaction.phase === "discovery") {
         e.preventDefault();
         if (editingRef.current) return;
-        clearMoveRevealTimer();
-        const point = toPoint(e);
-        const hit = findMarkAt(store.marks, point);
-        commandPointerActive = true;
+        clearRevealTimer();
+        const hit = findMarkAt(store.marks, p);
+        applyInteractionEvent({
+          type: "pointer-down",
+          pointerId: e.pointerId,
+          point: p,
+          targetIndex: hit?.index ?? null,
+        });
         activePointerId = e.pointerId;
         live.setPointerCapture(e.pointerId);
+        hoveredMarkIndex = hit?.index ?? -1;
         if (hit) {
-          moveGesture = {
-            origin: point,
-            index: hit.index,
-            original: hit.mark,
-            moving: false,
-          };
-          movingMark = hit.mark;
-          hoveredMarkIndex = hit.index;
-          live.style.cursor = "grabbing";
-          renderLive();
+          if (interactionAction() === "move") {
+            movingOriginal = hit.mark;
+            movingMark = hit.mark;
+          }
+          live.style.cursor = interactionAction() === "move" ? "grabbing" : "pointer";
         }
+        renderLive();
+        return;
+      }
+      if (e.metaKey || e.altKey || interaction.phase === "suppressed") {
+        e.preventDefault();
         return;
       }
       if (activeToolRef.current === "text") {
         e.preventDefault();
         if (editingRef.current) return;
-        const point = toPoint(e);
-        beginTextAt(point);
-        return;
-      }
-      const p = toPoint(e);
-      if (activeToolRef.current === "delete") {
-        e.preventDefault();
-        deletionPointer = p;
-        const hit = findMarkAt(store.marks, p);
-        if (hit) {
-          store.remove(hit.index);
-          refreshDeletionHover();
-          renderBase();
-          renderLive();
-        }
+        beginTextAt(p);
         return;
       }
       if (isGeometricTool(activeToolRef.current)) {
@@ -604,36 +651,35 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
 
     const onPointerMove = (e: PointerEvent) => {
       if (activePointerId !== null && e.pointerId !== activePointerId) return;
-      if (activePointerId === null && activeToolRef.current === "delete") {
-        deletionPointer = toPoint(e);
-        if (refreshDeletionHover()) renderLive();
+      if (activePointerId === null && interaction.phase === "discovery" && interaction.visible) {
+        hoverPointer = toPoint(e);
+        if (refreshInteractionHover()) renderLive();
         return;
       }
-      if (activePointerId === null && moveDiscoveryVisible) {
-        const nextHovered = findMarkAt(store.marks, toPoint(e))?.index ?? -1;
-        if (nextHovered !== hoveredMarkIndex) {
-          hoveredMarkIndex = nextHovered;
-          live.style.cursor = nextHovered >= 0 ? "grab" : "default";
-          renderLive();
-        }
-        return;
-      }
-      if (moveGesture) {
+      if (interaction.phase === "gesture") {
         const point = toPoint(e);
-        const dx = point.x - moveGesture.origin.x;
-        const dy = point.y - moveGesture.origin.y;
-        if (!moveGesture.moving && Math.hypot(dx, dy) > CLICK_SLOP_PX) {
-          moveGesture.moving = true;
-          movingMarkIndex = moveGesture.index;
-          renderBase();
-        }
-        if (moveGesture.moving) {
-          movingMark = translateMark(moveGesture.original, dx, dy);
+        applyInteractionEvent({ type: "pointer-move", pointerId: e.pointerId, point });
+        if (
+          interaction.phase === "gesture" &&
+          interaction.action === "move" &&
+          interaction.targetIndex !== null &&
+          movingOriginal
+        ) {
+          if (interaction.moving && movingMarkIndex < 0) {
+            movingMarkIndex = interaction.targetIndex;
+            renderBase();
+          }
+          if (interaction.moving) {
+            movingMark = translateMark(
+              movingOriginal,
+              point.x - interaction.origin.x,
+              point.y - interaction.origin.y,
+            );
+          }
           scheduleLive();
         }
         return;
       }
-      if (commandPointerActive) return;
       if (geometricGesture) {
         updateGeometricPreview(toPoint(e));
         return;
@@ -648,32 +694,36 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
 
     const onPointerUp = (e: PointerEvent) => {
       if (activePointerId !== null && e.pointerId !== activePointerId) return;
-      if (commandPointerActive) {
-        const gesture = moveGesture;
+      if (interaction.phase === "gesture") {
         const point = toPoint(e);
-        const moved =
-          gesture &&
-          (gesture.moving ||
-            Math.hypot(point.x - gesture.origin.x, point.y - gesture.origin.y) > CLICK_SLOP_PX)
-            ? translateMark(
-                gesture.original,
-                point.x - gesture.origin.x,
-                point.y - gesture.origin.y,
-              )
-            : null;
-        moveGesture = null;
+        const releaseTarget = findMarkAt(store.marks, point)?.index ?? null;
+        const result = applyInteractionEvent({
+          type: "pointer-up",
+          pointerId: e.pointerId,
+          point,
+          targetIndex: releaseTarget,
+        });
+        const original = movingOriginal;
+        const wasMoving = movingMarkIndex >= 0;
         movingMark = null;
+        movingOriginal = null;
         movingMarkIndex = -1;
-        commandPointerActive = false;
         activePointerId = null;
-        if (gesture && moved) {
-          store.replace(gesture.index, moved);
+        if (result.outcome?.kind === "move" && original) {
+          store.replace(
+            result.outcome.index,
+            translateMark(original, result.outcome.dx, result.outcome.dy),
+          );
+          renderBase();
+        } else if (result.outcome?.kind === "delete") {
+          store.remove(result.outcome.index);
+          renderBase();
+        } else if (wasMoving) {
           renderBase();
         }
-        hoveredMarkIndex = moveDiscoveryVisible
-          ? (findMarkAt(store.marks, point)?.index ?? -1)
-          : -1;
-        live.style.cursor = hoveredMarkIndex >= 0 ? "grab" : "default";
+        hoverPointer = point;
+        refreshInteractionHover();
+        scheduleReveal();
         renderLive();
         return;
       }
@@ -739,15 +789,28 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
 
     const onPointerCancel = (e: PointerEvent) => {
       if (activePointerId !== null && e.pointerId !== activePointerId) return;
+      if (interaction.phase === "gesture") {
+        const wasMoving = movingMarkIndex >= 0;
+        applyInteractionEvent({ type: "pointer-cancel", pointerId: e.pointerId });
+        movingMark = null;
+        movingOriginal = null;
+        movingMarkIndex = -1;
+        activePointerId = null;
+        if (wasMoving) renderBase();
+        scheduleReveal();
+        refreshInteractionHover();
+        renderLive();
+        return;
+      }
       resetGestureState();
       renderLive();
     };
 
     const clearAll = () => {
       resetGestureState();
-      commandHeld = false;
-      moveDiscoverySuppressed = false;
-      hideMoveDiscovery();
+      if (activeToolRef.current === "delete") {
+        applyInteractionEvent({ type: "latch-delete" });
+      }
       if (sessionRef.current || wantsEditingRef.current) {
         finishSession(false);
       }
@@ -757,26 +820,27 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
     };
 
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Meta") {
+      if (e.key === "Meta" || e.key === "Alt") {
         if (
           isEditableTarget(e) ||
           editingRef.current ||
-          activePointerId !== null ||
-          commandHeld
+          activePointerId !== null
         ) {
           return;
         }
-        commandHeld = true;
-        moveDiscoverySuppressed = false;
-        moveRevealTimer = window.setTimeout(() => {
-          moveRevealTimer = 0;
-          if (!commandHeld || moveDiscoverySuppressed || editingRef.current) return;
-          moveDiscoveryVisible = true;
-          renderLive();
-        }, MOVE_REVEAL_DELAY_MS);
+        applyInteractionEvent({
+          type: "modifier-down",
+          action: e.key === "Meta" ? "move" : "delete",
+        });
+        scheduleReveal();
         return;
       }
-      if (!isModifierKey(e.key)) suppressMoveDiscovery();
+      if (!isModifierKey(e.key)) {
+        const previous = interaction;
+        clearRevealTimer();
+        applyInteractionEvent({ type: "shortcut-chord" });
+        if (interaction !== previous) renderLive();
+      }
       const sizeDelta =
         e.metaKey &&
         !e.altKey &&
@@ -815,8 +879,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
         dblPending = null;
         if (e.shiftKey ? store.redo() : store.undo()) {
           renderBase();
-          if (activeToolRef.current === "delete") {
-            refreshDeletionHover();
+          if (interaction.phase === "discovery" && interaction.visible) {
+            refreshInteractionHover();
             renderLive();
           }
         }
@@ -828,6 +892,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
         !e.altKey &&
         !e.ctrlKey &&
         !e.shiftKey &&
+        activePointerId === null &&
         e.code === "KeyE"
       ) {
         e.preventDefault();
@@ -836,40 +901,47 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
         onToolChangeRef.current("delete");
       } else if (matchesAccelerator(e, textAccelRef.current)) {
         e.preventDefault();
-        resetGestureState(); // 그리던 획·홀드·더블클릭 대기를 끊고 모드를 바꾼다
+        resetGestureState();
         renderLive();
         onToolChangeRef.current(activeToolRef.current === "text" ? "freehand" : "text");
       }
     };
 
     const onKeyUp = (e: KeyboardEvent) => {
-      if (e.key === "Meta") {
-        commandHeld = false;
-        moveDiscoverySuppressed = false;
-        hideMoveDiscovery();
+      if (e.key === "Meta" || e.key === "Alt") {
+        clearRevealTimer();
+        applyInteractionEvent({
+          type: "modifier-up",
+          action: e.key === "Meta" ? "move" : "delete",
+        });
+        if (interaction.phase === "gesture") {
+          live.style.cursor = interaction.action === "move" ? "grabbing" : "pointer";
+        } else {
+          refreshInteractionHover();
+        }
+        renderLive();
         return;
       }
-      return;
     };
 
-    const resetLostCommandState = () => {
+    const resetLostInteractionState = () => {
       resetGestureState();
-      commandHeld = false;
-      moveDiscoverySuppressed = false;
-      hideMoveDiscovery();
       live.style.cursor = "default";
       renderLive();
     };
 
     const onVisibilityChange = () => {
-      if (document.visibilityState === "hidden") resetLostCommandState();
+      if (document.visibilityState === "hidden") resetLostInteractionState();
     };
 
+    if (activeToolRef.current === "delete") {
+      applyInteractionEvent({ type: "latch-delete" });
+    }
     setupBacking();
     window.addEventListener("resize", setupBacking);
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("keyup", onKeyUp);
-    window.addEventListener("blur", resetLostCommandState);
+    window.addEventListener("blur", resetLostInteractionState);
     document.addEventListener("visibilitychange", onVisibilityChange);
     live.addEventListener("pointerdown", onPointerDown);
     live.addEventListener("pointermove", onPointerMove);
@@ -883,9 +955,6 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
         // 숨김≠삭제: 텍스트는 현재 내용 확정, 진행 중 live 획만 취소한다.
         finishSession(true);
         resetGestureState();
-        commandHeld = false;
-        moveDiscoverySuppressed = false;
-        hideMoveDiscovery();
         renderLive();
       }
     });
@@ -896,7 +965,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       window.removeEventListener("resize", setupBacking);
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
-      window.removeEventListener("blur", resetLostCommandState);
+      window.removeEventListener("blur", resetLostInteractionState);
       document.removeEventListener("visibilitychange", onVisibilityChange);
       live.removeEventListener("pointerdown", onPointerDown);
       live.removeEventListener("pointermove", onPointerMove);
@@ -906,13 +975,14 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       unlistenClear.then((f) => f());
       unlistenFinishText.then((f) => f());
       if (rafId) cancelAnimationFrame(rafId);
-      clearMoveRevealTimer();
+      clearRevealTimer();
       const hadEditingRequest = wantsEditingRef.current;
       wantsEditingRef.current = false;
       sessionRequestRef.current += 1;
       if (hadEditingRequest) void setTextEditing(false);
       renderBaseRef.current = () => undefined;
       resetGestureRef.current = () => undefined;
+      syncDeleteToolRef.current = () => undefined;
       rememberOutsideClickRef.current = () => undefined;
       finishSessionRef.current = () => undefined;
     };

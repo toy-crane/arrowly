@@ -15,6 +15,9 @@ const mocks = vi.hoisted(() => ({
   applyTextCursor: vi.fn(),
   resetCursor: vi.fn(),
   pingAt: vi.fn(),
+  isEditing: vi.fn(),
+  finishTextEditing: vi.fn(),
+  setTextSize: vi.fn(),
 }));
 
 vi.mock("../shared/settings", async (importOriginal) => {
@@ -35,39 +38,46 @@ vi.mock("./cursor", () => ({
   resetCursor: mocks.resetCursor,
 }));
 vi.mock("./drawing-canvas", () => ({
-  DrawingCanvas: ({
-    clearAccel,
-    textAccel,
-    tool,
-    textSizeKey,
-    onToolChange,
-    onWidthStep,
-    onTextSizeStep,
-    onPointerPing,
-  }: {
-    clearAccel: string;
-    textAccel: string;
-    tool: string;
-    textSizeKey: string;
-    onToolChange: (tool: "freehand" | "text" | "delete") => void;
-    onWidthStep: (delta: -1 | 1) => void;
-    onTextSizeStep: (delta: -1 | 1) => void;
-    onPointerPing: (point: { x: number; y: number }) => void;
-  }) => (
-    <div
-      data-testid="canvas"
-      data-tool={tool}
-      data-textaccel={textAccel}
-      data-textsize={textSizeKey}
-    >
-      <button onClick={() => onToolChange(tool === "text" ? "freehand" : "text")}>text-toggle</button>
-      <button onClick={() => onToolChange("delete")}>delete-tool</button>
-      <button onClick={() => onWidthStep(1)}>width-step</button>
-      <button onClick={() => onTextSizeStep(-1)}>text-step</button>
-      <button onClick={() => onPointerPing({ x: 80, y: 90 })}>pointer-ping</button>
-      {clearAccel}
-    </div>
-  ),
+  DrawingCanvas: forwardRef(function MockDrawingCanvas({
+      clearAccel,
+      textAccel,
+      tool,
+      textSizeKey,
+      onToolChange,
+      onWidthStep,
+      onTextSizeStep,
+      onPointerPing,
+    }: {
+      clearAccel: string;
+      textAccel: string;
+      tool: string;
+      textSizeKey: string;
+      onToolChange: (tool: "freehand" | "text" | "delete") => void;
+      onWidthStep: (delta: -1 | 1) => void;
+      onTextSizeStep: (delta: -1 | 1) => void;
+      onPointerPing: (point: { x: number; y: number }) => void;
+    }, ref) {
+      useImperativeHandle(ref, () => ({
+        isEditing: mocks.isEditing,
+        finishTextEditing: mocks.finishTextEditing,
+        setTextSize: mocks.setTextSize,
+      }));
+      return (
+        <div
+          data-testid="canvas"
+          data-tool={tool}
+          data-textaccel={textAccel}
+          data-textsize={textSizeKey}
+        >
+          <button onClick={() => onToolChange(tool === "text" ? "freehand" : "text")}>text-toggle</button>
+          <button onClick={() => onToolChange("delete")}>delete-tool</button>
+          <button onClick={() => onWidthStep(1)}>width-step</button>
+          <button onClick={() => onTextSizeStep(-1)}>text-step</button>
+          <button onClick={() => onPointerPing({ x: 80, y: 90 })}>pointer-ping</button>
+          {clearAccel}
+        </div>
+      );
+    }),
 }));
 vi.mock("./pointer-ping-layer", () => ({
   PointerPingLayer: forwardRef(function MockPointerPingLayer(_, ref) {
@@ -117,6 +127,9 @@ describe("OverlayApp", () => {
     mocks.applyTextCursor.mockReset();
     mocks.resetCursor.mockReset();
     mocks.pingAt.mockReset();
+    mocks.isEditing.mockReset().mockReturnValue(false);
+    mocks.finishTextEditing.mockReset();
+    mocks.setTextSize.mockReset();
     mockIPC((cmd) => void commands.push(cmd), { shouldMockEvents: true });
     Object.defineProperty(window, "innerWidth", { configurable: true, value: 1200 });
     Object.defineProperty(window, "innerHeight", { configurable: true, value: 800 });
@@ -218,8 +231,17 @@ describe("OverlayApp", () => {
     fireEvent.click(screen.getByRole("button", { name: "text-step" }));
     expect(mocks.saveTextSize).toHaveBeenCalledWith("xsmall");
 
+    mocks.isEditing.mockReturnValue(true);
+    fireEvent.click(screen.getByRole("button", { name: "marker-delete" }));
+    expect(screen.getByTestId("canvas")).toHaveAttribute("data-tool", "text");
+    expect(mocks.finishTextEditing).not.toHaveBeenCalled();
+
+    mocks.isEditing.mockReturnValue(false);
     fireEvent.click(screen.getByRole("button", { name: "marker-delete" }));
     expect(screen.getByTestId("canvas")).toHaveAttribute("data-tool", "delete");
     expect(mocks.resetCursor).toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "marker-delete" }));
+    expect(screen.getByTestId("canvas")).toHaveAttribute("data-tool", "text");
   });
 });

@@ -7,7 +7,7 @@ const en = {
   "onboarding.draw.hi": "one stroke",
   "onboarding.shortcut.title": "Choose your shortcuts",
   "onboarding.shortcut.body": "Click a field, then press the combination you want to use.",
-  "onboarding.shortcut.textHint": "Press T then click for new text; double-click text to edit or elsewhere to ping. E deletes marks, and ⌘+/⌘− resizes the current tool.",
+  "onboarding.shortcut.textHint": "Press T then click for new text; double-click text to edit or elsewhere to ping. Hold ⌘ and drag to move; hold ⌥ and click to delete. E locks deletion, and ⌘+/⌘− resizes the current tool.",
   "onboarding.erase.title": "Undo and exit",
   "onboarding.erase.body":
     "Made a mistake? Press {cmd}{z} to undo one stroke at a time. While drawing, {board} turns {hi} — your strokes stay. Press {esc} anytime to exit. Try drawing below, then press {board}.",
@@ -77,7 +77,7 @@ const ko: Record<Key, string> = {
   "onboarding.draw.hi": "한 획",
   "onboarding.shortcut.title": "단축키 정하기",
   "onboarding.shortcut.body": "필드를 누른 다음 원하는 키 조합을 입력하세요.",
-  "onboarding.shortcut.textHint": "T를 누른 뒤 클릭해 새 텍스트를 쓰고, 텍스트 더블클릭은 편집, 그 밖의 더블클릭은 핑을 표시해요. E는 마크 삭제, ⌘+/⌘−는 현재 도구 크기를 바꿉니다.",
+  "onboarding.shortcut.textHint": "T를 누른 뒤 클릭해 새 텍스트를 쓰고, 텍스트 더블클릭은 편집, 그 밖의 더블클릭은 핑을 표시해요. ⌘ 드래그는 이동, ⌥ 클릭은 삭제예요. E는 삭제를 잠그고, ⌘+/⌘−는 현재 도구 크기를 바꿉니다.",
   "onboarding.erase.title": "지우기와 빠져나가기",
   "onboarding.erase.body":
     "그리다 실수하면 {cmd}{z}로 한 획씩 취소돼요. 그리는 중 {board}를 누르면 {hi}이 되고 그림은 그대로 남아요. {esc}로 언제든 빠져나옵니다. 아래에서 그리고 {board}를 눌러 보세요.",

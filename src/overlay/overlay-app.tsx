@@ -45,6 +45,16 @@ export function OverlayApp() {
   const [editingTextSizeKey, setEditingTextSizeKey] = useState<TextSizeKey | null>(null);
   const canvasRef = useRef<DrawingCanvasHandle>(null);
   const pingLayerRef = useRef<PointerPingLayerHandle>(null);
+  const lastToolBeforeDeleteRef = useRef<DrawingTool>("freehand");
+
+  const changeTool = (next: DrawingTool) => {
+    setTool((current) => {
+      if (next !== "delete") return next;
+      if (current === "delete") return lastToolBeforeDeleteRef.current;
+      lastToolBeforeDeleteRef.current = current;
+      return "delete";
+    });
+  };
 
   useEffect(() => {
     loadShortcuts().then((s) => {
@@ -60,7 +70,10 @@ export function OverlayApp() {
     const unMode = onModeChanged((p) => {
       setDrawing(p.drawing);
       setBoard(p.board);
-      if (!p.drawing) setTool("freehand"); // Esc·토글로 나가면 일시 도구 선택도 폐기
+      if (!p.drawing) {
+        lastToolBeforeDeleteRef.current = "freehand";
+        setTool("freehand"); // Esc·토글로 나가면 일시 도구 선택도 폐기
+      }
     });
     const unBoard = onBoardChanged((p) => setBoard(p.on));
     const unMarker = onMarkerHiddenChanged((p) => setMarkerHidden(p.hidden));
@@ -123,7 +136,7 @@ export function OverlayApp() {
         clearAccel={clearAccel}
         textAccel={textAccel}
         tool={tool}
-        onToolChange={setTool}
+        onToolChange={changeTool}
         onWidthStep={changeWidthBy}
         onTextSizeStep={changeTextSizeBy}
         onPointerPing={(point) => pingLayerRef.current?.pingAt(point)}
@@ -159,10 +172,13 @@ export function OverlayApp() {
           }}
           onBoardToggle={() => void toggleBoard()}
           onToolChange={(next) => {
+            if (next === "delete" && canvasRef.current?.isEditing()) {
+              return;
+            }
             if (canvasRef.current?.isEditing()) {
               canvasRef.current.finishTextEditing();
             }
-            setTool(next);
+            changeTool(next);
           }}
         />
       )}
