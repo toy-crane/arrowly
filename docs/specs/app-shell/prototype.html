@@ -1,0 +1,727 @@
+<!--
+  Arrowly app-shell approved surface.
+  Contains onboarding and settings screens with reviewable states.
+-->
+<meta charset="utf-8">
+<title>Arrowly 앱 셸 프로토타입</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --win: #faf8f2;
+    --card: #ffffff;
+    --field: #ffffff;
+    --kbd: #faf8f2;
+    --fg: #1c1e24;
+    --muted: #8a867c;
+    --line: rgba(28, 30, 36, 0.1);
+    --line-strong: rgba(28, 30, 36, 0.2);
+    --hi: #ffd400;
+    --primary-bg: #1c1e24;
+    --primary-fg: #ffdf33;
+    --rec-border: #d9b500;
+    --rec-ring: rgba(255, 212, 0, 0.35);
+    --background: var(--win);
+    --surface: var(--card);
+    --surface-2: var(--field);
+    --foreground: var(--fg);
+    --accent: var(--primary-bg);
+    --radius: 10px;
+    --font: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", system-ui, sans-serif;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --win: #1c1e24;
+      --card: #26282f;
+      --field: #2b2e36;
+      --kbd: #2b2e36;
+      --fg: #eae8e1;
+      --muted: #9a968c;
+      --line: rgba(234, 232, 225, 0.12);
+      --line-strong: rgba(234, 232, 225, 0.24);
+      --hi: #f5c800;
+      --primary-bg: #ffd400;
+      --primary-fg: #1c1e24;
+      --rec-border: #f5c800;
+      --rec-ring: rgba(245, 200, 0, 0.3);
+    }
+  }
+
+  * { box-sizing: border-box }
+  body {
+    margin: 0;
+    padding: 0 0 40px;
+    background: var(--background);
+    color: var(--foreground);
+    color-scheme: light dark;
+    font: 14px/1.5 var(--font);
+  }
+  button { font: inherit }
+  [hidden] { display: none !important }
+
+  /* Review chrome retained from the prototype shell. */
+  .sh-bar {
+    position: sticky;
+    top: 0;
+    z-index: 999;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+    padding: 8px 12px;
+    background: #191a1c;
+    color: #d7d7d7;
+    font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  .sh-bar b { color: #8a8f98; font-weight: 500 }
+  .sh-bar button {
+    border: 1px solid #3a3d42;
+    background: none;
+    color: inherit;
+    padding: 2px 9px;
+    border-radius: 99px;
+    cursor: pointer;
+  }
+  .sh-bar button.on {
+    background: #d7d7d7;
+    color: #191a1c;
+    border-color: #d7d7d7;
+  }
+  #sh-states:not([hidden])::before {
+    content: "state";
+    color: #8a8f98;
+    margin-right: 4px;
+  }
+  .sh-spacer { flex: 1 }
+  .sh-stage {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 12px 16px 0;
+  }
+  .sh-vp-640 .sh-stage {
+    width: 656px;
+    height: 496px;
+    margin-top: 14px;
+    padding: 0;
+    overflow: hidden;
+    border: 8px solid #191a1c;
+    border-radius: 18px;
+    background: var(--background);
+  }
+  .sh-vp-380 .sh-stage {
+    width: 396px;
+    height: 576px;
+    margin-top: 14px;
+    padding: 0;
+    overflow: hidden;
+    border: 8px solid #191a1c;
+    border-radius: 18px;
+    background: var(--background);
+  }
+  .sh-vp-768 .sh-stage {
+    max-width: 768px;
+    margin-top: 12px;
+    padding: 16px;
+    border: 1px solid #c4c4c4;
+    border-radius: 12px;
+  }
+
+  /* Onboarding */
+  .screen {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    padding: 18px 24px 16px;
+  }
+  .topline {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 8px;
+  }
+  .step-count {
+    color: var(--muted);
+    font-size: 12px;
+  }
+  .start-shortcut {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    color: var(--muted);
+    font-size: 12px;
+  }
+  .key-group {
+    display: inline-flex;
+    gap: 3px;
+  }
+  .kbd {
+    display: inline-flex;
+    min-width: 24px;
+    height: 24px;
+    align-items: center;
+    justify-content: center;
+    padding: 0 6px;
+    border: 1px solid var(--line-strong);
+    border-radius: 5px;
+    background: var(--kbd);
+    color: var(--foreground);
+    font-size: 12px;
+    font-weight: 650;
+  }
+  h1 {
+    margin: 0 0 4px;
+    font-size: 20px;
+    line-height: 1.25;
+  }
+  .lead {
+    margin: 0 0 12px;
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  .canvas-wrap {
+    position: relative;
+    flex: 1;
+    min-height: 190px;
+    overflow: hidden;
+    border: 1px dashed var(--line-strong);
+    border-radius: var(--radius);
+    background: transparent;
+  }
+  .canvas-label {
+    position: absolute;
+    left: 12px;
+    top: 10px;
+    color: var(--muted);
+    font-size: 11px;
+  }
+  .stroke {
+    position: absolute;
+    width: 148px;
+    height: 76px;
+    border-bottom: 7px solid var(--hi);
+    border-radius: 45%;
+    transform: rotate(-8deg);
+  }
+  .stroke.original { left: 172px; top: 82px }
+  .stroke.moved { left: 298px; top: 54px }
+  .stroke.faint {
+    opacity: .18;
+    border-style: dashed;
+  }
+  .target-frame {
+    position: absolute;
+    width: 178px;
+    height: 100px;
+    border: 2px dashed var(--line-strong);
+    border-radius: 12px;
+  }
+  .target-frame.original { left: 155px; top: 67px }
+  .target-frame.moved { left: 281px; top: 39px }
+  .pointer {
+    position: absolute;
+    color: var(--foreground);
+    font-size: 24px;
+  }
+  .pointer.at-original { left: 250px; top: 114px }
+  .pointer.at-moved { left: 386px; top: 92px }
+  .deleted-mark {
+    position: absolute;
+    left: 250px;
+    top: 86px;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .empty-message {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  .task-strip {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 7px;
+    margin: 0 0 10px;
+  }
+  .task {
+    min-height: 50px;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 7px 8px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--muted);
+    font-size: 11px;
+  }
+  .task.active {
+    border-color: var(--rec-border);
+    color: var(--foreground);
+    box-shadow: 0 0 0 2px var(--rec-ring);
+  }
+  .task.done {
+    background: var(--surface-2);
+    color: var(--foreground);
+  }
+  .task-index {
+    flex: 0 0 auto;
+    width: 18px;
+    height: 18px;
+    display: grid;
+    place-items: center;
+    border: 1px solid var(--line-strong);
+    border-radius: 50%;
+    font-size: 10px;
+  }
+  .task.done .task-index::before { content: "✓" }
+  .task.done .task-index {
+    border-color: var(--hi);
+    background: var(--hi);
+    color: #1c1e24;
+    font-size: 0;
+  }
+  .task-copy strong {
+    display: block;
+    color: inherit;
+    font-size: 11px;
+    font-weight: 650;
+  }
+
+  .exit-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin: 0 0 10px;
+  }
+  .exit-action {
+    min-height: 54px;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 8px 10px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--muted);
+  }
+  .exit-action.active {
+    border-color: var(--rec-border);
+    color: var(--foreground);
+    box-shadow: 0 0 0 2px var(--rec-ring);
+  }
+  .exit-action.done {
+    background: var(--surface-2);
+    color: var(--foreground);
+  }
+  .exit-action strong {
+    display: block;
+    font-size: 12px;
+  }
+  .exit-action small {
+    display: block;
+    margin-top: 1px;
+    font-size: 10px;
+  }
+
+  .footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 13px;
+  }
+  .pips { display: flex; gap: 6px }
+  .pip {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--line-strong);
+  }
+  .pip.on { background: var(--accent) }
+  .buttons { display: flex; gap: 8px }
+  .nav-button {
+    min-width: 70px;
+    padding: 7px 14px;
+    border: 1px solid var(--line-strong);
+    border-radius: 7px;
+    background: var(--surface);
+    color: var(--foreground);
+    cursor: pointer;
+  }
+  .nav-button.primary {
+    border-color: var(--primary-bg);
+    background: var(--primary-bg);
+    color: var(--primary-fg);
+  }
+  .nav-button[disabled] {
+    opacity: .35;
+    cursor: default;
+  }
+  .exit-hint {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--muted);
+    font-size: 12px;
+  }
+  .complete-card {
+    height: 100%;
+    display: grid;
+    place-items: center;
+    text-align: center;
+  }
+  .complete-card strong {
+    display: block;
+    margin-bottom: 5px;
+    font-size: 18px;
+  }
+
+  /* Settings */
+  .settings-screen {
+    height: 100%;
+    padding: 18px 20px 20px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+  }
+  .settings-title {
+    margin: 0 0 14px;
+    font-size: 16px;
+    line-height: 1.25;
+  }
+  .settings-section + .settings-section { margin-top: 14px }
+  .settings-section-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    margin: 0 2px 6px;
+  }
+  .settings-section-head h2 {
+    margin: 0;
+    font-size: 12.5px;
+    font-weight: 650;
+  }
+  .settings-section-head p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 10.5px;
+  }
+  .settings-card {
+    overflow: hidden;
+    border: .5px solid var(--line);
+    border-radius: 10px;
+    background: var(--card);
+  }
+  .shortcut-row {
+    display: grid;
+    grid-template-columns: 108px minmax(86px, 1fr) 42px;
+    align-items: center;
+    gap: 7px;
+    min-height: 44px;
+    padding: 7px 9px;
+    border-top: .5px solid var(--line);
+  }
+  .shortcut-row:first-child,
+  .fixed-row:first-child { border-top: 0 }
+  .settings-label {
+    min-width: 0;
+    font-size: 12px;
+    font-weight: 520;
+  }
+  .shortcut-field {
+    min-height: 30px;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    padding: 3px 7px;
+    border: .5px solid var(--line-strong);
+    border-radius: 7px;
+    background: var(--field);
+  }
+  .shortcut-field.recording {
+    border-color: var(--rec-border);
+    box-shadow: 0 0 0 2px var(--rec-ring);
+  }
+  .shortcut-field.error {
+    border-color: #e2504a;
+  }
+  .shortcut-hint {
+    color: var(--muted);
+    font-size: 11px;
+  }
+  .default-button {
+    padding: 4px 0;
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    font-size: 10.5px;
+    cursor: pointer;
+  }
+  .shortcut-error {
+    grid-column: 2 / 4;
+    margin: -3px 0 1px;
+    color: #e2504a;
+    font-size: 10.5px;
+  }
+  .fixed-row {
+    min-height: 36px;
+    display: grid;
+    grid-template-columns: minmax(130px, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 9px;
+    border-top: .5px solid var(--line);
+  }
+  .gesture {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 4px;
+    color: var(--muted);
+    font-size: 10.5px;
+    white-space: nowrap;
+  }
+  .gesture .kbd {
+    min-width: 21px;
+    height: 21px;
+    padding: 0 4px;
+    font-size: 11px;
+  }
+</style>
+
+<header class="sh-bar">
+  <b>앱 셸</b>
+  <nav id="sh-tabs"></nav>
+  <span class="sh-spacer"></span>
+  <span id="sh-states" hidden></span>
+  <button id="sh-vp">vp: 640 (m)</button>
+</header>
+
+<main class="sh-stage">
+  <section class="screen" data-screen="first-mark" data-title="1 · 첫 마크" data-states="그리기 전,그림 완료" data-native-vp="640">
+    <div class="topline">
+      <span class="step-count">1 / 3</span>
+      <span class="start-shortcut">그리기 시작 <span class="key-group"><span class="kbd">⌥</span><span class="kbd">⇥</span></span></span>
+    </div>
+    <h1>마크 하나를 그려보세요</h1>
+    <p class="lead">실제 화면처럼 아래 영역에 마우스로 자유롭게 그려보세요.</p>
+    <div class="canvas-wrap" data-component="MiniCanvas/reuse">
+      <span class="canvas-label" data-when="그리기 전">이곳에 그리기</span>
+      <div class="stroke original" data-when="그림 완료"></div>
+    </div>
+    <footer class="footer">
+      <span class="pips"><i class="pip on"></i><i class="pip"></i><i class="pip"></i></span>
+      <div class="buttons">
+        <button class="nav-button primary" disabled data-when="그리기 전">다음</button>
+        <button class="nav-button primary" data-when="그림 완료" data-link="correct-mark">다음</button>
+      </div>
+    </footer>
+  </section>
+
+  <section class="screen" data-screen="correct-mark" data-title="2 · 마크 교정" data-states="옮기기,지우기,되돌리기 완료" data-native-vp="640">
+    <div class="topline"><span class="step-count">2 / 3</span></div>
+    <h1>방금 그린 마크를 고쳐보세요</h1>
+    <p class="lead">같은 마크를 옮기고 지운 뒤 되돌리면서 교정 방법을 익힙니다.</p>
+
+    <div class="task-strip" data-component="GesturePractice/proposed">
+      <div class="task active" data-when="옮기기"><span class="task-index">1</span><span class="task-copy"><strong><span class="kbd">⌘</span> 드래그</strong>마크 옮기기</span></div>
+      <div class="task done" data-when="지우기,되돌리기 완료"><span class="task-index">1</span><span class="task-copy"><strong><span class="kbd">⌘</span> 드래그</strong>마크 옮기기</span></div>
+
+      <div class="task" data-when="옮기기"><span class="task-index">2</span><span class="task-copy"><strong><span class="kbd">⌥</span> 클릭</strong>마크 하나 지우기</span></div>
+      <div class="task active" data-when="지우기"><span class="task-index">2</span><span class="task-copy"><strong><span class="kbd">⌥</span> 클릭</strong>마크 하나 지우기</span></div>
+      <div class="task done" data-when="되돌리기 완료"><span class="task-index">2</span><span class="task-copy"><strong><span class="kbd">⌥</span> 클릭</strong>마크 하나 지우기</span></div>
+
+      <div class="task" data-when="옮기기,지우기"><span class="task-index">3</span><span class="task-copy"><strong><span class="kbd">⌘</span><span class="kbd">Z</span></strong>되돌리기</span></div>
+      <div class="task done" data-when="되돌리기 완료"><span class="task-index">3</span><span class="task-copy"><strong><span class="kbd">⌘</span><span class="kbd">Z</span></strong>되돌리기</span></div>
+    </div>
+
+    <div class="canvas-wrap" data-component="MiniCanvas/reuse">
+      <div class="target-frame original" data-when="옮기기"></div>
+      <div class="stroke original" data-when="옮기기"></div>
+      <span class="pointer at-original" data-when="옮기기">↖</span>
+
+      <div class="target-frame moved" data-when="지우기"></div>
+      <div class="stroke moved" data-when="지우기"></div>
+      <span class="pointer at-moved" data-when="지우기">↖</span>
+
+      <span class="deleted-mark" data-when="되돌리기 완료">삭제한 마크가 다시 나타났어요</span>
+      <div class="stroke moved" data-when="되돌리기 완료"></div>
+    </div>
+
+    <footer class="footer">
+      <span class="pips"><i class="pip"></i><i class="pip on"></i><i class="pip"></i></span>
+      <div class="buttons">
+        <button class="nav-button" data-link="first-mark">이전</button>
+        <button class="nav-button primary" disabled data-when="옮기기,지우기">다음</button>
+        <button class="nav-button primary" data-when="되돌리기 완료" data-link="finish">다음</button>
+      </div>
+    </footer>
+  </section>
+
+  <section class="screen" data-screen="finish" data-title="3 · 정리와 탈출" data-states="지우기 전,비움" data-native-vp="640">
+    <div class="topline"><span class="step-count">3 / 3</span></div>
+    <h1>화면을 비우고 끝내보세요</h1>
+    <p class="lead">마크를 모두 지운 뒤 그리기를 끝내면 첫 실습이 완료됩니다.</p>
+
+    <div class="exit-actions" data-component="ExitPractice/proposed">
+      <div class="exit-action active" data-when="지우기 전"><span class="key-group"><span class="kbd">⌥</span><span class="kbd">⌫</span></span><span><strong>마크 모두 지우기</strong><small>현재 화면을 한 번에 비웁니다</small></span></div>
+      <div class="exit-action done" data-when="비움"><span class="key-group"><span class="kbd">⌥</span><span class="kbd">⌫</span></span><span><strong>마크 모두 지우기</strong><small>현재 화면을 한 번에 비웁니다</small></span></div>
+
+      <div class="exit-action" data-when="지우기 전"><span class="kbd">Esc</span><span><strong>그리기 끝내기</strong><small>원래 화면으로 돌아갑니다</small></span></div>
+      <div class="exit-action active" data-when="비움"><span class="kbd">Esc</span><span><strong>그리기 끝내기</strong><small>원래 화면으로 돌아갑니다</small></span></div>
+    </div>
+
+    <div class="canvas-wrap" data-component="MiniCanvas/reuse">
+      <div class="stroke moved" data-when="지우기 전"></div>
+      <div class="empty-message" data-when="비움">화면을 비웠습니다</div>
+    </div>
+
+    <footer class="footer">
+      <span class="pips"><i class="pip"></i><i class="pip"></i><i class="pip on"></i></span>
+      <button class="nav-button" data-link="correct-mark" data-when="지우기 전,비움">이전</button>
+      <span class="exit-hint" data-when="비움"><span class="kbd">Esc</span>를 누르면 온보딩이 끝납니다</span>
+    </footer>
+  </section>
+
+  <section class="settings-screen" data-screen="settings" data-title="4 · 설정" data-states="기본,입력 중,충돌 오류" data-native-vp="380">
+    <h1 class="settings-title">단축키와 제스처</h1>
+
+    <section class="settings-section" data-component="ShortcutEditor/reuse">
+      <div class="settings-section-head">
+        <h2>바꿀 수 있는 단축키</h2>
+        <p>키 조합을 눌러 변경</p>
+      </div>
+      <div class="settings-card">
+        <div class="shortcut-row">
+          <span class="settings-label">그리기 시작·끝내기</span>
+          <div class="shortcut-field" data-when="기본"><span class="kbd">⌥</span><span class="kbd">⇥</span></div>
+          <div class="shortcut-field recording" data-when="입력 중"><span class="shortcut-hint">새 조합 입력…</span></div>
+          <div class="shortcut-field error" data-when="충돌 오류"><span class="kbd">⌘</span><span class="kbd">Z</span></div>
+          <button class="default-button">기본값</button>
+          <p class="shortcut-error" data-when="충돌 오류">실행 취소 단축키와 겹칩니다. 다른 조합을 입력하세요.</p>
+        </div>
+        <div class="shortcut-row">
+          <span class="settings-label">블랙보드 켜기·끄기</span>
+          <div class="shortcut-field"><span class="kbd">⇧</span><span class="kbd">⌥</span><span class="kbd">⇥</span></div>
+          <button class="default-button">기본값</button>
+        </div>
+        <div class="shortcut-row">
+          <span class="settings-label">마크 모두 지우기</span>
+          <div class="shortcut-field"><span class="kbd">⌥</span><span class="kbd">⌫</span></div>
+          <button class="default-button">기본값</button>
+        </div>
+        <div class="shortcut-row">
+          <span class="settings-label">텍스트 쓰기</span>
+          <div class="shortcut-field"><span class="kbd">T</span></div>
+          <button class="default-button">기본값</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="settings-section" data-component="GestureReference/compose">
+      <div class="settings-section-head">
+        <h2>고정 조작</h2>
+        <p>항상 같은 키와 제스처</p>
+      </div>
+      <div class="settings-card">
+        <div class="fixed-row"><span class="settings-label">마크 옮기기</span><span class="gesture"><span class="kbd">⌘</span> 드래그</span></div>
+        <div class="fixed-row"><span class="settings-label">마크 하나 지우기</span><span class="gesture"><span class="kbd">⌥</span> 클릭</span></div>
+        <div class="fixed-row"><span class="settings-label">되돌리기</span><span class="gesture"><span class="kbd">⌘</span><span class="kbd">Z</span></span></div>
+        <div class="fixed-row"><span class="settings-label">다시 실행</span><span class="gesture"><span class="kbd">⇧</span><span class="kbd">⌘</span><span class="kbd">Z</span></span></div>
+        <div class="fixed-row"><span class="settings-label">마크 연속 지우기</span><span class="gesture"><span class="kbd">E</span></span></div>
+        <div class="fixed-row"><span class="settings-label">도구 크기 조절</span><span class="gesture"><span class="kbd">⌘</span><span class="kbd">±</span></span></div>
+        <div class="fixed-row"><span class="settings-label">그리기 끝내기</span><span class="gesture"><span class="kbd">Esc</span></span></div>
+      </div>
+    </section>
+  </section>
+</main>
+
+<script>
+  const stage = document.querySelector(".sh-stage");
+  const screens = [...stage.querySelectorAll("[data-screen]")];
+  const tabs = document.getElementById("sh-tabs");
+  const statebox = document.getElementById("sh-states");
+  const vpBtn = document.getElementById("sh-vp");
+  let current = null;
+
+  screens.forEach((screen) => {
+    const button = document.createElement("button");
+    button.textContent = screen.dataset.title || screen.dataset.screen;
+    button.dataset.for = screen.dataset.screen;
+    button.onclick = () => show(screen.dataset.screen);
+    tabs.append(button);
+  });
+
+  function show(slug) {
+    current = screens.find((screen) => screen.dataset.screen === slug) || screens[0];
+    const nativeViewport = current.dataset.nativeVp;
+    if (nativeViewport && nativeViewport !== viewport) {
+      viewport = nativeViewport;
+      applyViewport();
+    }
+    screens.forEach((screen) => { screen.hidden = screen !== current });
+    [...tabs.children].forEach((button) => {
+      button.classList.toggle("on", button.dataset.for === current.dataset.screen);
+    });
+    history.replaceState(null, "", "#" + current.dataset.screen);
+    buildStates();
+  }
+
+  function buildStates() {
+    const names = (current.dataset.states || "").split(",").map((name) => name.trim()).filter(Boolean);
+    statebox.innerHTML = "";
+    statebox.hidden = !names.length;
+    names.forEach((name) => {
+      const button = document.createElement("button");
+      button.textContent = name;
+      button.onclick = () => applyState(name);
+      statebox.append(button);
+    });
+    applyState(names[0] || null);
+  }
+
+  function applyState(name) {
+    current.querySelectorAll("[data-when]").forEach((element) => {
+      element.hidden = !name || !element.dataset.when.split(",").map((value) => value.trim()).includes(name);
+    });
+    [...statebox.children].forEach((button) => {
+      button.classList.toggle("on", button.textContent === name);
+    });
+  }
+
+  document.querySelectorAll("[data-link]").forEach((button) => {
+    button.addEventListener("click", () => show(button.dataset.link));
+  });
+
+  const viewports = ["full", "380", "640", "768"];
+  let viewport = "640";
+  function applyViewport() {
+    viewports.forEach((value) => {
+      document.body.classList.toggle("sh-vp-" + value, value === viewport && value !== "full");
+    });
+    vpBtn.textContent = "vp: " + viewport + " (m)";
+    vpBtn.classList.toggle("on", viewport !== "full");
+  }
+  vpBtn.onclick = () => {
+    viewport = viewports[(viewports.indexOf(viewport) + 1) % viewports.length];
+    applyViewport();
+  };
+  applyViewport();
+
+  addEventListener("keydown", (event) => {
+    if (/INPUT|TEXTAREA|SELECT/.test(event.target.tagName)) return;
+    const index = screens.indexOf(current);
+    if (event.key === "ArrowRight") show(screens[(index + 1) % screens.length].dataset.screen);
+    if (event.key === "ArrowLeft") show(screens[(index - 1 + screens.length) % screens.length].dataset.screen);
+    if (event.key === "m") vpBtn.click();
+  });
+
+  addEventListener("hashchange", () => show(location.hash.slice(1)));
+  show(location.hash.slice(1));
+</script>
