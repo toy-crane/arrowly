@@ -3,6 +3,15 @@ export const COLORS = ["#FFD400", "#FF7A00", "#FF2D95", "#2ED573", "#00AEEF"] as
 export type Color = (typeof COLORS)[number];
 export const DEFAULT_COLOR: Color = "#FF2D95";
 
+/**
+ * ⌘1–⌘5 색 단축키의 물리 키 코드 → 색 매핑. 상단 숫자열과 숫자패드를 모두 받아
+ * 한글 입력 소스에서도 물리 키로 판정한다. 1–5 밖이면 null.
+ */
+export function colorForDigitCode(code: string): Color | null {
+  const match = /^(?:Digit|Numpad)([1-5])$/.exec(code);
+  return match ? COLORS[Number(match[1]) - 1] : null;
+}
+
 /** 굵기 5단계: 화면 짧은 변 대비 비율 (색과 같은 개수) */
 export const WIDTHS = {
   xthin: 0.0025,

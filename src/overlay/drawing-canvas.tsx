@@ -7,6 +7,8 @@ import {
   useState,
 } from "react";
 import {
+  Color,
+  colorForDigitCode,
   stepTextSize,
   strokeWidthPx,
   TextSizeKey,
@@ -83,6 +85,7 @@ type Props = {
   onToolChange: (tool: DrawingTool) => void;
   onWidthStep?: (delta: -1 | 1) => void;
   onTextSizeStep?: (delta: -1 | 1) => void;
+  onColorPick?: (color: Color) => void;
   onPointerPing?: (point: Point) => void;
   onEditingTextSizeChange?: (size: TextSizeKey | null) => void;
   onNewTextSizeCommit?: (size: TextSizeKey) => void;
@@ -128,6 +131,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
     onToolChange,
     onWidthStep,
     onTextSizeStep,
+    onColorPick,
     onPointerPing,
     onEditingTextSizeChange,
     onNewTextSizeCommit,
@@ -152,6 +156,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
   onWidthStepRef.current = onWidthStep;
   const onTextSizeStepRef = useRef(onTextSizeStep);
   onTextSizeStepRef.current = onTextSizeStep;
+  const onColorPickRef = useRef(onColorPick);
+  onColorPickRef.current = onColorPick;
   const onPointerPingRef = useRef(onPointerPing);
   onPointerPingRef.current = onPointerPing;
   const onEditingTextSizeChangeRef = useRef(onEditingTextSizeChange);
@@ -1004,6 +1010,17 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
           onWidthStepRef.current?.(sizeDelta as -1 | 1);
         }
         return;
+      }
+      // ⌘1–⌘5 색 선택 — 굵기 ⌘± 와 같은 우선순위라 흡수 가드보다 앞서 편집 세션 중에도 동작한다.
+      // 수정자 없는 숫자는 글자 입력으로 흘려보내고, 진행 중 포인터 제스처 동안에는 무시해
+      // "색은 제스처 시작 시 결정" 잉크 속성 계약을 지킨다.
+      if (e.metaKey && !e.altKey && !e.ctrlKey && !e.shiftKey && activePointerId === null) {
+        const nextColor = colorForDigitCode(e.code);
+        if (nextColor) {
+          e.preventDefault();
+          onColorPickRef.current?.(nextColor);
+          return;
+        }
       }
       // 입력 중에는 모든 오버레이 단축키를 흡수. editingRef는 DOM 포커스와 무관한
       // 2차 방어 — non-activating panel에서 포커스가 유실돼도 획 버퍼를 오발화로 지키지 않는다

@@ -46,6 +46,7 @@ vi.mock("./drawing-canvas", () => ({
       onToolChange,
       onWidthStep,
       onTextSizeStep,
+      onColorPick,
       onPointerPing,
     }: {
       clearAccel: string;
@@ -55,6 +56,7 @@ vi.mock("./drawing-canvas", () => ({
       onToolChange: (tool: "freehand" | "text" | "delete") => void;
       onWidthStep: (delta: -1 | 1) => void;
       onTextSizeStep: (delta: -1 | 1) => void;
+      onColorPick: (color: "#FFD400") => void;
       onPointerPing: (point: { x: number; y: number }) => void;
     }, ref) {
       useImperativeHandle(ref, () => ({
@@ -73,6 +75,7 @@ vi.mock("./drawing-canvas", () => ({
           <button onClick={() => onToolChange("delete")}>delete-tool</button>
           <button onClick={() => onWidthStep(1)}>width-step</button>
           <button onClick={() => onTextSizeStep(-1)}>text-step</button>
+          <button onClick={() => onColorPick("#FFD400")}>color-key</button>
           <button onClick={() => onPointerPing({ x: 80, y: 90 })}>pointer-ping</button>
           {clearAccel}
         </div>
@@ -164,6 +167,12 @@ describe("OverlayApp", () => {
     expect(commands).toContain("toggle_board");
     fireEvent.click(screen.getByRole("button", { name: "pointer-ping" }));
     expect(mocks.pingAt).toHaveBeenCalledWith({ x: 80, y: 90 });
+
+    // 캔버스 색 단축키(⌘1–⌘5)도 잉크 색을 저장하고 커서에 즉시 반영한다.
+    // (직전 width 클릭으로 굵기는 thick=6px 상태)
+    fireEvent.click(screen.getByRole("button", { name: "color-key" }));
+    expect(mocks.saveColor).toHaveBeenLastCalledWith("#FFD400");
+    expect(mocks.applyPenCursor).toHaveBeenLastCalledWith("#FFD400", 6);
 
     await act(async () => {
       await emit("board-changed", { on: false });
