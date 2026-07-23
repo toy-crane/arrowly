@@ -30,7 +30,7 @@ function localValidationError(id: FieldId, accel: string, shortcuts: Shortcuts):
   return null;
 }
 
-/** 단축키 레코더 4행(그리기·블랙보드·전체 지우기·텍스트). 설정 창과 온보딩에서 공용. */
+/** 단축키 레코더 4행(그리기·블랙보드·전체 지우기·텍스트). */
 export function ShortcutEditor({ showReset = true }: { showReset?: boolean }) {
   const [shortcuts, setShortcuts] = useState<Shortcuts>(DEFAULT_SHORTCUTS);
   const [recording, setRecording] = useState<FieldId | null>(null);
@@ -128,7 +128,13 @@ export function ShortcutEditor({ showReset = true }: { showReset?: boolean }) {
           <div style={styles.rowMain}>
             <span style={styles.lbl}>{label}</span>
             <button
-              style={{ ...styles.field, ...(recording === id ? styles.fieldRecording : undefined) }}
+              style={{
+                ...styles.field,
+                ...(recording === id ? styles.fieldRecording : undefined),
+                ...(error?.id === id ? styles.fieldError : undefined),
+              }}
+              aria-label={label}
+              aria-invalid={error?.id === id}
               onClick={() => startRecording(id)}
             >
               {recording === id ? (
@@ -155,16 +161,22 @@ export function ShortcutEditor({ showReset = true }: { showReset?: boolean }) {
 }
 
 export const styles: Record<string, CSSProperties> = {
-  row: { padding: "12px 14px" },
-  rowMain: { display: "flex", alignItems: "center", gap: 10 },
-  lbl: { width: 110, flexShrink: 0 },
+  row: { padding: "7px 9px" },
+  rowMain: {
+    minHeight: 30,
+    display: "grid",
+    gridTemplateColumns: "108px minmax(86px, 1fr) 42px",
+    alignItems: "center",
+    gap: 7,
+  },
+  lbl: { minWidth: 0, fontSize: 12, fontWeight: 520 },
   field: {
-    flex: 1,
     display: "flex",
     alignItems: "center",
-    gap: 4,
-    minHeight: 32,
-    padding: "0 8px",
+    gap: 3,
+    minHeight: 30,
+    boxSizing: "border-box",
+    padding: "3px 7px",
     border: "0.5px solid var(--line-strong)",
     borderRadius: 7,
     background: "var(--field)",
@@ -175,29 +187,29 @@ export const styles: Record<string, CSSProperties> = {
     borderColor: "var(--rec-border)",
     boxShadow: "0 0 0 2px var(--rec-ring)",
   },
+  fieldError: { borderColor: "#e2504a" },
   kbd: {
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
-    minWidth: 22,
-    height: 24,
-    padding: "0 5px",
+    minWidth: 21,
+    height: 21,
+    boxSizing: "border-box",
+    padding: "0 4px",
     border: "0.5px solid var(--line-strong)",
     borderRadius: 5,
     background: "var(--kbd)",
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: 500,
   },
-  hint: { color: "var(--muted)", fontSize: 13 },
+  hint: { color: "var(--muted)", fontSize: 11 },
   reset: {
-    flexShrink: 0,
-    fontSize: 12,
-    padding: "5px 10px",
-    border: "0.5px solid var(--line-strong)",
-    borderRadius: 6,
-    background: "var(--field)",
-    color: "inherit",
+    padding: "4px 0",
+    border: 0,
+    background: "transparent",
+    color: "var(--muted)",
+    fontSize: 10.5,
     cursor: "pointer",
   },
-  errText: { margin: "6px 0 0 120px", fontSize: 12, color: "#e2504a" },
+  errText: { margin: "4px 0 1px 115px", fontSize: 10.5, color: "#e2504a" },
 };
