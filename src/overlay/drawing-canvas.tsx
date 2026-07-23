@@ -41,6 +41,12 @@ import {
   type MarkInteractionState,
   transitionMarkInteraction,
 } from "./mark-interaction";
+import {
+  classifyStroke,
+  HOLD_MS,
+  RING_DELAY_MS,
+  STILL_RADIUS_PX,
+} from "./stroke-correction";
 import { TextEditor } from "./text-editor";
 import {
   createGeometricMark,
@@ -346,6 +352,47 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       current: Point;
     } | null = null;
     let geometricPreview: ShapeMark | LineMark | null = null;
+    const HOLD_TICK_MS = 50;
+    let holdAnchor: Point | null = null;
+    let holdStart = 0;
+    let holdTimer = 0;
+    let correctionPreview: ShapeMark | LineMark | null = null;
+    let correctionAnchor: Point | null = null;
+    let correctionRingVisible = false;
+    let correctionProgress = 0;
+
+    const stopHold = () => {
+      if (holdTimer) window.clearInterval(holdTimer);
+      holdTimer = 0;
+      holdAnchor = null;
+      correctionRingVisible = false;
+      correctionProgress = 0;
+    };
+
+    const drawCorrectionRing = (
+      context: CanvasRenderingContext2D,
+      point: Point,
+      progress: number,
+    ) => {
+      const centerX = point.x + 18;
+      const centerY = point.y - 18;
+      context.lineWidth = 2;
+      context.lineCap = "round";
+      context.strokeStyle = "rgba(232,234,240,0.25)";
+      context.beginPath();
+      context.arc(centerX, centerY, 13, 0, Math.PI * 2);
+      context.stroke();
+      context.strokeStyle = "rgba(232,234,240,0.9)";
+      context.beginPath();
+      context.arc(
+        centerX,
+        centerY,
+        13,
+        -Math.PI / 2,
+        -Math.PI / 2 + progress * Math.PI * 2,
+      );
+      context.stroke();
+    };
 
     const interactionAction = (): MarkAction | null =>
       interaction.phase === "discovery" || interaction.phase === "gesture"
@@ -412,8 +459,19 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
         drawMark(liveCtx, geometricPreview);
         return;
       }
+      if (correctionPreview) {
+        drawMark(liveCtx, correctionPreview);
+        return;
+      }
       if (store.live) {
         drawMark(liveCtx, store.live);
+        if (correctionRingVisible) {
+          drawCorrectionRing(
+            liveCtx,
+            store.live.points[store.live.points.length - 1],
+            correctionProgress,
+          );
+        }
         return;
       }
       if (action && fieldVisible) {
@@ -520,6 +578,43 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       scheduleLive();
     };
 
+    const holdTick = () => {
+      if (!store.live || correctionPreview) return;
+      const stillFor = Date.now() - holdStart;
+      if (stillFor >= HOLD_MS) {
+        const result = classifyStroke(store.live.points);
+        if (result) {
+          const { color, widthKey } = toolRef.current;
+          const ink = {
+            color,
+            width: strokeWidthPx(widthKey, Math.min(window.innerWidth, window.innerHeight)),
+          };
+          correctionPreview =
+            result.shape === "line"
+              ? { kind: "shape", ...result, arrowhead: "none", ...ink }
+              : { kind: "shape", ...result, ...ink };
+          correctionAnchor = store.live.points[store.live.points.length - 1];
+          stopHold();
+        } else {
+          armHold(store.live.points[store.live.points.length - 1]);
+        }
+        scheduleLive();
+      } else if (stillFor >= RING_DELAY_MS) {
+        correctionRingVisible = true;
+        correctionProgress = (stillFor - RING_DELAY_MS) / (HOLD_MS - RING_DELAY_MS);
+        scheduleLive();
+      }
+    };
+
+    function armHold(anchor: Point) {
+      if (holdTimer) window.clearInterval(holdTimer);
+      holdAnchor = anchor;
+      holdStart = Date.now();
+      correctionRingVisible = false;
+      correctionProgress = 0;
+      holdTimer = window.setInterval(holdTick, HOLD_TICK_MS);
+    }
+
     // 더블클릭 = 텍스트 진입. 첫 클릭의 점은 두 번째 클릭에서 사후 회수한다(≤350ms 노출 트레이드오프).
     const DBLCLICK_MS = 350;
     const DBLCLICK_SLOP_PX = 6;
@@ -544,6 +639,9 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       const wasMovingMark = movingMarkIndex >= 0;
       lastClick = null;
       dblPending = null;
+      stopHold();
+      correctionPreview = null;
+      correctionAnchor = null;
       geometricGesture = null;
       geometricPreview = null;
       clearRevealTimer();
@@ -646,6 +744,9 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       store.beginLive(color, width, p);
       live.setPointerCapture(e.pointerId);
       activePointerId = e.pointerId;
+      correctionPreview = null;
+      correctionAnchor = null;
+      armHold(p);
       scheduleLive();
     };
 
@@ -684,11 +785,34 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
         updateGeometricPreview(toPoint(e));
         return;
       }
+      if (correctionPreview) {
+        const point = toPoint(e);
+        if (
+          correctionAnchor &&
+          Math.hypot(point.x - correctionAnchor.x, point.y - correctionAnchor.y) >
+            STILL_RADIUS_PX
+        ) {
+          correctionPreview = null;
+          correctionAnchor = null;
+          store.extendLive([point]);
+          armHold(point);
+          scheduleLive();
+        }
+        return;
+      }
       if (!store.live) return;
       const coalesced = e.getCoalescedEvents?.() ?? [];
       // 일부 구현은 빈 배열을 반환한다 — 이벤트 자신으로 폴백
       const points = (coalesced.length ? coalesced : [e]).map(toPoint);
       store.extendLive(points);
+      for (const point of points) {
+        if (
+          holdAnchor &&
+          Math.hypot(point.x - holdAnchor.x, point.y - holdAnchor.y) > STILL_RADIUS_PX
+        ) {
+          armHold(point);
+        }
+      }
       scheduleLive();
     };
 
@@ -769,6 +893,19 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
         } else {
           onPointerPingRef.current?.(at);
         }
+        return;
+      }
+      stopHold();
+      if (correctionPreview) {
+        const mark = correctionPreview;
+        correctionPreview = null;
+        correctionAnchor = null;
+        activePointerId = null;
+        lastClick = null;
+        store.cancelLive();
+        store.push(mark);
+        drawMark(baseCtx, mark);
+        renderLive();
         return;
       }
       if (!store.live) {
@@ -976,6 +1113,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       unlistenFinishText.then((f) => f());
       if (rafId) cancelAnimationFrame(rafId);
       clearRevealTimer();
+      stopHold();
       const hadEditingRequest = wantsEditingRef.current;
       wantsEditingRef.current = false;
       sessionRequestRef.current += 1;

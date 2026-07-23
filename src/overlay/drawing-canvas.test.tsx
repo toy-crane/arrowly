@@ -1097,30 +1097,147 @@ describe("DrawingCanvas", () => {
     });
   });
 
-  it("keeps a paused freehand stroke as pen input without progress or geometric preview", () => {
-    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "Date"] });
-    try {
+  describe("hold-to-correct freehand strokes", () => {
+    beforeEach(() => {
+      vi.useFakeTimers({
+        toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "Date"],
+      });
+      vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+        callback(1);
+        return 0;
+      });
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    function renderCanvas() {
       const { container } = render(
         <DrawingCanvas {...baseProps} tool="freehand" onToolChange={vi.fn()} />,
       );
-      const [baseCtx, liveCtx] = contexts;
-      const live = container.querySelectorAll("canvas")[1];
-
-      fireEvent.pointerDown(live, { button: 0, clientX: 20, clientY: 30, pointerId: 1 });
-      fireEvent.pointerMove(live, { clientX: 180, clientY: 120, pointerId: 1 });
-      vi.advanceTimersByTime(1_000);
-
-      expect(liveCtx.arc).not.toHaveBeenCalled();
-      expect(liveCtx.rect).not.toHaveBeenCalled();
-      expect(liveCtx.ellipse).not.toHaveBeenCalled();
-
-      fireEvent.pointerUp(live, { clientX: 180, clientY: 120, pointerId: 1 });
-      expect(baseCtx.stroke).toHaveBeenCalledOnce();
-      expect(baseCtx.rect).not.toHaveBeenCalled();
-      expect(baseCtx.ellipse).not.toHaveBeenCalled();
-    } finally {
-      vi.useRealTimers();
+      return {
+        live: container.querySelectorAll("canvas")[1],
+        baseCtx: contexts[0],
+        liveCtx: contexts[1],
+      };
     }
+
+    function traceOpenStroke(
+      live: Element,
+      from: [number, number],
+      to: [number, number],
+      pointerId = 1,
+    ) {
+      fireEvent.pointerDown(live, {
+        button: 0,
+        clientX: from[0],
+        clientY: from[1],
+        pointerId,
+      });
+      fireEvent.pointerMove(live, { clientX: to[0], clientY: to[1], pointerId });
+    }
+
+    it("shows progress and corrects a held open stroke to its raw endpoints", () => {
+      const { live, baseCtx, liveCtx } = renderCanvas();
+      traceOpenStroke(live, [20, 30], [180, 120]);
+      vi.mocked(liveCtx.arc).mockClear();
+
+      vi.advanceTimersByTime(149);
+      expect(liveCtx.arc).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(1);
+      expect(liveCtx.arc).toHaveBeenCalled();
+
+      fireEvent.keyDown(window, { key: "Shift", code: "ShiftLeft", shiftKey: true });
+      vi.mocked(liveCtx.moveTo).mockClear();
+      vi.mocked(liveCtx.lineTo).mockClear();
+      vi.advanceTimersByTime(200);
+      expect(liveCtx.moveTo).toHaveBeenCalledWith(20, 30);
+      expect(liveCtx.lineTo).toHaveBeenCalledWith(180, 120);
+
+      fireEvent.pointerUp(live, {
+        clientX: 220,
+        clientY: 160,
+        pointerId: 1,
+        shiftKey: true,
+      });
+      expect(baseCtx.moveTo).toHaveBeenCalledWith(20, 30);
+      expect(baseCtx.lineTo).toHaveBeenCalledWith(180, 120);
+    });
+
+    it("corrects a held closed stroke to a rectangle committed as one undoable mark", () => {
+      const { live, baseCtx, liveCtx } = renderCanvas();
+      fireEvent.pointerDown(live, {
+        button: 0,
+        clientX: 100,
+        clientY: 100,
+        pointerId: 1,
+      });
+      const size = 120;
+      const perSide = 12;
+      const sides: [number, number][] = [];
+      for (let i = 1; i <= perSide; i += 1) sides.push([100 + (size * i) / perSide, 100]);
+      for (let i = 1; i <= perSide; i += 1) sides.push([220, 100 + (size * i) / perSide]);
+      for (let i = 1; i <= perSide; i += 1) sides.push([220 - (size * i) / perSide, 220]);
+      for (let i = 1; i <= perSide; i += 1) sides.push([100, 220 - (size * i) / perSide]);
+      for (const [x, y] of sides) {
+        fireEvent.pointerMove(live, { clientX: x, clientY: y, pointerId: 1 });
+      }
+
+      vi.advanceTimersByTime(350);
+      expect(liveCtx.rect).toHaveBeenCalled();
+      expect(baseCtx.rect).not.toHaveBeenCalled();
+
+      fireEvent.pointerUp(live, { clientX: 100, clientY: 100, pointerId: 1 });
+      expect(baseCtx.rect).toHaveBeenCalledTimes(1);
+      fireEvent.keyDown(window, { code: "KeyZ", metaKey: true });
+      expect(baseCtx.rect).toHaveBeenCalledTimes(1);
+    });
+
+    it("restarts the hold window after movement and keeps early releases as freehand", () => {
+      const { live, baseCtx, liveCtx } = renderCanvas();
+      traceOpenStroke(live, [0, 0], [100, 100]);
+      vi.advanceTimersByTime(325);
+      fireEvent.pointerMove(live, { clientX: 140, clientY: 120, pointerId: 1 });
+
+      vi.advanceTimersByTime(349);
+      vi.mocked(liveCtx.lineTo).mockClear();
+      vi.advanceTimersByTime(1);
+      expect(liveCtx.lineTo).toHaveBeenCalledWith(140, 120);
+      fireEvent.pointerUp(live, { clientX: 140, clientY: 120, pointerId: 1 });
+
+      vi.mocked(baseCtx.lineTo).mockClear();
+      vi.mocked(baseCtx.bezierCurveTo).mockClear();
+      fireEvent.pointerDown(live, {
+        button: 0,
+        clientX: 30,
+        clientY: 40,
+        pointerId: 2,
+      });
+      fireEvent.pointerMove(live, { clientX: 70, clientY: 55, pointerId: 2 });
+      fireEvent.pointerMove(live, { clientX: 100, clientY: 65, pointerId: 2 });
+      fireEvent.pointerMove(live, { clientX: 130, clientY: 70, pointerId: 2 });
+      fireEvent.pointerUp(live, { clientX: 130, clientY: 70, pointerId: 2 });
+      expect(baseCtx.bezierCurveTo).toHaveBeenCalled();
+      expect(baseCtx.lineTo).not.toHaveBeenCalled();
+    });
+
+    it("discards a correction preview on Clear All and pointer cancellation", () => {
+      const { live, baseCtx, liveCtx } = renderCanvas();
+      traceOpenStroke(live, [100, 100], [220, 160]);
+      vi.advanceTimersByTime(350);
+      expect(liveCtx.lineTo).toHaveBeenCalledWith(220, 160);
+
+      fireEvent.keyDown(window, { code: "Backspace", altKey: true });
+      fireEvent.pointerUp(live, { clientX: 220, clientY: 160, pointerId: 1 });
+      expect(baseCtx.lineTo).not.toHaveBeenCalled();
+
+      traceOpenStroke(live, [80, 80], [200, 140], 2);
+      vi.advanceTimersByTime(350);
+      fireEvent.pointerCancel(live, { pointerId: 2 });
+      fireEvent.pointerUp(live, { clientX: 200, clientY: 140, pointerId: 2 });
+      expect(baseCtx.lineTo).not.toHaveBeenCalled();
+    });
   });
 
   it("commits text at the size shown while typing even if the window resized mid-edit", async () => {
