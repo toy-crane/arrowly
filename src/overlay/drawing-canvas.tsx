@@ -15,7 +15,6 @@ import {
 import {
   drawMark,
   findMarkAt,
-  findMovableMarkAt,
   findTextMarkAt,
   LineMark,
   markFrameBounds,
@@ -534,7 +533,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
         if (editingRef.current) return;
         clearMoveRevealTimer();
         const point = toPoint(e);
-        const hit = findMovableMarkAt(store.marks, point);
+        const hit = findMarkAt(store.marks, point);
         commandPointerActive = true;
         activePointerId = e.pointerId;
         live.setPointerCapture(e.pointerId);
@@ -611,7 +610,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
         return;
       }
       if (activePointerId === null && moveDiscoveryVisible) {
-        const nextHovered = findMovableMarkAt(store.marks, toPoint(e))?.index ?? -1;
+        const nextHovered = findMarkAt(store.marks, toPoint(e))?.index ?? -1;
         if (nextHovered !== hoveredMarkIndex) {
           hoveredMarkIndex = nextHovered;
           live.style.cursor = nextHovered >= 0 ? "grab" : "default";
@@ -672,7 +671,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
           renderBase();
         }
         hoveredMarkIndex = moveDiscoveryVisible
-          ? (findMovableMarkAt(store.marks, point)?.index ?? -1)
+          ? (findMarkAt(store.marks, point)?.index ?? -1)
           : -1;
         live.style.cursor = hoveredMarkIndex >= 0 ? "grab" : "default";
         renderLive();

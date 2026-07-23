@@ -590,6 +590,42 @@ describe("DrawingCanvas", () => {
       expect(baseCtx.moveTo).toHaveBeenLastCalledWith(70, 60);
     });
 
+    it("moves a geometric mark through the same Command-drag path", () => {
+      const { container } = render(
+        <DrawingCanvas {...baseProps} tool="rect" onToolChange={vi.fn()} />,
+      );
+      const [baseCtx, liveCtx] = contexts;
+      const live = container.querySelectorAll("canvas")[1];
+
+      fireEvent.pointerDown(live, { button: 0, clientX: 80, clientY: 90, pointerId: 1 });
+      fireEvent.pointerMove(live, { clientX: 180, clientY: 150, pointerId: 1 });
+      fireEvent.pointerUp(live, { clientX: 180, clientY: 150, pointerId: 1 });
+      vi.mocked(baseCtx.rect).mockClear();
+
+      fireEvent.keyDown(window, { key: "Meta", code: "MetaLeft", metaKey: true });
+      fireEvent.pointerDown(live, {
+        button: 0,
+        clientX: 120,
+        clientY: 120,
+        pointerId: 2,
+        metaKey: true,
+      });
+      fireEvent.pointerMove(live, {
+        clientX: 150,
+        clientY: 140,
+        pointerId: 2,
+        metaKey: true,
+      });
+      expect(liveCtx.rect).toHaveBeenLastCalledWith(110, 110, 100, 60);
+
+      fireEvent.pointerUp(live, { clientX: 160, clientY: 150, pointerId: 2, metaKey: true });
+      fireEvent.keyUp(window, { key: "Meta", code: "MetaLeft" });
+      expect(baseCtx.rect).toHaveBeenLastCalledWith(120, 120, 100, 60);
+
+      fireEvent.keyDown(window, { code: "KeyZ", metaKey: true });
+      expect(baseCtx.rect).toHaveBeenLastCalledWith(80, 90, 100, 60);
+    });
+
     it("highlights the hit target immediately and leaves an empty Command-drag inert", () => {
       const { container } = render(<Harness />);
       const [baseCtx, liveCtx] = contexts;
