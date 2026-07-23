@@ -1,52 +1,93 @@
 import { useEffect, useRef, useState } from "react";
 import { DEFAULT_COLOR } from "../shared/constants";
-import { drawMark, Point, StrokeStore } from "../shared/drawing";
-import { resumeShortcuts, suspendShortcuts } from "../shared/ipc";
-import { DEFAULT_SHORTCUTS } from "../shared/settings";
+import {
+  drawMark,
+  findMarkAt,
+  Mark,
+  Point,
+  StrokeStore,
+  translateMark,
+} from "../shared/drawing";
 import { matchesAccelerator } from "../shared/shortcuts";
 
+export type OnboardingPhase = "draw" | "correct" | "finish";
+export type CorrectionStep = "move" | "delete" | "undo" | "complete";
+
 type Props = {
-  onFirstStroke?: () => void;
-  /** 현재 블랙보드 키로 배경을 검게 전환하는 체험 허용 */
-  boardable?: boolean;
-  boardAccel?: string;
+  phase: OnboardingPhase;
+  correctionStep: CorrectionStep;
+  clearAccel: string;
+  emptyLabel?: string;
+  onFirstStroke: () => void;
+  onMoved: () => void;
+  onDeleted: () => void;
+  onRestored: () => void;
+  onCleared: () => void;
 };
 
-/** 온보딩용 미니 캔버스 — M3 엔진(strokes·smoothing) 재사용, 창 안에서만 동작. */
+type MoveGesture = {
+  kind: "move";
+  index: number;
+  mark: Mark;
+  from: Point;
+  to: Point;
+};
+
+type DeleteGesture = {
+  kind: "delete";
+  index: number;
+  from: Point;
+};
+
+type Gesture = MoveGesture | DeleteGesture;
+
+const MOVE_THRESHOLD_PX = 4;
+
+/** 온보딩용 미니 캔버스 — 실제 마크 저장소와 hit testing을 쓰되 현재 실습 동작만 허용한다. */
 export function MiniCanvas({
+  phase,
+  correctionStep,
+  clearAccel,
+  emptyLabel,
   onFirstStroke,
-  boardable = false,
-  boardAccel = DEFAULT_SHORTCUTS.board,
+  onMoved,
+  onDeleted,
+  onRestored,
+  onCleared,
 }: Props) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const storeRef = useRef<StrokeStore>(null!);
   if (!storeRef.current) storeRef.current = new StrokeStore();
   const firedRef = useRef(false);
-  const onFirstRef = useRef(onFirstStroke);
-  onFirstRef.current = onFirstStroke;
-  const [board, setBoard] = useState(false);
-  const boardableRef = useRef(boardable);
-  boardableRef.current = boardable;
-  const boardAccelRef = useRef(boardAccel);
-  boardAccelRef.current = boardAccel;
+  const phaseRef = useRef(phase);
+  const correctionStepRef = useRef(correctionStep);
+  const clearAccelRef = useRef(clearAccel);
+  const callbacksRef = useRef({ onFirstStroke, onMoved, onDeleted, onRestored, onCleared });
+  const [empty, setEmpty] = useState(false);
+
+  phaseRef.current = phase;
+  correctionStepRef.current = correctionStep;
+  clearAccelRef.current = clearAccel;
+  callbacksRef.current = { onFirstStroke, onMoved, onDeleted, onRestored, onCleared };
 
   useEffect(() => {
     const wrap = wrapRef.current!;
     const canvas = canvasRef.current!;
     const ctx = canvas.getContext("2d")!;
     const store = storeRef.current;
-
     const dims = { w: 0, h: 0 };
+    let gesture: Gesture | null = null;
+    let preview: { index: number; mark: Mark } | null = null;
 
     const render = () => {
       ctx.clearRect(0, 0, dims.w, dims.h);
-      for (const s of store.marks) drawMark(ctx, s);
+      store.marks.forEach((mark, index) => {
+        drawMark(ctx, preview?.index === index ? preview.mark : mark);
+      });
       if (store.live) drawMark(ctx, store.live);
     };
 
-    // 창이 자리 잡기 전(마운트 직후)의 크기로 한 번만 재면 백킹과 CSS 크기가
-    // 어긋나 획이 커서에서 밀려 보인다 — 크기가 바뀔 때마다 백킹을 다시 만든다.
     const setupBacking = () => {
       const w = wrap.clientWidth;
       const h = wrap.clientHeight;
@@ -61,56 +102,129 @@ export function MiniCanvas({
     };
 
     setupBacking();
-    const ro = new ResizeObserver(setupBacking);
-    ro.observe(wrap);
+    const resizeObserver = new ResizeObserver(setupBacking);
+    resizeObserver.observe(wrap);
 
-    const toPoint = (e: PointerEvent): Point => {
-      const r = canvas.getBoundingClientRect();
-      return { x: e.clientX - r.left, y: e.clientY - r.top };
+    const toPoint = (event: PointerEvent): Point => {
+      const rect = canvas.getBoundingClientRect();
+      return { x: event.clientX - rect.left, y: event.clientY - rect.top };
     };
 
-    const onPointerDown = (e: PointerEvent) => {
-      if (e.button !== 0) return;
-      store.beginLive(DEFAULT_COLOR, 5, toPoint(e));
-      canvas.setPointerCapture(e.pointerId);
-      render();
-    };
-    const onPointerMove = (e: PointerEvent) => {
-      if (!store.live) return;
-      const coalesced = e.getCoalescedEvents?.() ?? [e];
-      store.extendLive(coalesced.map(toPoint));
-      render();
-    };
-    const onPointerUp = (e: PointerEvent) => {
-      if (!store.live) return;
-      store.extendLive([toPoint(e)]);
-      store.commitLive();
-      render();
-      if (!firedRef.current && store.marks.length > 0) {
-        firedRef.current = true;
-        onFirstRef.current?.();
+    const capture = (event: PointerEvent) => canvas.setPointerCapture(event.pointerId);
+
+    const onPointerDown = (event: PointerEvent) => {
+      if (event.button !== 0) return;
+      const point = toPoint(event);
+
+      if (phaseRef.current === "draw") {
+        setEmpty(false);
+        store.beginLive(DEFAULT_COLOR, 5, point);
+        capture(event);
+        render();
+        return;
+      }
+
+      if (phaseRef.current !== "correct") return;
+      const hit = findMarkAt(store.marks, point);
+      if (!hit) return;
+
+      if (correctionStepRef.current === "move" && event.metaKey && !event.altKey) {
+        gesture = { kind: "move", index: hit.index, mark: hit.mark, from: point, to: point };
+        capture(event);
+      } else if (correctionStepRef.current === "delete" && event.altKey && !event.metaKey) {
+        gesture = { kind: "delete", index: hit.index, from: point };
+        capture(event);
       }
     };
-    const onPointerCancel = () => {
-      store.cancelLive();
+
+    const onPointerMove = (event: PointerEvent) => {
+      if (store.live) {
+        const coalesced = event.getCoalescedEvents?.() ?? [event];
+        store.extendLive(coalesced.map(toPoint));
+        render();
+        return;
+      }
+      if (gesture?.kind !== "move") return;
+      gesture.to = toPoint(event);
+      preview = {
+        index: gesture.index,
+        mark: translateMark(
+          gesture.mark,
+          gesture.to.x - gesture.from.x,
+          gesture.to.y - gesture.from.y,
+        ),
+      };
       render();
     };
 
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.metaKey && !e.altKey && !e.ctrlKey && e.code === "KeyZ") {
-        e.preventDefault();
-        if (e.shiftKey ? store.redo() : store.undo()) render();
-      } else if (e.altKey && e.code === "Backspace") {
-        e.preventDefault();
-        store.clear();
+    const onPointerUp = (event: PointerEvent) => {
+      if (store.live) {
+        store.extendLive([toPoint(event)]);
+        store.commitLive();
         render();
+        if (!firedRef.current && store.marks.length > 0) {
+          firedRef.current = true;
+          callbacksRef.current.onFirstStroke();
+        }
+        return;
+      }
+      if (!gesture) return;
+
+      const point = toPoint(event);
+      if (gesture.kind === "move") {
+        const dx = point.x - gesture.from.x;
+        const dy = point.y - gesture.from.y;
+        const moved = Math.hypot(dx, dy) >= MOVE_THRESHOLD_PX;
+        preview = null;
+        if (moved && store.replace(gesture.index, translateMark(gesture.mark, dx, dy))) {
+          callbacksRef.current.onMoved();
+        }
       } else if (
-        boardableRef.current &&
-        !e.repeat &&
-        matchesAccelerator(e, boardAccelRef.current)
+        Math.hypot(point.x - gesture.from.x, point.y - gesture.from.y) < MOVE_THRESHOLD_PX &&
+        store.remove(gesture.index)
       ) {
-        e.preventDefault();
-        setBoard((b) => !b);
+        callbacksRef.current.onDeleted();
+      }
+      gesture = null;
+      render();
+    };
+
+    const onPointerCancel = () => {
+      store.cancelLive();
+      gesture = null;
+      preview = null;
+      render();
+    };
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (
+        phaseRef.current === "correct" &&
+        correctionStepRef.current === "undo" &&
+        event.metaKey &&
+        !event.altKey &&
+        !event.ctrlKey &&
+        !event.shiftKey &&
+        event.code === "KeyZ"
+      ) {
+        event.preventDefault();
+        if (store.undo()) {
+          setEmpty(false);
+          render();
+          callbacksRef.current.onRestored();
+        }
+        return;
+      }
+      if (
+        phaseRef.current === "finish" &&
+        !event.repeat &&
+        matchesAccelerator(event, clearAccelRef.current) &&
+        store.marks.length > 0
+      ) {
+        event.preventDefault();
+        store.clear();
+        setEmpty(true);
+        render();
+        callbacksRef.current.onCleared();
       }
     };
 
@@ -119,17 +233,17 @@ export function MiniCanvas({
     canvas.addEventListener("pointerup", onPointerUp);
     canvas.addEventListener("pointercancel", onPointerCancel);
     window.addEventListener("keydown", onKeyDown);
-    if (boardableRef.current) void suspendShortcuts();
     return () => {
-      ro.disconnect();
+      resizeObserver.disconnect();
       canvas.removeEventListener("pointerdown", onPointerDown);
       canvas.removeEventListener("pointermove", onPointerMove);
       canvas.removeEventListener("pointerup", onPointerUp);
       canvas.removeEventListener("pointercancel", onPointerCancel);
       window.removeEventListener("keydown", onKeyDown);
-      if (boardableRef.current) void resumeShortcuts();
     };
   }, []);
+
+  const cursor = phase === "draw" ? "crosshair" : correctionStep === "move" ? "move" : "default";
 
   return (
     <div
@@ -141,24 +255,35 @@ export function MiniCanvas({
         border: "1px dashed var(--line-strong)",
         borderRadius: 10,
         overflow: "hidden",
-        // 오버레이 블랙보드 백드롭과 같은 페이드감 (OverlayApp 참조)
-        background: board ? "#000" : "transparent",
-        transition: "background 150ms ease-out",
+        background: "transparent",
       }}
     >
       <canvas
         ref={canvasRef}
         style={{
-          // canvas는 대체 요소라 inset만으론 안 늘어남 — CSS 크기를 명시해야
-          // 백킹(width/height 속성)이 표시 크기를 밀어내지 않는다
           position: "absolute",
           inset: 0,
           width: "100%",
           height: "100%",
-          cursor: "crosshair",
+          cursor,
           touchAction: "none",
         }}
       />
+      {empty && emptyLabel && (
+        <span
+          style={{
+            position: "absolute",
+            inset: 0,
+            display: "grid",
+            placeItems: "center",
+            color: "var(--muted)",
+            fontSize: 13,
+            pointerEvents: "none",
+          }}
+        >
+          {emptyLabel}
+        </span>
+      )}
     </div>
   );
 }

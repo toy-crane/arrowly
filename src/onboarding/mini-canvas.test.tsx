@@ -1,17 +1,12 @@
-import { mockIPC } from "@tauri-apps/api/mocks";
-import { fireEvent, render, waitFor } from "@testing-library/react";
+import { fireEvent, render } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { installCanvasMock, installResizeObserver } from "../../test/canvas";
 import { MiniCanvas } from "./mini-canvas";
 
 describe("MiniCanvas", () => {
-  const commands: string[] = [];
-
   beforeEach(() => {
-    commands.length = 0;
     installCanvasMock();
     installResizeObserver();
-    mockIPC((cmd) => void commands.push(cmd));
     Object.defineProperty(HTMLElement.prototype, "clientWidth", { configurable: true, get: () => 400 });
     Object.defineProperty(HTMLElement.prototype, "clientHeight", { configurable: true, get: () => 160 });
     Object.defineProperty(window, "devicePixelRatio", { configurable: true, value: 2 });
@@ -28,9 +23,22 @@ describe("MiniCanvas", () => {
     });
   });
 
-  it("draws, reports only the first stroke, corrects, clears and cancels", () => {
+  it("keeps one mark while the learner moves, deletes and restores it in order", () => {
     const onFirstStroke = vi.fn();
-    const { container } = render(<MiniCanvas onFirstStroke={onFirstStroke} />);
+    const onMoved = vi.fn();
+    const onDeleted = vi.fn();
+    const onRestored = vi.fn();
+    const props = {
+      clearAccel: "Control+KeyK",
+      onFirstStroke,
+      onMoved,
+      onDeleted,
+      onRestored,
+      onCleared: vi.fn(),
+    };
+    const { container, rerender } = render(
+      <MiniCanvas {...props} phase="draw" correctionStep="move" />,
+    );
     const canvas = container.querySelector("canvas")!;
     expect(canvas.width).toBe(800);
     expect(canvas.height).toBe(320);
@@ -43,32 +51,79 @@ describe("MiniCanvas", () => {
     fireEvent.pointerUp(canvas, { clientX: 40, clientY: 50, pointerId: 1 });
     expect(onFirstStroke).toHaveBeenCalledOnce();
 
-    fireEvent.pointerDown(canvas, { button: 0, clientX: 50, clientY: 60, pointerId: 2 });
-    fireEvent.pointerUp(canvas, { clientX: 50, clientY: 60, pointerId: 2 });
-    expect(onFirstStroke).toHaveBeenCalledOnce();
+    rerender(<MiniCanvas {...props} phase="correct" correctionStep="move" />);
+    fireEvent.pointerDown(canvas, {
+      button: 0,
+      clientX: 30,
+      clientY: 40,
+      pointerId: 2,
+      altKey: true,
+    });
+    fireEvent.pointerUp(canvas, { clientX: 30, clientY: 40, pointerId: 2, altKey: true });
+    expect(onDeleted).not.toHaveBeenCalled();
 
-    fireEvent.keyDown(window, { code: "KeyZ", metaKey: true });
+    fireEvent.pointerDown(canvas, {
+      button: 0,
+      clientX: 30,
+      clientY: 40,
+      pointerId: 3,
+      metaKey: true,
+    });
+    fireEvent.pointerMove(canvas, { clientX: 50, clientY: 60, pointerId: 3, metaKey: true });
+    fireEvent.pointerUp(canvas, { clientX: 50, clientY: 60, pointerId: 3, metaKey: true });
+    expect(onMoved).toHaveBeenCalledOnce();
+
+    rerender(<MiniCanvas {...props} phase="correct" correctionStep="delete" />);
+    fireEvent.pointerDown(canvas, {
+      button: 0,
+      clientX: 50,
+      clientY: 60,
+      pointerId: 4,
+      altKey: true,
+    });
+    fireEvent.pointerUp(canvas, { clientX: 50, clientY: 60, pointerId: 4, altKey: true });
+    expect(onDeleted).toHaveBeenCalledOnce();
+
+    rerender(<MiniCanvas {...props} phase="correct" correctionStep="undo" />);
     fireEvent.keyDown(window, { code: "KeyZ", metaKey: true, shiftKey: true });
-    fireEvent.keyDown(window, { code: "Backspace", altKey: true });
-    fireEvent.pointerDown(canvas, { button: 0, clientX: 10, clientY: 10, pointerId: 3 });
-    fireEvent.pointerCancel(canvas, { pointerId: 3 });
+    expect(onRestored).not.toHaveBeenCalled();
+    fireEvent.keyDown(window, { code: "KeyZ", metaKey: true });
+    expect(onRestored).toHaveBeenCalledOnce();
   });
 
-  it("suspends global shortcuts while demonstrating the blackboard and preserves strokes", async () => {
-    const { container, unmount } = render(<MiniCanvas boardable boardAccel="Shift+Alt+Tab" />);
-    const wrap = container.firstElementChild as HTMLElement;
+  it("only clears a restored mark with the configured shortcut", () => {
+    const onCleared = vi.fn();
+    const props = {
+      clearAccel: "Control+KeyK",
+      onFirstStroke: vi.fn(),
+      onMoved: vi.fn(),
+      onDeleted: vi.fn(),
+      onRestored: vi.fn(),
+      onCleared,
+    };
+    const { container, rerender, getByText } = render(
+      <MiniCanvas {...props} phase="draw" correctionStep="complete" />,
+    );
     const canvas = container.querySelector("canvas")!;
-    await waitFor(() => expect(commands).toContain("suspend_shortcuts"));
 
     fireEvent.pointerDown(canvas, { button: 0, clientX: 20, clientY: 30, pointerId: 1 });
     fireEvent.pointerUp(canvas, { clientX: 25, clientY: 35, pointerId: 1 });
-    fireEvent.keyDown(window, { code: "Tab", altKey: true, shiftKey: true, repeat: true });
-    expect(wrap).toHaveStyle({ background: "transparent" });
-    fireEvent.keyDown(window, { code: "Tab", altKey: true, shiftKey: true });
-    expect(wrap).toHaveStyle({ background: "#000" });
-    fireEvent.keyDown(window, { code: "KeyB", altKey: true });
+    rerender(
+      <MiniCanvas
+        {...props}
+        phase="finish"
+        correctionStep="complete"
+        emptyLabel="The screen is clear"
+      />,
+    );
 
-    unmount();
-    await waitFor(() => expect(commands).toContain("resume_shortcuts"));
+    fireEvent.keyDown(window, { code: "KeyK", altKey: true });
+    fireEvent.keyDown(window, { code: "KeyK", ctrlKey: true, repeat: true });
+    expect(onCleared).not.toHaveBeenCalled();
+    fireEvent.keyDown(window, { code: "KeyK", ctrlKey: true });
+    expect(onCleared).toHaveBeenCalledOnce();
+    expect(getByText("The screen is clear")).toBeInTheDocument();
+    fireEvent.keyDown(window, { code: "KeyK", ctrlKey: true });
+    expect(onCleared).toHaveBeenCalledOnce();
   });
 });
