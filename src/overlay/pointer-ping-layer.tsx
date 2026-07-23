@@ -6,10 +6,21 @@ import {
 } from "react";
 import type { Point } from "../shared/drawing";
 
-const PARTICLE_COUNT = 8;
-const RADIUS_PX = 34;
-const DURATION_MS = 500;
-const TRAVEL_OFFSET = 0.4;
+const MAX_RADIUS_PX = 12;
+const RING_DIAMETER_PX = MAX_RADIUS_PX * 2;
+const DURATION_MS = 620;
+
+type RingConfig = {
+  endScale: number;
+  delayMs: number;
+  peakOpacity: number;
+};
+
+// 바깥 링은 즉시, 안쪽 링은 조금 늦게 출발해 더 작은 반경에서 멈춘다.
+const RINGS: RingConfig[] = [
+  { endScale: 1, delayMs: 0, peakOpacity: 0.65 },
+  { endScale: 0.72, delayMs: 110, peakOpacity: 0.5 },
+];
 
 export type PointerPingLayerHandle = {
   pingAt: (point: Point) => void;
@@ -30,53 +41,41 @@ export const PointerPingLayer = forwardRef<PointerPingLayerHandle>(function Poin
         left: `${point.x}px`,
         top: `${point.y}px`,
       });
-
-      const particles = Array.from({ length: PARTICLE_COUNT }, () => {
-        const particle = document.createElement("i");
-        Object.assign(particle.style, particleStyle);
-        burst.append(particle);
-        return particle;
-      });
       layer.append(burst);
 
       const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
       const animations: Animation[] = [];
+
       if (reducedMotion) {
-        particles.slice(1).forEach((particle) => particle.remove());
-        animations.push(particles[0].animate(
+        const ring = document.createElement("i");
+        Object.assign(ring.style, ringStyle);
+        burst.append(ring);
+        animations.push(ring.animate(
           [
-            { transform: "scale(.45)", opacity: 0 },
-            { transform: "scale(1)", opacity: 1, offset: 0.25 },
-            { transform: "scale(.8)", opacity: 0 },
+            { opacity: 0 },
+            { opacity: 1, offset: 0.35 },
+            { opacity: 0 },
           ],
           { duration: 150, easing: "ease-out", fill: "forwards" },
         ));
       } else {
-        const rotationOffset = (sequence * 17) % 45;
-        particles.forEach((particle, index) => {
-          const angle = rotationOffset + index * 45;
-          const radians = angle * Math.PI / 180;
-          const radiusScale = 0.94 + ((sequence + index * 2) % 5) * 0.03;
-          const dx = Math.cos(radians) * RADIUS_PX * radiusScale;
-          const dy = Math.sin(radians) * RADIUS_PX * radiusScale;
-          const rotation = 45 + rotationOffset;
-          animations.push(particle.animate(
+        // 같은 자리를 겹쳐 찍어도 리플끼리 구분되도록 반경만 소폭 달리한다.
+        const radiusScale = 0.9 + ((sequence * 3) % 5) * 0.05;
+        RINGS.forEach((config) => {
+          const ring = document.createElement("i");
+          Object.assign(ring.style, ringStyle);
+          burst.append(ring);
+          const endScale = config.endScale * radiusScale;
+          animations.push(ring.animate(
             [
-              { transform: "translate(0px, 0px) rotate(45deg) scale(.25)", opacity: 0 },
-              { opacity: 1, offset: 0.1 },
-              {
-                transform: `translate(${dx}px, ${dy}px) rotate(${rotation}deg) scale(.9)`,
-                opacity: 0.95,
-                offset: TRAVEL_OFFSET,
-              },
-              {
-                transform: `translate(${dx}px, ${dy}px) rotate(${rotation}deg) scale(.62)`,
-                opacity: 0,
-              },
+              { transform: "scale(.3)", opacity: 0 },
+              { transform: "scale(.55)", opacity: config.peakOpacity, offset: 0.18 },
+              { transform: `scale(${endScale})`, opacity: 0 },
             ],
             {
-              duration: DURATION_MS,
-              easing: "cubic-bezier(.12,.72,.25,1)",
+              duration: DURATION_MS - config.delayMs,
+              delay: config.delayMs,
+              easing: "cubic-bezier(.16,.65,.3,1)",
               fill: "forwards",
             },
           ));
@@ -105,14 +104,18 @@ const burstStyle: CSSProperties = {
   pointerEvents: "none",
 };
 
-const particleStyle: CSSProperties = {
+// 테두리만 있는 빈 링이라 확장하는 동안 클릭한 지점 자체는 비어 있다.
+const ringStyle: CSSProperties = {
   position: "absolute",
-  left: -3.5,
-  top: -3.5,
-  width: 7,
-  height: 7,
-  display: "block",
-  background: "#FFD400",
-  borderRadius: 1,
-  boxShadow: "0 0 5px rgba(255,212,0,.45)",
+  left: `${-MAX_RADIUS_PX}px`,
+  top: `${-MAX_RADIUS_PX}px`,
+  width: `${RING_DIAMETER_PX}px`,
+  height: `${RING_DIAMETER_PX}px`,
+  boxSizing: "border-box",
+  border: "1.5px solid #FFD400",
+  borderRadius: "50%",
+  background: "transparent",
+  opacity: 0,
+  filter: "drop-shadow(0 0 1px rgba(24,26,32,.4))",
+  pointerEvents: "none",
 };
