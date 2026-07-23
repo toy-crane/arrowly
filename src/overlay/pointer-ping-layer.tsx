@@ -8,7 +8,9 @@ import type { Point } from "../shared/drawing";
 
 const MAX_RADIUS_PX = 12;
 const RING_DIAMETER_PX = MAX_RADIUS_PX * 2;
+const CENTER_DOT_DIAMETER_PX = 6;
 const DURATION_MS = 620;
+const CENTER_DOT_DURATION_MS = 380;
 
 type RingConfig = {
   endScale: number;
@@ -47,10 +49,10 @@ export const PointerPingLayer = forwardRef<PointerPingLayerHandle>(function Poin
       const animations: Animation[] = [];
 
       if (reducedMotion) {
-        const ring = document.createElement("i");
-        Object.assign(ring.style, ringStyle);
-        burst.append(ring);
-        animations.push(ring.animate(
+        const dot = document.createElement("i");
+        Object.assign(dot.style, dotStyle);
+        burst.append(dot);
+        animations.push(dot.animate(
           [
             { opacity: 0 },
             { opacity: 1, offset: 0.35 },
@@ -59,6 +61,19 @@ export const PointerPingLayer = forwardRef<PointerPingLayerHandle>(function Poin
           { duration: 150, easing: "ease-out", fill: "forwards" },
         ));
       } else {
+        // 클릭한 지점을 짧게 표시하는 중심 점.
+        const dot = document.createElement("i");
+        Object.assign(dot.style, dotStyle);
+        burst.append(dot);
+        animations.push(dot.animate(
+          [
+            { transform: "scale(.4)", opacity: 0 },
+            { transform: "scale(1)", opacity: 1, offset: 0.3 },
+            { transform: "scale(.5)", opacity: 0 },
+          ],
+          { duration: CENTER_DOT_DURATION_MS, easing: "ease-out", fill: "forwards" },
+        ));
+
         // 같은 자리를 겹쳐 찍어도 리플끼리 구분되도록 반경만 소폭 달리한다.
         const radiusScale = 0.9 + ((sequence * 3) % 5) * 0.05;
         RINGS.forEach((config) => {
@@ -104,7 +119,22 @@ const burstStyle: CSSProperties = {
   pointerEvents: "none",
 };
 
-// 테두리만 있는 빈 링이라 확장하는 동안 클릭한 지점 자체는 비어 있다.
+// 클릭한 지점을 짧게 찍는 채워진 중심 점.
+const dotStyle: CSSProperties = {
+  position: "absolute",
+  left: `${-CENTER_DOT_DIAMETER_PX / 2}px`,
+  top: `${-CENTER_DOT_DIAMETER_PX / 2}px`,
+  width: `${CENTER_DOT_DIAMETER_PX}px`,
+  height: `${CENTER_DOT_DIAMETER_PX}px`,
+  borderRadius: "50%",
+  background: "#FFD400",
+  boxShadow: "0 0 6px rgba(255,212,0,.7)",
+  opacity: 0,
+  filter: "drop-shadow(0 0 1px rgba(24,26,32,.4))",
+  pointerEvents: "none",
+};
+
+// 테두리만 있는 빈 링은 중심 점 둘레로 퍼진다.
 const ringStyle: CSSProperties = {
   position: "absolute",
   left: `${-MAX_RADIUS_PX}px`,
