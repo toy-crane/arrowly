@@ -130,7 +130,7 @@ describe("Marker", () => {
     await user.click(screen.getByRole("button", { name: "Drawing tool" }));
     expect(screen.getByRole("group", { name: "Drawing tools" })).toBeInTheDocument();
     expect(within(screen.getByRole("group", { name: "Drawing tools" })).getAllByRole("button"))
-      .toHaveLength(6);
+      .toHaveLength(5);
 
     await user.click(screen.getByRole("button", { name: "Triangle tool" }));
     expect(onToolChange).toHaveBeenCalledWith("triangle");
@@ -173,7 +173,6 @@ describe("Marker", () => {
 
     expect(choices.map((button) => button.getAttribute("aria-label"))).toEqual([
       "Freehand tool",
-      "Line tool",
       "Arrow tool",
       "Rectangle tool",
       "Ellipse tool",
@@ -207,7 +206,7 @@ describe("Marker", () => {
       screen.getByRole("group", { name: "Drawing tools" }),
     ).getAllByRole("button");
 
-    expect(drawingChoiceButtons).toHaveLength(6);
+    expect(drawingChoiceButtons).toHaveLength(5);
     for (const button of drawingChoiceButtons) {
       expect(button.style.color).toBe("rgb(232, 234, 240)");
       expect(button.querySelector("svg")).toHaveAttribute("stroke", "currentColor");

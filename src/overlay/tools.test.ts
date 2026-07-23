@@ -10,13 +10,13 @@ describe("geometric drawing tools", () => {
   it("exposes the approved drawing order and recognizes only geometric tools", () => {
     expect(DRAWING_INSPECTOR_TOOLS).toEqual([
       "freehand",
-      "line",
       "arrow",
       "rect",
       "ellipse",
       "triangle",
     ]);
     expect(GEOMETRIC_TOOLS.every(isGeometricTool)).toBe(true);
+    expect(isGeometricTool("line")).toBe(false);
     expect(isGeometricTool("freehand")).toBe(false);
     expect(isGeometricTool("delete")).toBe(false);
   });
@@ -30,9 +30,7 @@ describe("geometric drawing tools", () => {
       .toMatchObject({ shape: "triangle", geometry: { x: 10, y: 20, w: 40, h: 40 } });
   });
 
-  it("distinguishes lines from arrows and always uses the raw pointer endpoint", () => {
-    expect(createGeometricMark("line", { x: 0, y: 0 }, { x: 30, y: 10 }, "blue", 4))
-      .toMatchObject({ shape: "line", arrowhead: "none", geometry: { to: { x: 30, y: 10 } } });
+  it("constructs an endpoint arrow using the raw pointer endpoint", () => {
     const arrow = createGeometricMark("arrow", { x: 0, y: 0 }, { x: 30, y: 10 }, "blue", 4);
     expect(arrow).toMatchObject({ shape: "line", arrowhead: "end" });
     if (arrow.shape !== "line") throw new Error("expected line mark");

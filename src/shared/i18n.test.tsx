@@ -13,7 +13,6 @@ describe("frontend i18n", () => {
     expect(t("marker.widthName.xthin")).toBe("extra thin");
     expect(t("marker.colorValue")).toBe("Color {value}");
     expect(t("marker.drawingTool")).toBe("Drawing tool");
-    expect(t("marker.drawingTool.line")).toBe("Line tool");
     expect(t("marker.textSizeValue", { value: 54 })).toBe("Text size 54px");
     const rich = tx("onboarding.draw.body", { hi: "ONE" });
     expect(

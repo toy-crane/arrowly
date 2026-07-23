@@ -459,7 +459,6 @@ function DrawingToolIcon({
       {tool === "rect" && <rect x="4" y="5" width="16" height="14" rx="1.5" />}
       {tool === "ellipse" && <ellipse cx="12" cy="12" rx="8" ry="6.5" />}
       {tool === "triangle" && <path d="m12 4 8 15H4Z" />}
-      {tool === "line" && <path d="M4 18 20 6" />}
       {tool === "arrow" && <path d="M4 18 19 7M13 6l6 1-1 6" />}
     </svg>
   );

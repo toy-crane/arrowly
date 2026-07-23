@@ -1,6 +1,6 @@
 import type { LineMark, Point, ShapeMark } from "../shared/drawing";
 
-export const GEOMETRIC_TOOLS = ["line", "arrow", "rect", "ellipse", "triangle"] as const;
+export const GEOMETRIC_TOOLS = ["arrow", "rect", "ellipse", "triangle"] as const;
 
 export type GeometricTool = (typeof GEOMETRIC_TOOLS)[number];
 export const DRAWING_INSPECTOR_TOOLS = ["freehand", ...GEOMETRIC_TOOLS] as const;
@@ -18,12 +18,12 @@ export function createGeometricMark(
   color: string,
   width: number,
 ): ShapeMark | LineMark {
-  if (tool === "line" || tool === "arrow") {
+  if (tool === "arrow") {
     return {
       kind: "shape",
       shape: "line",
       geometry: { from, to },
-      arrowhead: tool === "arrow" ? "end" : "none",
+      arrowhead: "end",
       color,
       width,
     };
