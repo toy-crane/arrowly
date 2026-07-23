@@ -91,6 +91,7 @@ vi.mock("./marker", () => ({
     widthKey: string;
     board: boolean;
     tool: string;
+    drawingTool: string;
     textSizeKey: string;
     onColorChange: (value: "#00AEEF") => void;
     onWidthChange: (value: "thick") => void;
@@ -98,7 +99,12 @@ vi.mock("./marker", () => ({
     onBoardToggle: () => void;
     onToolChange: (tool: "freehand" | "text" | "delete" | "triangle") => void;
   }) => (
-    <div data-testid="marker" data-board={String(props.board)} data-tool={props.tool}>
+    <div
+      data-testid="marker"
+      data-board={String(props.board)}
+      data-tool={props.tool}
+      data-drawing-tool={props.drawingTool}
+    >
       <button onClick={() => props.onColorChange("#00AEEF")}>color</button>
       <button onClick={() => props.onWidthChange("thick")}>width</button>
       <button onClick={() => props.onTextSizeChange("large")}>text-size</button>
@@ -243,5 +249,22 @@ describe("OverlayApp", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "marker-delete" }));
     expect(screen.getByTestId("canvas")).toHaveAttribute("data-tool", "text");
+  });
+
+  it("remembers the selected geometric tool while text is temporarily active", async () => {
+    render(<OverlayApp />);
+    await act(async () => {
+      await emit("mode-changed", { drawing: true, board: false });
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "marker-triangle" }));
+    expect(screen.getByTestId("marker")).toHaveAttribute("data-drawing-tool", "triangle");
+
+    fireEvent.click(screen.getByRole("button", { name: "marker-text" }));
+    expect(screen.getByTestId("canvas")).toHaveAttribute("data-tool", "text");
+    expect(screen.getByTestId("marker")).toHaveAttribute("data-drawing-tool", "triangle");
+
+    fireEvent.click(screen.getByRole("button", { name: "text-toggle" }));
+    expect(screen.getByTestId("canvas")).toHaveAttribute("data-tool", "triangle");
   });
 });

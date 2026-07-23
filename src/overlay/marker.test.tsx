@@ -28,6 +28,7 @@ describe("Marker", () => {
       textSizeKey: "medium" as const,
       board: false,
       tool: "freehand" as const,
+      drawingTool: "freehand" as const,
       onColorChange: vi.fn(),
       onWidthChange: vi.fn(),
       onTextSizeChange: vi.fn(),
@@ -73,6 +74,7 @@ describe("Marker", () => {
       widthKey: "medium" as const,
       textSizeKey: "medium" as const,
       board: false,
+      drawingTool: "freehand" as const,
       onColorChange: vi.fn(),
       onWidthChange: vi.fn(),
       onTextSizeChange: vi.fn(),
@@ -119,6 +121,7 @@ describe("Marker", () => {
       textSizeKey: "medium" as const,
       board: false,
       tool: "freehand" as const,
+      drawingTool: "freehand" as const,
       onColorChange: vi.fn(),
       onWidthChange: vi.fn(),
       onTextSizeChange: vi.fn(),
@@ -136,7 +139,7 @@ describe("Marker", () => {
     expect(onToolChange).toHaveBeenCalledWith("triangle");
     expect(screen.queryByRole("group", { name: "Drawing properties" })).not.toBeInTheDocument();
 
-    rerender(<Marker {...props} tool="triangle" />);
+    rerender(<Marker {...props} tool="triangle" drawingTool="triangle" />);
     onToolChange.mockClear();
     const freehand = screen.getByRole("button", { name: "Drawing tool" });
     expect(freehand).toHaveAttribute("aria-pressed", "true");
@@ -146,6 +149,36 @@ describe("Marker", () => {
     await user.click(freehand);
     expect(screen.getByRole("group", { name: "Drawing properties" })).toBeInTheDocument();
     expect(onToolChange).not.toHaveBeenCalled();
+  });
+
+  it("shows and restores the remembered geometric tool while text is active", async () => {
+    const user = userEvent.setup();
+    const onToolChange = vi.fn();
+    render(
+      <Marker
+        color="#FF2D95"
+        widthKey="medium"
+        textSizeKey="medium"
+        board={false}
+        tool="text"
+        drawingTool="triangle"
+        onColorChange={vi.fn()}
+        onWidthChange={vi.fn()}
+        onTextSizeChange={vi.fn()}
+        onBoardToggle={vi.fn()}
+        onToolChange={onToolChange}
+      />,
+    );
+
+    const drawingButton = screen.getByRole("button", { name: "Drawing tool" });
+    expect(drawingButton).toHaveAttribute("aria-pressed", "false");
+    expect(drawingButton.querySelector("svg")).toHaveAttribute(
+      "data-drawing-tool-icon",
+      "triangle",
+    );
+
+    await user.click(drawingButton);
+    expect(onToolChange).toHaveBeenCalledWith("triangle");
   });
 
   it("orders drawing choices by usage and returns to freehand from the first choice", async () => {
@@ -158,6 +191,7 @@ describe("Marker", () => {
         textSizeKey="medium"
         board={false}
         tool="freehand"
+        drawingTool="freehand"
         onColorChange={vi.fn()}
         onWidthChange={vi.fn()}
         onTextSizeChange={vi.fn()}
@@ -193,6 +227,7 @@ describe("Marker", () => {
         textSizeKey="medium"
         board={false}
         tool="freehand"
+        drawingTool="freehand"
         onColorChange={vi.fn()}
         onWidthChange={vi.fn()}
         onTextSizeChange={vi.fn()}
@@ -221,6 +256,7 @@ describe("Marker", () => {
       widthKey: "medium" as const,
       textSizeKey: "medium" as const,
       board: false,
+      drawingTool: "freehand" as const,
       onColorChange: vi.fn(),
       onWidthChange: vi.fn(),
       onTextSizeChange: vi.fn(),
@@ -261,6 +297,7 @@ describe("Marker", () => {
       widthKey: "medium" as const,
       textSizeKey: "medium" as const,
       board: false,
+      drawingTool: "freehand" as const,
       onColorChange: vi.fn(),
       onWidthChange: vi.fn(),
       onTextSizeChange: vi.fn(),
@@ -306,6 +343,7 @@ describe("Marker", () => {
         textSizeKey="medium"
         board={false}
         tool="freehand"
+        drawingTool="freehand"
         onColorChange={vi.fn()}
         onWidthChange={vi.fn()}
         onTextSizeChange={vi.fn()}
@@ -337,6 +375,7 @@ describe("Marker", () => {
         textSizeKey="medium"
         board={false}
         tool="freehand"
+        drawingTool="freehand"
         onColorChange={onColorChange}
         onWidthChange={onWidthChange}
         onTextSizeChange={onTextSizeChange}
@@ -378,6 +417,7 @@ describe("Marker", () => {
       color: "#FF2D95" as const,
       widthKey: "medium" as const,
       textSizeKey: "medium" as const,
+      drawingTool: "freehand" as const,
       onColorChange: vi.fn(),
       onWidthChange: vi.fn(),
       onTextSizeChange: vi.fn(),
@@ -419,6 +459,7 @@ describe("Marker", () => {
       textSizeKey: "xsmall" as const,
       board: true,
       tool: "freehand" as const,
+      drawingTool: "freehand" as const,
       onColorChange: vi.fn(),
       onWidthChange: vi.fn(),
       onTextSizeChange: vi.fn(),

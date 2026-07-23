@@ -32,6 +32,7 @@ type Props = {
   textSizeKey: TextSizeKey;
   board: boolean;
   tool: DrawingTool;
+  drawingTool: DrawingInspectorTool;
   onColorChange: (c: Color) => void;
   onWidthChange: (w: WidthKey) => void;
   onTextSizeChange: (size: TextSizeKey) => void;
@@ -67,6 +68,7 @@ export function Marker({
   textSizeKey,
   board,
   tool,
+  drawingTool,
   onColorChange,
   onWidthChange,
   onTextSizeChange,
@@ -115,7 +117,7 @@ export function Marker({
   // 단축키나 외부 이벤트가 도구·블랙보드 상태를 바꾸면 열려 있던 속성을 접는다.
   useEffect(() => {
     setPanel("collapsed");
-  }, [tool, board]);
+  }, [tool, drawingTool, board]);
 
   const onPointerDown = (e: React.PointerEvent) => {
     e.stopPropagation(); // 마커 위에서 획이 시작되면 안 된다
@@ -177,7 +179,7 @@ export function Marker({
     setPanel("collapsed");
   };
 
-  const drawingActive = tool === "freehand" || isGeometricTool(tool);
+  const drawingActive = tool === drawingTool;
   const collapsedIconWidth = drawingToolIconStrokeWidth(widthKey);
 
   return (
@@ -199,14 +201,14 @@ export function Marker({
         onClick={() => {
           if (!drawingActive) {
             setPanel("collapsed");
-            onToolChange("freehand");
+            onToolChange(drawingTool);
           } else {
             togglePanel("pen");
           }
         }}
       >
-        {isGeometricTool(tool)
-          ? <DrawingToolIcon tool={tool} strokeWidth={collapsedIconWidth} />
+        {isGeometricTool(drawingTool)
+          ? <DrawingToolIcon tool={drawingTool} strokeWidth={collapsedIconWidth} />
           : <FreehandToolLiveStrokeIcon widthKey={widthKey} />}
       </button>
       <button

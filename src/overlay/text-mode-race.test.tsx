@@ -48,6 +48,7 @@ function Harness() {
         textSizeKey={editingTextSize ?? defaultTextSize}
         board={false}
         tool={tool}
+        drawingTool="freehand"
         onColorChange={() => {}}
         onWidthChange={() => {}}
         onTextSizeChange={(size) => {
