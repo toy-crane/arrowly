@@ -10,15 +10,18 @@ import {
 } from "../shared/constants";
 import { t, type Key } from "../shared/i18n";
 import { loadMarkerPos, MarkerPos, saveMarkerPos } from "../shared/settings";
-import { FreehandToolLiveStrokeIcon } from "./freehand-tool-live-stroke-icon";
+import {
+  drawingToolIconStrokeWidth,
+  FreehandToolLiveStrokeIcon,
+} from "./freehand-tool-live-stroke-icon";
 import { LiveTextSizeIcon } from "./live-text-size-icon";
 import { ToolInspector } from "./tool-inspector";
 import {
+  DRAWING_INSPECTOR_TOOLS,
+  DrawingInspectorTool,
   DrawingTool,
-  isQuickInsertTool,
-  PEN_INSPECTOR_TOOLS,
-  PenInspectorTool,
-  QuickInsertTool,
+  GeometricTool,
+  isGeometricTool,
 } from "./tools";
 
 type Panel = "collapsed" | "pen" | "text";
@@ -169,12 +172,13 @@ export function Marker({
     onTextSizeChange(size);
     setPanel("collapsed");
   };
-  const pickPenTool = (next: PenInspectorTool) => {
+  const pickDrawingTool = (next: DrawingInspectorTool) => {
     onToolChange(next);
     setPanel("collapsed");
   };
 
-  const penActive = tool === "freehand" || isQuickInsertTool(tool);
+  const drawingActive = tool === "freehand" || isGeometricTool(tool);
+  const collapsedIconWidth = drawingToolIconStrokeWidth(widthKey);
 
   return (
     <div
@@ -188,12 +192,12 @@ export function Marker({
     >
       <button
         ref={penButtonRef}
-        style={{ ...btn, ...toolSpacing, color, ...(penActive ? modeOn : undefined) }}
-        aria-label={t("marker.freehandTool")}
-        aria-pressed={penActive}
+        style={{ ...btn, ...toolSpacing, color, ...(drawingActive ? modeOn : undefined) }}
+        aria-label={t("marker.drawingTool")}
+        aria-pressed={drawingActive}
         aria-expanded={panel === "pen"}
         onClick={() => {
-          if (tool !== "freehand") {
+          if (!drawingActive) {
             setPanel("collapsed");
             onToolChange("freehand");
           } else {
@@ -201,8 +205,8 @@ export function Marker({
           }
         }}
       >
-        {isQuickInsertTool(tool)
-          ? <QuickInsertIcon tool={tool} />
+        {isGeometricTool(tool)
+          ? <DrawingToolIcon tool={tool} strokeWidth={collapsedIconWidth} />
           : <FreehandToolLiveStrokeIcon widthKey={widthKey} />}
       </button>
       <button
@@ -263,24 +267,20 @@ export function Marker({
         <ToolInspector
           markerRef={rootRef}
           anchorRef={panel === "pen" ? penButtonRef : textButtonRef}
-          ariaLabel={panel === "pen" ? t("marker.freehandProperties") : t("marker.textProperties")}
+          ariaLabel={panel === "pen" ? t("marker.drawingProperties") : t("marker.textProperties")}
         >
           {panel === "pen" && (
             <>
-              <div role="group" aria-label={t("marker.quickInsertLabel")} style={inspectorRow}>
+              <div role="group" aria-label={t("marker.drawingToolsLabel")} style={inspectorRow}>
                 <div style={choiceStrip}>
-                  {PEN_INSPECTOR_TOOLS.map((penTool) => (
+                  {DRAWING_INSPECTOR_TOOLS.map((drawingTool) => (
                     <button
-                      key={penTool}
+                      key={drawingTool}
                       style={{ ...choice, color: NEUTRAL }}
-                      aria-label={
-                        penTool === "freehand"
-                          ? t("marker.freehandTool")
-                          : t(`marker.quickInsert.${penTool}` as Key)
-                      }
-                      onClick={() => pickPenTool(penTool)}
+                      aria-label={t(`marker.drawingTool.${drawingTool}` as Key)}
+                      onClick={() => pickDrawingTool(drawingTool)}
                     >
-                      <QuickInsertIcon tool={penTool} />
+                      <DrawingToolIcon tool={drawingTool} strokeWidth={1.8} />
                     </button>
                   ))}
                 </div>
@@ -433,16 +433,22 @@ const toolSpacing: CSSProperties = {
   marginRight: 4,
 };
 
-function QuickInsertIcon({ tool }: { tool: QuickInsertTool | "freehand" }) {
+function DrawingToolIcon({
+  tool,
+  strokeWidth,
+}: {
+  tool: GeometricTool | "freehand";
+  strokeWidth: number;
+}) {
   return (
     <svg
-      data-quick-insert-icon={tool}
+      data-drawing-tool-icon={tool}
       width="24"
       height="22"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth="1.8"
+      strokeWidth={strokeWidth}
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"

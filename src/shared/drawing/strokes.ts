@@ -18,12 +18,12 @@ export type RectGeometry = { x: number; y: number; w: number; h: number };
 export type EllipseGeometry = { cx: number; cy: number; rx: number; ry: number };
 export type TriangleGeometry = RectGeometry;
 export type LineGeometry = { from: Point; to: Point };
-/** 홀드 보정으로 정리된 닫힌 도형 마크. */
+/** 명시적인 기하 그리기 도구로 만든 닫힌 도형 마크. */
 export type ShapeMark =
   | { kind: "shape"; shape: "rect"; geometry: RectGeometry; color: string; width: number }
   | { kind: "shape"; shape: "ellipse"; geometry: EllipseGeometry; color: string; width: number }
   | { kind: "shape"; shape: "triangle"; geometry: TriangleGeometry; color: string; width: number };
-/** 홀드 보정으로 잠긴 직선 마크. */
+/** 직선 또는 화살표 도구로 만든 열린 기하 마크. */
 export type LineMark = {
   kind: "shape";
   shape: "line";

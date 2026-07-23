@@ -34,18 +34,12 @@ import {
   setTextEditing,
 } from "../shared/ipc";
 import { matchesAccelerator } from "../shared/shortcuts";
-import {
-  classifyStroke,
-  HOLD_MS,
-  RING_DELAY_MS,
-  STILL_RADIUS_PX,
-} from "./shapes";
 import { TextEditor } from "./text-editor";
 import {
-  createQuickInsertMark,
+  createGeometricMark,
   type DrawingTool,
-  isQuickInsertTool,
-  type QuickInsertTool,
+  isGeometricTool,
+  type GeometricTool,
 } from "./tools";
 
 const MOVE_REVEAL_DELAY_MS = 120;
@@ -337,45 +331,12 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       }
     };
 
-    // ---- 홀드 보정: 버튼을 누른 채 STILL_RADIUS_PX 안에서 HOLD_MS 멈추면 도형·직선으로 치환 ----
-    const HOLD_TICK_MS = 50;
-    let holdAnchor: Point | null = null;
-    let holdStart = 0;
-    let holdTimer = 0;
-    let snapped: ShapeMark | LineMark | null = null;
-    let previewAnchor: Point | null = null;
-    let ringVisible = false;
-    let ringProgress = 0;
-    let quickGesture: {
-      tool: QuickInsertTool;
+    let geometricGesture: {
+      tool: GeometricTool;
       origin: Point;
       current: Point;
-      shiftHeld: boolean;
     } | null = null;
-    let quickPreview: ShapeMark | LineMark | null = null;
-
-    const stopHold = () => {
-      if (holdTimer) window.clearInterval(holdTimer);
-      holdTimer = 0;
-      holdAnchor = null;
-      ringVisible = false;
-      ringProgress = 0;
-    };
-
-    const drawHoldRing = (ctx: CanvasRenderingContext2D, p: Point, progress: number) => {
-      const cx = p.x + 18;
-      const cy = p.y - 18;
-      ctx.lineWidth = 2;
-      ctx.lineCap = "round";
-      ctx.strokeStyle = "rgba(232,234,240,0.25)";
-      ctx.beginPath();
-      ctx.arc(cx, cy, 13, 0, Math.PI * 2);
-      ctx.stroke();
-      ctx.strokeStyle = "rgba(232,234,240,0.9)";
-      ctx.beginPath();
-      ctx.arc(cx, cy, 13, -Math.PI / 2, -Math.PI / 2 + progress * Math.PI * 2);
-      ctx.stroke();
-    };
+    let geometricPreview: ShapeMark | LineMark | null = null;
 
     const drawMoveCandidate = (
       ctx: CanvasRenderingContext2D,
@@ -421,19 +382,12 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
         drawMoveCandidate(liveCtx, movingMark, true);
         return;
       }
-      if (quickPreview) {
-        drawMark(liveCtx, quickPreview);
-        return;
-      }
-      if (snapped) {
-        drawMark(liveCtx, snapped); // 스냅 미리보기 — 떼면 확정
+      if (geometricPreview) {
+        drawMark(liveCtx, geometricPreview);
         return;
       }
       if (store.live) {
         drawMark(liveCtx, store.live);
-        if (ringVisible) {
-          drawHoldRing(liveCtx, store.live.points[store.live.points.length - 1], ringProgress);
-        }
         return;
       }
       if (moveDiscoveryVisible) {
@@ -471,42 +425,6 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       moveDiscoverySuppressed = true;
       hideMoveDiscovery();
     };
-
-    const holdTick = () => {
-      if (!store.live || snapped) return;
-      const still = Date.now() - holdStart;
-      if (still >= HOLD_MS) {
-        const result = classifyStroke(store.live.points);
-        if (result) {
-          const { color, widthKey } = toolRef.current;
-          const ink = {
-            color,
-            width: strokeWidthPx(widthKey, Math.min(window.innerWidth, window.innerHeight)),
-          };
-          snapped = result.shape === "line"
-            ? { kind: "shape", ...result, arrowhead: "none", ...ink }
-            : { kind: "shape", ...result, ...ink };
-          previewAnchor = store.live.points[store.live.points.length - 1];
-          stopHold();
-        } else {
-          armHold(store.live.points[store.live.points.length - 1]); // 과소 획 — 재무장
-        }
-        scheduleLive();
-      } else if (still >= RING_DELAY_MS) {
-        ringVisible = true;
-        ringProgress = (still - RING_DELAY_MS) / (HOLD_MS - RING_DELAY_MS);
-        scheduleLive();
-      }
-    };
-
-    function armHold(anchor: Point) {
-      if (holdTimer) window.clearInterval(holdTimer);
-      holdAnchor = anchor;
-      holdStart = Date.now();
-      ringVisible = false;
-      ringProgress = 0;
-      holdTimer = window.setInterval(holdTick, HOLD_TICK_MS);
-    }
 
     // Retina 백킹: 물리 픽셀 크기 + dpr 스케일 (setTransform이라 재호출 누적 없음)
     const setupBacking = () => {
@@ -548,18 +466,16 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       return deletionHoverIndex !== previous;
     };
 
-    const updateQuickPreview = (point: Point, shiftHeld: boolean) => {
-      if (!quickGesture) return;
-      quickGesture.current = point;
-      quickGesture.shiftHeld = shiftHeld;
+    const updateGeometricPreview = (point: Point) => {
+      if (!geometricGesture) return;
+      geometricGesture.current = point;
       const { color, widthKey } = toolRef.current;
-      quickPreview = createQuickInsertMark(
-        quickGesture.tool,
-        quickGesture.origin,
+      geometricPreview = createGeometricMark(
+        geometricGesture.tool,
+        geometricGesture.origin,
         point,
         color,
         strokeWidthPx(widthKey, Math.min(window.innerWidth, window.innerHeight)),
-        shiftHeld,
       );
       scheduleLive();
     };
@@ -589,11 +505,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       const wasMovingMark = movingMarkIndex >= 0;
       lastClick = null;
       dblPending = null;
-      stopHold();
-      snapped = null;
-      previewAnchor = null;
-      quickGesture = null;
-      quickPreview = null;
+      geometricGesture = null;
+      geometricPreview = null;
       moveGesture = null;
       movingMark = null;
       movingMarkIndex = -1;
@@ -659,15 +572,14 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
         }
         return;
       }
-      if (isQuickInsertTool(activeToolRef.current)) {
+      if (isGeometricTool(activeToolRef.current)) {
         e.preventDefault();
-        quickGesture = {
+        geometricGesture = {
           tool: activeToolRef.current,
           origin: p,
           current: p,
-          shiftHeld: e.shiftKey,
         };
-        quickPreview = null;
+        geometricPreview = null;
         activePointerId = e.pointerId;
         live.setPointerCapture(e.pointerId);
         return;
@@ -688,9 +600,6 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       store.beginLive(color, width, p);
       live.setPointerCapture(e.pointerId);
       activePointerId = e.pointerId;
-      snapped = null;
-      previewAnchor = null;
-      armHold(p);
       scheduleLive();
     };
 
@@ -726,22 +635,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
         return;
       }
       if (commandPointerActive) return;
-      if (quickGesture) {
-        updateQuickPreview(toPoint(e), e.shiftKey);
-        return;
-      }
-      if (snapped) {
-        const point = toPoint(e);
-        if (
-          previewAnchor &&
-          Math.hypot(point.x - previewAnchor.x, point.y - previewAnchor.y) > STILL_RADIUS_PX
-        ) {
-          snapped = null;
-          previewAnchor = null;
-          store.extendLive([point]);
-          armHold(point);
-          scheduleLive();
-        }
+      if (geometricGesture) {
+        updateGeometricPreview(toPoint(e));
         return;
       }
       if (!store.live) return;
@@ -749,11 +644,6 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       // 일부 구현은 빈 배열을 반환한다 — 이벤트 자신으로 폴백
       const points = (coalesced.length ? coalesced : [e]).map(toPoint);
       store.extendLive(points);
-      for (const point of points) {
-        if (holdAnchor && Math.hypot(point.x - holdAnchor.x, point.y - holdAnchor.y) > STILL_RADIUS_PX) {
-          armHold(point); // coalesced 중간 표본도 유의미한 이동이면 홀드 리셋
-        }
-      }
       scheduleLive();
     };
 
@@ -788,27 +678,25 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
         renderLive();
         return;
       }
-      if (quickGesture) {
+      if (geometricGesture) {
         const point = toPoint(e);
-        const { origin, tool: quickTool } = quickGesture;
-        quickGesture = null;
+        const { origin, tool: geometricTool } = geometricGesture;
+        geometricGesture = null;
         activePointerId = null;
         if (Math.hypot(point.x - origin.x, point.y - origin.y) > CLICK_SLOP_PX) {
           const { color, widthKey } = toolRef.current;
-          const mark = createQuickInsertMark(
-            quickTool,
+          const mark = createGeometricMark(
+            geometricTool,
             origin,
             point,
             color,
             strokeWidthPx(widthKey, Math.min(window.innerWidth, window.innerHeight)),
-            e.shiftKey,
           );
-          quickPreview = null;
+          geometricPreview = null;
           store.push(mark);
           drawMark(baseCtx, mark);
-          onToolChangeRef.current("freehand");
         } else {
-          quickPreview = null;
+          geometricPreview = null;
         }
         renderLive();
         return;
@@ -832,19 +720,6 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
         } else {
           onPointerPingRef.current?.(at);
         }
-        return;
-      }
-      stopHold();
-      if (snapped) {
-        // 스냅 확정: 손그림 live를 버리고 도형 마크를 커밋한다 (undo 1단위)
-        const mark = snapped;
-        snapped = null;
-        previewAnchor = null;
-        activePointerId = null;
-        store.cancelLive();
-        store.push(mark);
-        drawMark(baseCtx, mark);
-        renderLive();
         return;
       }
       if (!store.live) {
@@ -876,11 +751,6 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       hideMoveDiscovery();
       if (sessionRef.current || wantsEditingRef.current) {
         finishSession(false);
-      } else if (
-        activeToolRef.current !== "freehand" &&
-        activeToolRef.current !== "delete"
-      ) {
-        onToolChangeRef.current("freehand");
       }
       store.clear();
       renderBase();
@@ -908,10 +778,6 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
         return;
       }
       if (!isModifierKey(e.key)) suppressMoveDiscovery();
-      if (e.key === "Shift") {
-        if (quickGesture) updateQuickPreview(quickGesture.current, true);
-        return;
-      }
       const sizeDelta =
         e.metaKey &&
         !e.altKey &&
@@ -933,7 +799,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
           onTextSizeStepRef.current?.(sizeDelta as -1 | 1);
         } else if (
           activeToolRef.current === "freehand" ||
-          isQuickInsertTool(activeToolRef.current)
+          isGeometricTool(activeToolRef.current)
         ) {
           onWidthStepRef.current?.(sizeDelta as -1 | 1);
         }
@@ -984,8 +850,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
         hideMoveDiscovery();
         return;
       }
-      if (e.key !== "Shift") return;
-      if (quickGesture) updateQuickPreview(quickGesture.current, false);
+      return;
     };
 
     const resetLostCommandState = () => {
@@ -1043,7 +908,6 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       unlistenFinishText.then((f) => f());
       if (rafId) cancelAnimationFrame(rafId);
       clearMoveRevealTimer();
-      stopHold();
       const hadEditingRequest = wantsEditingRef.current;
       wantsEditingRef.current = false;
       sessionRequestRef.current += 1;

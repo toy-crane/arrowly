@@ -97,7 +97,7 @@ describe("text mode and marker interplay", () => {
     const [baseCtx] = contexts;
     await openEditorWithDraft(container);
 
-    const freehand = screen.getByRole("button", { name: "Freehand tool" });
+    const freehand = screen.getByRole("button", { name: "Drawing tool" });
     // 실제 클릭의 이벤트 순서를 재현: pointerdown(캡처 리스너 대상) → click(토글 핸들러)
     fireEvent.pointerDown(freehand, { button: 0, pointerId: 2 });
     fireEvent.click(freehand);

@@ -200,7 +200,7 @@ describe("OverlayApp", () => {
     expect(screen.getByTestId("canvas")).toHaveAttribute("data-tool", "freehand");
   });
 
-  it("shares quick-insert, delete and active-tool sizing state between marker and canvas", async () => {
+  it("shares geometric drawing, deletion and active-tool sizing state between marker and canvas", async () => {
     render(<OverlayApp />);
     await waitFor(() => expect(screen.getByTestId("canvas")).toHaveAttribute("data-textsize", "small"));
     await act(async () => {
