@@ -142,7 +142,7 @@ const ringStyle: CSSProperties = {
   width: `${RING_DIAMETER_PX}px`,
   height: `${RING_DIAMETER_PX}px`,
   boxSizing: "border-box",
-  border: "1.5px solid #FFD400",
+  border: "2px solid #FFD400",
   borderRadius: "50%",
   background: "transparent",
   opacity: 0,

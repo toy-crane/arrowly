@@ -40,6 +40,7 @@ describe("PointerPingLayer", () => {
     const outerRing = firstBurst.children[1] as HTMLElement;
     expect(outerRing.style.borderRadius).toBe("50%");
     expect(outerRing.style.background).toBe("transparent");
+    expect(outerRing.style.border).toBe("2px solid rgb(255, 212, 0)");
 
     expect(animate).toHaveBeenCalledTimes(9);
     // 첫 애니메이션은 중심 점(340ms), 이어서 링 두 겹(560ms 수명).
