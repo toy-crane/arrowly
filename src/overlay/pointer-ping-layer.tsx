@@ -6,17 +6,26 @@ import {
 } from "react";
 import type { Point } from "../shared/drawing";
 
-// 핑은 사용자가 색을 고를 수 없으므로 마크와 달리 스스로 대비를 갖는다.
-// docs/decisions/0002-pointer-ping-carries-its-own-contrast.md
+// 핑은 사용자가 색도 배경도 고를 수 없으므로 마크와 달리 스스로 대비를 갖는다.
+// 어두운 바깥 · 마젠타 스트로크 · 밝은 안쪽을 겹쳐 어느 가장자리에서든 대비 쌍이
+// 생긴다. docs/decisions/0002-pointer-ping-carries-its-own-contrast.md
 const PING_COLOR = "#FF2D95";
-const CONTRAST_EDGE =
+const CORE_COLOR = "#FFFFFF";
+const DARK_EDGE =
   "drop-shadow(0 0 1.5px rgba(0,0,0,.95)) drop-shadow(0 0 3px rgba(0,0,0,.55))";
+const LIGHT_EDGE = "inset 0 0 0 1px rgba(255,255,255,.85)";
 
-const MAX_RADIUS_PX = 16;
+const MAX_RADIUS_PX = 28;
 const RING_DIAMETER_PX = MAX_RADIUS_PX * 2;
-const CENTER_DOT_DIAMETER_PX = 6;
-const DURATION_MS = 560;
-const CENTER_DOT_DURATION_MS = 340;
+const RING_STROKE_PX = 3;
+const CENTER_DOT_DIAMETER_PX = 9;
+const DURATION_MS = 700;
+const CENTER_DOT_DURATION_MS = 420;
+// 링이 중심 점 가장자리를 벗어나는 순간 최대 불투명도에 닿는 배율. 반경이나 점 크기를
+// 바꿔도 이 관계가 유지되도록 상수로 두지 않고 유도한다.
+const RING_PEAK_SCALE = Number(
+  (CENTER_DOT_DIAMETER_PX / 2 / MAX_RADIUS_PX).toFixed(3),
+);
 
 type RingConfig = {
   endScale: number;
@@ -26,8 +35,8 @@ type RingConfig = {
 
 // 바깥 링은 즉시, 안쪽 링은 조금 늦게 출발해 더 작은 반경에서 멈춘다.
 const RINGS: RingConfig[] = [
-  { endScale: 1, delayMs: 0, peakOpacity: 0.65 },
-  { endScale: 0.72, delayMs: 110, peakOpacity: 0.5 },
+  { endScale: 1, delayMs: 0, peakOpacity: 0.7 },
+  { endScale: 0.72, delayMs: 110, peakOpacity: 0.55 },
 ];
 
 export type PointerPingLayerHandle = {
@@ -91,9 +100,13 @@ export const PointerPingLayer = forwardRef<PointerPingLayerHandle>(function Poin
           animations.push(ring.animate(
             [
               // 반경 0에서 출발해 중심 점의 가장자리를 벗어나는 순간 최대 밝기가 된다.
-              // scale .2 = 반경 3.2px = 중심 점 반지름. 그 전 구간은 점에 가려 보이지 않는다.
+              // 그 전 구간은 점에 가려 보이지 않는다.
               { transform: "scale(.05)", opacity: 0 },
-              { transform: "scale(.2)", opacity: config.peakOpacity, offset: 0.08 },
+              {
+                transform: `scale(${RING_PEAK_SCALE})`,
+                opacity: config.peakOpacity,
+                offset: 0.08,
+              },
               { transform: `scale(${endScale})`, opacity: 0 },
             ],
             {
@@ -136,10 +149,11 @@ const dotStyle: CSSProperties = {
   width: `${CENTER_DOT_DIAMETER_PX}px`,
   height: `${CENTER_DOT_DIAMETER_PX}px`,
   borderRadius: "50%",
-  background: PING_COLOR,
-  boxShadow: "0 0 6px rgba(255,45,149,.7)",
+  // 흰 코어가 어두운 배경을, 두른 마젠타 링과 어두운 외곽선이 밝은 배경을 맡는다.
+  background: CORE_COLOR,
+  boxShadow: `0 0 8px rgba(255,255,255,.9), 0 0 0 1.5px ${PING_COLOR}`,
   opacity: 0,
-  filter: CONTRAST_EDGE,
+  filter: DARK_EDGE,
   pointerEvents: "none",
 };
 
@@ -151,10 +165,11 @@ const ringStyle: CSSProperties = {
   width: `${RING_DIAMETER_PX}px`,
   height: `${RING_DIAMETER_PX}px`,
   boxSizing: "border-box",
-  border: `2px solid ${PING_COLOR}`,
+  border: `${RING_STROKE_PX}px solid ${PING_COLOR}`,
   borderRadius: "50%",
   background: "transparent",
+  boxShadow: LIGHT_EDGE,
   opacity: 0,
-  filter: CONTRAST_EDGE,
+  filter: DARK_EDGE,
   pointerEvents: "none",
 };
