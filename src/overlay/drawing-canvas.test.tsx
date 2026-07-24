@@ -525,6 +525,74 @@ describe("DrawingCanvas", () => {
       expect(onWidthStep).toHaveBeenCalledTimes(1);
       expect(onTextSizeStep).toHaveBeenCalledTimes(1);
     });
+
+    it("selects palette colors from Command number keys and the numpad, ignoring bare or over-modified digits", () => {
+      const onColorPick = vi.fn();
+      render(
+        <DrawingCanvas
+          {...baseProps}
+          tool="freehand"
+          onToolChange={vi.fn()}
+          onColorPick={onColorPick}
+        />,
+      );
+
+      fireEvent.keyDown(window, { code: "Digit3", metaKey: true });
+      expect(onColorPick).toHaveBeenLastCalledWith("#FF2D95");
+      fireEvent.keyDown(window, { code: "Numpad5", metaKey: true });
+      expect(onColorPick).toHaveBeenLastCalledWith("#00AEEF");
+      fireEvent.keyDown(window, { code: "Digit1", metaKey: true });
+      expect(onColorPick).toHaveBeenLastCalledWith("#FFD400");
+      expect(onColorPick).toHaveBeenCalledTimes(3);
+
+      onColorPick.mockClear();
+      fireEvent.keyDown(window, { code: "Digit3" }); // 수식키 없음 → 색 아님
+      fireEvent.keyDown(window, { code: "Digit3", metaKey: true, shiftKey: true }); // ⌘ 외 수식키 섞임
+      fireEvent.keyDown(window, { code: "Digit3", metaKey: true, altKey: true });
+      fireEvent.keyDown(window, { code: "Digit6", metaKey: true }); // 1–5 밖
+      expect(onColorPick).not.toHaveBeenCalled();
+    });
+
+    it("keeps color keys inert while a pointer gesture owns the stroke", () => {
+      const onColorPick = vi.fn();
+      const { container } = render(
+        <DrawingCanvas
+          {...baseProps}
+          tool="freehand"
+          onToolChange={vi.fn()}
+          onColorPick={onColorPick}
+        />,
+      );
+      const live = container.querySelectorAll("canvas")[1];
+
+      fireEvent.pointerDown(live, { button: 0, clientX: 20, clientY: 20, pointerId: 1 });
+      fireEvent.keyDown(window, { code: "Digit3", metaKey: true });
+      expect(onColorPick).not.toHaveBeenCalled();
+
+      fireEvent.pointerUp(live, { clientX: 80, clientY: 40, pointerId: 1 });
+      fireEvent.keyDown(window, { code: "Digit3", metaKey: true });
+      expect(onColorPick).toHaveBeenCalledWith("#FF2D95");
+    });
+
+    it("still switches ink color during a text editing session", async () => {
+      const onColorPick = vi.fn();
+      const { container } = render(
+        <DrawingCanvas
+          {...baseProps}
+          tool="text"
+          onToolChange={vi.fn()}
+          onColorPick={onColorPick}
+        />,
+      );
+      const live = container.querySelectorAll("canvas")[1];
+      fireEvent.pointerDown(live, { button: 0, clientX: 30, clientY: 40, pointerId: 1 });
+      await flushTextEditingStart();
+      expect(screen.getByRole("textbox")).toBeInTheDocument();
+
+      // ⌘3은 편집 세션 흡수 가드보다 앞서 처리돼 잉크 색을 바꾼다 (굵기 ⌘± 와 동일).
+      fireEvent.keyDown(window, { code: "Digit3", metaKey: true });
+      expect(onColorPick).toHaveBeenCalledWith("#FF2D95");
+    });
   });
 
   describe("mark movement discovery", () => {

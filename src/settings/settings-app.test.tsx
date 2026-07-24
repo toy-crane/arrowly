@@ -26,4 +26,19 @@ describe("SettingsApp", () => {
     expect(within(fixedSection).queryByRole("button")).not.toBeInTheDocument();
     expect(screen.queryByText("Fixed")).not.toBeInTheDocument();
   });
+
+  it("lists color switching as a fixed reference row with its shortcut and no swatches", () => {
+    render(<SettingsApp />);
+    const fixedSection = screen
+      .getByRole("heading", { name: "Fixed controls" })
+      .closest("section")!;
+    const colorRow = within(fixedSection).getByText("Change color").closest("div")!;
+    expect(within(colorRow).getByText("⌘")).toBeInTheDocument();
+    expect(within(colorRow).getByText("1–5")).toBeInTheDocument();
+    // 잉크 5색 견본을 크롬에 두지 않는다 — 시각 언어 계약.
+    const inkColors = ["#FFD400", "#FF7A00", "#FF2D95", "#2ED573", "#00AEEF"];
+    for (const hex of inkColors) {
+      expect(colorRow.innerHTML).not.toContain(hex);
+    }
+  });
 });

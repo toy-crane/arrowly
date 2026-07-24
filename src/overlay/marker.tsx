@@ -289,17 +289,25 @@ export function Marker({
               </div>
               <div role="group" aria-label={t("marker.colorLabel")} style={inspectorRow}>
                 <div style={choiceStrip}>
-                  {COLORS.map((c) => (
-                    <button
-                      key={c}
-                      style={{ ...choice, ...(c === color ? activeCell : undefined) }}
-                      aria-label={t("marker.colorValue", { value: t(COLOR_NAME_KEYS[c]) })}
-                      aria-pressed={c === color}
-                      onClick={() => pickColor(c)}
-                    >
-                      <span style={{ ...dot, background: c, ...(c === color ? currentRing : undefined) }} />
-                    </button>
-                  ))}
+                  {COLORS.map((c, i) => {
+                    // 색 순서와 ⌘1–⌘5 단축키를 접근성 이름·툴팁에 병기한다. 상시 시각 라벨은 두지 않는다.
+                    const label = t("marker.colorValueShortcut", {
+                      value: t(COLOR_NAME_KEYS[c]),
+                      shortcut: `⌘${i + 1}`,
+                    });
+                    return (
+                      <button
+                        key={c}
+                        style={{ ...choice, ...(c === color ? activeCell : undefined) }}
+                        aria-label={label}
+                        aria-pressed={c === color}
+                        title={label}
+                        onClick={() => pickColor(c)}
+                      >
+                        <span style={{ ...dot, background: c, ...(c === color ? currentRing : undefined) }} />
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
               <div role="group" aria-label={t("marker.widthLabel")} style={inspectorRow}>

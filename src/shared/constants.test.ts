@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  colorForDigitCode,
   COLORS,
   DEFAULT_COLOR,
   DEFAULT_TEXT_SIZE,
@@ -48,5 +49,19 @@ describe("drawing constants", () => {
     expect(stepWidth("medium", 1)).toBe("thick");
     expect(stepWidth("xthin", -1)).toBe("xthin");
     expect(stepWidth("xthick", 1)).toBe("xthick");
+  });
+
+  it("maps number-row and numpad digit codes 1-5 to the palette in order", () => {
+    expect(COLORS.map((_, i) => colorForDigitCode(`Digit${i + 1}`))).toEqual([...COLORS]);
+    expect(colorForDigitCode("Numpad3")).toBe("#FF2D95");
+    expect(colorForDigitCode("Numpad5")).toBe("#00AEEF");
+  });
+
+  it("returns null for digits outside 1-5 and non-digit codes", () => {
+    expect(colorForDigitCode("Digit0")).toBeNull();
+    expect(colorForDigitCode("Digit6")).toBeNull();
+    expect(colorForDigitCode("Numpad9")).toBeNull();
+    expect(colorForDigitCode("KeyE")).toBeNull();
+    expect(colorForDigitCode("Equal")).toBeNull();
   });
 });

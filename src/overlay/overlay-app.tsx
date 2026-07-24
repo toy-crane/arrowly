@@ -164,6 +164,10 @@ export function OverlayApp() {
         onToolChange={changeTool}
         onWidthStep={changeWidthBy}
         onTextSizeStep={changeTextSizeBy}
+        onColorPick={(c) => {
+          setColor(c);
+          void saveColor(c);
+        }}
         onPointerPing={(point) => pingLayerRef.current?.pingAt(point)}
         onEditingTextSizeChange={setEditingTextSizeKey}
         onNewTextSizeCommit={(size) => {

@@ -112,6 +112,31 @@ describe("Marker", () => {
     expect(screen.getByRole("group", { name: "Text properties" })).toBeInTheDocument();
   });
 
+  it("annotates each color swatch with its number-key shortcut in the accessible name and tooltip", async () => {
+    const user = userEvent.setup();
+    render(
+      <Marker
+        color="#FF2D95"
+        widthKey="medium"
+        textSizeKey="medium"
+        board={false}
+        tool="freehand"
+        drawingTool="freehand"
+        onColorChange={vi.fn()}
+        onWidthChange={vi.fn()}
+        onTextSizeChange={vi.fn()}
+        onBoardToggle={vi.fn()}
+        onToolChange={vi.fn()}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Drawing tool" }));
+    const pink = screen.getByRole("button", { name: "Color pink ⌘3" });
+    expect(pink).toHaveAttribute("title", "Color pink ⌘3");
+    expect(screen.getByRole("button", { name: "Color yellow ⌘1" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Color blue ⌘5" })).toBeInTheDocument();
+  });
+
   it("keeps a selected geometric tool fixed and reflects its current ink width", async () => {
     const user = userEvent.setup();
     const onToolChange = vi.fn();
@@ -391,7 +416,7 @@ describe("Marker", () => {
     await user.click(freehand);
     expect(screen.getByRole("group", { name: "Drawing properties" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Thickness extra thin" })).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Color blue" }));
+    await user.click(screen.getByRole("button", { name: "Color blue ⌘5" }));
     expect(onColorChange).toHaveBeenCalledWith("#00AEEF");
     expect(screen.queryByRole("group", { name: "Drawing properties" })).not.toBeInTheDocument();
 
