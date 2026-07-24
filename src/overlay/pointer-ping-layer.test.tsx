@@ -15,7 +15,7 @@ describe("PointerPingLayer", () => {
     });
   });
 
-  it("creates independent ripples with a center dot and two expanding rings that fade by 620ms", async () => {
+  it("creates independent ripples with a center dot and two expanding rings that fade by 700ms", async () => {
     const resolvers: Array<() => void> = [];
     const animate = vi.mocked(HTMLElement.prototype.animate).mockImplementation(() => {
       const finished = new Promise<void>((resolve) => resolvers.push(resolve));
@@ -36,16 +36,35 @@ describe("PointerPingLayer", () => {
     const firstBurst = layer.children[0] as HTMLElement;
     expect(firstBurst.children).toHaveLength(3);
     const centerDot = firstBurst.children[0] as HTMLElement;
-    expect(centerDot.style.background).toBe("rgb(255, 212, 0)");
+    // 흰 코어에 마젠타를 둘러 어두운 배경과 밝은 배경을 각각 맡는다.
+    expect(centerDot.style.background).toBe("rgb(255, 255, 255)");
+    expect(centerDot.style.boxShadow).toContain("#FF2D95");
     const outerRing = firstBurst.children[1] as HTMLElement;
     expect(outerRing.style.borderRadius).toBe("50%");
     expect(outerRing.style.background).toBe("transparent");
+    expect(outerRing.style.border).toBe("3px solid rgb(255, 45, 149)");
+    // 배경을 고를 수 없으므로 두 요소 다 어두운 바깥과 밝은 안쪽을 함께 갖는다.
+    expect(centerDot.style.filter).toContain("rgba(0,0,0,.95)");
+    expect(outerRing.style.filter).toContain("rgba(0,0,0,.95)");
+    expect(outerRing.style.boxShadow).toContain("inset");
+    expect(outerRing.style.boxShadow).toContain("rgba(255,255,255,.85)");
 
     expect(animate).toHaveBeenCalledTimes(9);
-    // 첫 애니메이션은 중심 점(380ms), 이어서 링 두 겹(620ms 수명).
-    expect(animate.mock.calls[0][1]).toMatchObject({ duration: 380, fill: "forwards" });
-    expect(animate.mock.calls[1][1]).toMatchObject({ duration: 620, delay: 0, fill: "forwards" });
+    // 첫 애니메이션은 중심 점(420ms), 이어서 링 두 겹(700ms 수명).
+    expect(animate.mock.calls[0][1]).toMatchObject({ duration: 420, fill: "forwards" });
+    expect(animate.mock.calls[1][1]).toMatchObject({ duration: 700, delay: 0, fill: "forwards" });
     expect(animate.mock.calls[2][1]).toMatchObject({ delay: 110 });
+    // 링은 반경 0에서 출발해 중심 점 가장자리에서 최대 불투명도에 닿는다.
+    // scale .161 × 반경 28px = 4.5px = 중심 점(지름 9px)의 반지름.
+    expect(animate.mock.calls[1][0]).toMatchObject([
+      { transform: "scale(.05)", opacity: 0 },
+      { transform: "scale(0.161)", offset: 0.08 },
+      { opacity: 0 },
+    ]);
+    expect(0.161 * 28).toBeCloseTo(9 / 2, 1);
+    // 발원점이 파문보다 먼저 켜진다 — 중심 점 50.4ms, 링 56ms.
+    expect(animate.mock.calls[0][0]).toMatchObject([{}, { offset: 0.12 }, {}]);
+    expect(0.12 * 420).toBeLessThan(0.08 * 700);
     // 원점을 옮기지 않고 제자리에서만 맺히고 확장한다.
     expect(animate.mock.calls.every(([candidate]) => !JSON.stringify(candidate).includes("translate"))).toBe(true);
 
