@@ -626,7 +626,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
     const DBLCLICK_SLOP_PX = 6;
     const CLICK_SLOP_PX = 4;
     let lastClick: { p: Point; t: number; markCreated: boolean } | null = null;
-    let dblPending: { p: Point; markCreated: boolean } | null = null;
+    let dblPending: { p: Point; markCreated: boolean; pinged: boolean } | null = null;
     let suppressNextPointerDown = false;
 
     rememberOutsideClickRef.current = (point) => {
@@ -636,6 +636,15 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
 
     const isClick = (points: Point[], origin: Point) =>
       points.every((q) => Math.hypot(q.x - origin.x, q.y - origin.y) <= CLICK_SLOP_PX);
+
+    /** 첫 클릭이 남긴 점 마크를 회수한다 — 그 자리의 클릭 크기 펜 마크일 때만. */
+    const retractClickDot = (at: Point) => {
+      const last = store.marks[store.marks.length - 1];
+      if (last?.kind === "pen" && isClick(last.points, at)) {
+        store.retractLast();
+        renderBase();
+      }
+    };
 
     // 포인터 격리: 제스처를 소유한 포인터 하나만 이어지는 move/up/cancel에 반응한다.
     let activePointerId: number | null = null;
@@ -739,10 +748,20 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
         Date.now() - lastClick.t <= DBLCLICK_MS &&
         Math.hypot(p.x - lastClick.p.x, p.y - lastClick.p.y) <= DBLCLICK_SLOP_PX
       ) {
-        dblPending = { p: lastClick.p, markCreated: lastClick.markCreated };
+        const at = lastClick.p;
+        const markCreated = lastClick.markCreated;
         lastClick = null;
         // 두 번째 클릭도 자신의 pointerup까지 제스처를 소유한다 — 그 사이 다른 포인터를 차단
         activePointerId = e.pointerId;
+        // 텍스트가 아닌 더블클릭은 누르는 순간 핑을 재생한다 — 떼기를 기다리지 않아
+        // 사람이 버튼을 쥐고 있는 시간만큼의 체감 지연이 사라진다. 두 번째 클릭은
+        // 어차피 획을 시작하지 않으므로 pointerup까지 미룰 이유가 없다.
+        const pingNow = !findTextMarkAt(store.marks, at);
+        if (pingNow) {
+          if (markCreated) retractClickDot(at);
+          onPointerPingRef.current?.(at);
+        }
+        dblPending = { p: at, markCreated: markCreated && !pingNow, pinged: pingNow };
         return; // 두 번째 클릭은 획을 시작하지 않는다
       }
       const { color, widthKey } = toolRef.current;
@@ -881,23 +900,19 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
         return;
       }
       if (dblPending) {
-        const { p: at, markCreated } = dblPending;
+        const { p: at, markCreated, pinged } = dblPending;
         dblPending = null;
         activePointerId = null;
-        if (markCreated) {
-          // 첫 클릭이 남긴 점 마크를 회수한다 — 그 자리의 클릭 크기 펜 마크일 때만
-          const last = store.marks[store.marks.length - 1];
-          if (last?.kind === "pen" && isClick(last.points, at)) {
-            store.retractLast();
-            renderBase();
-          }
-        }
+        if (markCreated) retractClickDot(at);
         lastClick = null;
-        const textHit = findTextMarkAt(store.marks, at);
-        if (textHit) {
-          beginExistingText(textHit.index, textHit.mark, at);
-        } else {
-          onPointerPingRef.current?.(at);
+        // 핑은 이미 pointerdown에서 재생했다. 여기 남는 건 텍스트 교정 진입뿐이다.
+        if (!pinged) {
+          const textHit = findTextMarkAt(store.marks, at);
+          if (textHit) {
+            beginExistingText(textHit.index, textHit.mark, at);
+          } else {
+            onPointerPingRef.current?.(at);
+          }
         }
         return;
       }

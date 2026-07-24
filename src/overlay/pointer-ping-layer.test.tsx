@@ -15,7 +15,7 @@ describe("PointerPingLayer", () => {
     });
   });
 
-  it("creates independent ripples with a center dot and two expanding rings that fade by 620ms", async () => {
+  it("creates independent ripples with a center dot and two expanding rings that fade by 560ms", async () => {
     const resolvers: Array<() => void> = [];
     const animate = vi.mocked(HTMLElement.prototype.animate).mockImplementation(() => {
       const finished = new Promise<void>((resolve) => resolvers.push(resolve));
@@ -42,10 +42,12 @@ describe("PointerPingLayer", () => {
     expect(outerRing.style.background).toBe("transparent");
 
     expect(animate).toHaveBeenCalledTimes(9);
-    // 첫 애니메이션은 중심 점(380ms), 이어서 링 두 겹(620ms 수명).
-    expect(animate.mock.calls[0][1]).toMatchObject({ duration: 380, fill: "forwards" });
-    expect(animate.mock.calls[1][1]).toMatchObject({ duration: 620, delay: 0, fill: "forwards" });
+    // 첫 애니메이션은 중심 점(340ms), 이어서 링 두 겹(560ms 수명).
+    expect(animate.mock.calls[0][1]).toMatchObject({ duration: 340, fill: "forwards" });
+    expect(animate.mock.calls[1][1]).toMatchObject({ duration: 560, delay: 0, fill: "forwards" });
     expect(animate.mock.calls[2][1]).toMatchObject({ delay: 110 });
+    // 링은 수명의 8% 안에 최대 불투명도에 닿는다 — 누른 직후 바로 보인다.
+    expect(animate.mock.calls[1][0]).toMatchObject([{}, { offset: 0.08 }, {}]);
     // 원점을 옮기지 않고 제자리에서만 맺히고 확장한다.
     expect(animate.mock.calls.every(([candidate]) => !JSON.stringify(candidate).includes("translate"))).toBe(true);
 

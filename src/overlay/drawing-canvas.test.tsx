@@ -908,7 +908,7 @@ describe("DrawingCanvas", () => {
       vi.useRealTimers();
     });
 
-    it("retracts the first click's dot and emits a pointer ping", async () => {
+    it("retracts the first click's dot and pings on the second press, not its release", async () => {
       const onChange = vi.fn();
       const onPointerPing = vi.fn();
       const { container } = render(<Harness onChange={onChange} onPointerPing={onPointerPing} />);
@@ -921,10 +921,15 @@ describe("DrawingCanvas", () => {
       expect(baseCtx.stroke).toHaveBeenCalledTimes(1);
 
       vi.advanceTimersByTime(100);
+      // 두 번째 클릭을 누른 시점에 이미 핑이 나가고 점도 회수된다 — 떼기를 기다리지 않는다
       fireEvent.pointerDown(live, { button: 0, clientX: 52, clientY: 51, pointerId: 2 });
+      expect(onPointerPing).toHaveBeenCalledWith({ x: 50, y: 50 });
+      expect(baseCtx.stroke).toHaveBeenCalledTimes(1);
+
       fireEvent.pointerUp(live, { clientX: 52, clientY: 51, pointerId: 2 });
       expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
-      expect(onPointerPing).toHaveBeenCalledWith({ x: 50, y: 50 });
+      // 떼기는 핑을 한 번 더 내보내지 않는다
+      expect(onPointerPing).toHaveBeenCalledTimes(1);
       expect(onChange).not.toHaveBeenCalled();
       // 점이 회수됐으므로 renderBase 재실행에서 stroke가 다시 그려지지 않는다
       expect(baseCtx.stroke).toHaveBeenCalledTimes(1);

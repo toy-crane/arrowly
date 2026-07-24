@@ -6,11 +6,11 @@ import {
 } from "react";
 import type { Point } from "../shared/drawing";
 
-const MAX_RADIUS_PX = 12;
+const MAX_RADIUS_PX = 16;
 const RING_DIAMETER_PX = MAX_RADIUS_PX * 2;
 const CENTER_DOT_DIAMETER_PX = 6;
-const DURATION_MS = 620;
-const CENTER_DOT_DURATION_MS = 380;
+const DURATION_MS = 560;
+const CENTER_DOT_DURATION_MS = 340;
 
 type RingConfig = {
   endScale: number;
@@ -84,7 +84,7 @@ export const PointerPingLayer = forwardRef<PointerPingLayerHandle>(function Poin
           animations.push(ring.animate(
             [
               { transform: "scale(.3)", opacity: 0 },
-              { transform: "scale(.55)", opacity: config.peakOpacity, offset: 0.18 },
+              { transform: "scale(.55)", opacity: config.peakOpacity, offset: 0.08 },
               { transform: `scale(${endScale})`, opacity: 0 },
             ],
             {
