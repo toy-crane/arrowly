@@ -1,6 +1,6 @@
 [package]
 name = "arrowly"
-version = "0.2.0"
+version = "0.3.0"
 description = "macOS screen annotation overlay"
 authors = ["toy-crane"]
 edition = "2021"
