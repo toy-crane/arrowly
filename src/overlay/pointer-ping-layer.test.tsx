@@ -36,11 +36,14 @@ describe("PointerPingLayer", () => {
     const firstBurst = layer.children[0] as HTMLElement;
     expect(firstBurst.children).toHaveLength(3);
     const centerDot = firstBurst.children[0] as HTMLElement;
-    expect(centerDot.style.background).toBe("rgb(255, 212, 0)");
+    expect(centerDot.style.background).toBe("rgb(255, 45, 149)");
     const outerRing = firstBurst.children[1] as HTMLElement;
     expect(outerRing.style.borderRadius).toBe("50%");
     expect(outerRing.style.background).toBe("transparent");
-    expect(outerRing.style.border).toBe("2px solid rgb(255, 212, 0)");
+    expect(outerRing.style.border).toBe("2px solid rgb(255, 45, 149)");
+    // 배경을 고를 수 없으므로 두 요소 다 스스로 어두운 대비 외곽선을 갖는다.
+    expect(centerDot.style.filter).toContain("rgba(0,0,0,.95)");
+    expect(outerRing.style.filter).toContain("rgba(0,0,0,.95)");
 
     expect(animate).toHaveBeenCalledTimes(9);
     // 첫 애니메이션은 중심 점(340ms), 이어서 링 두 겹(560ms 수명).

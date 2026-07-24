@@ -6,6 +6,12 @@ import {
 } from "react";
 import type { Point } from "../shared/drawing";
 
+// 핑은 사용자가 색을 고를 수 없으므로 마크와 달리 스스로 대비를 갖는다.
+// docs/decisions/0002-pointer-ping-carries-its-own-contrast.md
+const PING_COLOR = "#FF2D95";
+const CONTRAST_EDGE =
+  "drop-shadow(0 0 1.5px rgba(0,0,0,.95)) drop-shadow(0 0 3px rgba(0,0,0,.55))";
+
 const MAX_RADIUS_PX = 16;
 const RING_DIAMETER_PX = MAX_RADIUS_PX * 2;
 const CENTER_DOT_DIAMETER_PX = 6;
@@ -130,10 +136,10 @@ const dotStyle: CSSProperties = {
   width: `${CENTER_DOT_DIAMETER_PX}px`,
   height: `${CENTER_DOT_DIAMETER_PX}px`,
   borderRadius: "50%",
-  background: "#FFD400",
-  boxShadow: "0 0 6px rgba(255,212,0,.7)",
+  background: PING_COLOR,
+  boxShadow: "0 0 6px rgba(255,45,149,.7)",
   opacity: 0,
-  filter: "drop-shadow(0 0 1px rgba(24,26,32,.4))",
+  filter: CONTRAST_EDGE,
   pointerEvents: "none",
 };
 
@@ -145,10 +151,10 @@ const ringStyle: CSSProperties = {
   width: `${RING_DIAMETER_PX}px`,
   height: `${RING_DIAMETER_PX}px`,
   boxSizing: "border-box",
-  border: "2px solid #FFD400",
+  border: `2px solid ${PING_COLOR}`,
   borderRadius: "50%",
   background: "transparent",
   opacity: 0,
-  filter: "drop-shadow(0 0 1px rgba(24,26,32,.4))",
+  filter: CONTRAST_EDGE,
   pointerEvents: "none",
 };
