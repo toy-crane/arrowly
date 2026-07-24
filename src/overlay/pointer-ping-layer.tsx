@@ -61,14 +61,15 @@ export const PointerPingLayer = forwardRef<PointerPingLayerHandle>(function Poin
           { duration: 150, easing: "ease-out", fill: "forwards" },
         ));
       } else {
-        // 클릭한 지점을 짧게 표시하는 중심 점.
+        // 클릭한 지점을 짧게 표시하는 중심 점. 링보다 먼저 최대 밝기에 닿아야
+        // 파문이 발원점에서 나온 것으로 읽힌다.
         const dot = document.createElement("i");
         Object.assign(dot.style, dotStyle);
         burst.append(dot);
         animations.push(dot.animate(
           [
             { transform: "scale(.4)", opacity: 0 },
-            { transform: "scale(1)", opacity: 1, offset: 0.3 },
+            { transform: "scale(1)", opacity: 1, offset: 0.12 },
             { transform: "scale(.5)", opacity: 0 },
           ],
           { duration: CENTER_DOT_DURATION_MS, easing: "ease-out", fill: "forwards" },
@@ -83,8 +84,10 @@ export const PointerPingLayer = forwardRef<PointerPingLayerHandle>(function Poin
           const endScale = config.endScale * radiusScale;
           animations.push(ring.animate(
             [
-              { transform: "scale(.3)", opacity: 0 },
-              { transform: "scale(.55)", opacity: config.peakOpacity, offset: 0.08 },
+              // 반경 0에서 출발해 중심 점의 가장자리를 벗어나는 순간 최대 밝기가 된다.
+              // scale .2 = 반경 3.2px = 중심 점 반지름. 그 전 구간은 점에 가려 보이지 않는다.
+              { transform: "scale(.05)", opacity: 0 },
+              { transform: "scale(.2)", opacity: config.peakOpacity, offset: 0.08 },
               { transform: `scale(${endScale})`, opacity: 0 },
             ],
             {

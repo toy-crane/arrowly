@@ -47,8 +47,15 @@ describe("PointerPingLayer", () => {
     expect(animate.mock.calls[0][1]).toMatchObject({ duration: 340, fill: "forwards" });
     expect(animate.mock.calls[1][1]).toMatchObject({ duration: 560, delay: 0, fill: "forwards" });
     expect(animate.mock.calls[2][1]).toMatchObject({ delay: 110 });
-    // 링은 수명의 8% 안에 최대 불투명도에 닿는다 — 누른 직후 바로 보인다.
-    expect(animate.mock.calls[1][0]).toMatchObject([{}, { offset: 0.08 }, {}]);
+    // 링은 반경 0에서 출발해 중심 점 가장자리(scale .2)에서 최대 불투명도에 닿는다.
+    expect(animate.mock.calls[1][0]).toMatchObject([
+      { transform: "scale(.05)", opacity: 0 },
+      { transform: "scale(.2)", offset: 0.08 },
+      { opacity: 0 },
+    ]);
+    // 발원점이 파문보다 먼저 켜진다 — 중심 점 40.8ms, 링 44.8ms.
+    expect(animate.mock.calls[0][0]).toMatchObject([{}, { offset: 0.12 }, {}]);
+    expect(0.12 * 340).toBeLessThan(0.08 * 560);
     // 원점을 옮기지 않고 제자리에서만 맺히고 확장한다.
     expect(animate.mock.calls.every(([candidate]) => !JSON.stringify(candidate).includes("translate"))).toBe(true);
 
