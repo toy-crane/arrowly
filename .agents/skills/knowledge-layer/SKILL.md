@@ -1,11 +1,11 @@
 ---
-name: domain-modeling
-description: Build and sharpen a project's domain model. Use when the user wants to pin down domain terminology or a ubiquitous language, record a key decision, or when another skill needs to maintain the domain model.
+name: knowledge-layer
+description: "Build and sharpen a project's knowledge layer — the glossary and decision records where settled terms and decisions accumulate. A background discipline: trigger while the domain is being worked out — a concept getting named, a term turning fuzzy or conflicting with GLOSSARY.md, a decision with real alternatives settling — whether or not the user asks. Reading the glossary for vocabulary is not a trigger; load only when the layer itself may change."
 ---
 
-# Domain Modeling
+# Knowledge Layer
 
-Actively build and sharpen the project's domain model as you design. This is the *active* discipline: challenging terms, inventing edge-case scenarios, and writing the glossary and decisions down the moment they crystallise. (Merely *reading* `GLOSSARY.md` for vocabulary is not this skill; that's a one-line habit any skill can do. This skill is for when you're changing the model, not just consuming it.)
+Actively build and sharpen the project's knowledge layer as you design. This is the *active* discipline: challenging terms, inventing edge-case scenarios, and writing the glossary and decisions down the moment they crystallise.
 
 ## File structure
 
@@ -14,10 +14,13 @@ Actively build and sharpen the project's domain model as you design. This is the
 ├── GLOSSARY.md
 ├── docs/
 │   └── decisions/
-│       ├── 0001-event-sourced-orders.md
-│       └── 0002-postgres-for-write-model.md
+│       ├── README.md
+│       ├── event-sourced-orders.md
+│       └── postgres-for-write-model.md
 └── src/
 ```
+
+`GLOSSARY.md` says what a term means now. `docs/decisions/README.md` says what the project has decided now: one line per standing position, grouped by subject. The records themselves hold the arguments, addressed by slug alone. Without the index the current position exists nowhere and every session rebuilds it from the whole folder.
 
 Create files lazily, only when you have something to write. If no `GLOSSARY.md` exists, create one when the first term is resolved. If no `docs/decisions/` exists, create it when the first decision record is needed.
 
@@ -54,3 +57,7 @@ Only offer to create a decision record when all three are true:
 3. **The result of a real trade-off**: there were genuine alternatives and you picked one for specific reasons
 
 If any of the three is missing, skip it. Use the format in [decision-record template](./templates/decision-record.md).
+
+### Write the index line before the record
+
+A decision you cannot state in one sentence has not settled yet, so write that sentence first: `- [slug](slug.md) — what was decided.` in `docs/decisions/README.md`, under the subject's section (create the section when the subject is new). If the decision overturns a standing position, replace that line instead of adding one, and name the superseded record in the new record's body; the superseded file itself is never edited. Then argue for it in the record. Every standing position has exactly one line.
