@@ -10,7 +10,7 @@ Tauri v2 + Vite/React/TypeScript + Bun. 타깃 macOS.
 
 - 도메인 용어의 단일 소스는 루트 `GLOSSARY.md`다. 스펙과 코드 설명에서 같은 개념에 다른 이름을 만들지 않는다.
 - 제품 동작·상태 전이·인수 조건은 `docs/specs/<capability>/spec.md`에 둔다. 기능을 바꾸면 코드와 같은 커밋에서 해당 스펙을 갱신한다.
-- 되돌리기 어렵고, 맥락 없이는 의외이며, 실제 대안 사이의 절충인 결정만 `docs/decisions/`에 기록한다.
+- 되돌리기 어렵고, 맥락 없이는 의외이며, 실제 대안 사이의 절충인 결정만 `docs/decisions/`에 기록한다. 현재 유효한 결정은 `docs/decisions/README.md`에 주제별 한 줄로 색인하고, 기록 파일명은 번호나 날짜 없이 영구 주소가 될 슬러그만 사용한다.
 - 화면·프로토타입 등 문서용 자산은 `docs/assets/` 또는 해당 기능 스펙 옆에 둔다. 앱 빌드 자산은 루트 `assets/`가 소유한다.
 - 종합 `REQUIREMENTS.md`, `ARCHITECTURE.md`, `TESTING.md`, `PLAN.md`를 다시 만들지 않는다. 제품 계약은 기능 스펙, 기여 규칙은 이 파일, 구현 사실은 코드·테스트·설정에 둔다.
 - 기능별 `plan.md`는 구현 중에만 둘 수 있으며 완료 후 삭제한다. 완료 이력은 Git이 소유한다.
