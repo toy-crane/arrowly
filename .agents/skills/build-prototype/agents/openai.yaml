@@ -1,4 +1,4 @@
 interface:
   display_name: "Build Prototype"
-  short_description: "Align on UI by building every screen"
-  default_prompt: "Use $build-prototype to build every screen of this feature as one dummy-data HTML file I react to: propose the screen list as a draft, walk me through a wireframe skeleton pass, then swap in the real design tokens and fill with realistic data and edge states. Close by saving the approved surface beside the spec."
+  short_description: "Prototype every screen before implementation"
+  default_prompt: "Use $build-prototype to prototype every screen of this feature in the project's existing style before implementation."

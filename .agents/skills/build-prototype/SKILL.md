@@ -1,89 +1,65 @@
 ---
 name: build-prototype
-description: Build a full-surface, dummy-data HTML prototype so the user aligns on UI by reacting to screens instead of prose. Use when the user wants to prototype, mock up, or see the screens of a product or feature before implementation, when UI discussion in words keeps missing, or when shape-idea hands off an experiential question that outgrew variants.
+description: Build a self-contained dummy-data HTML prototype covering every screen of a product or feature. Use when the user wants to review UI before implementation, or when prose and a few variants cannot settle a full surface.
 ---
 
 # Build Prototype
 
-The worst UI misalignment hides in what the prose never mentioned:
-the user cannot point at a missing sentence. Build every screen the
-surface needs, with dummy data, and walk the user through the whole
-of it; showing everything is what surfaces the gaps nobody had words
-for. Stay cheap enough to rebuild without regret and concrete enough
-to argue with.
+Build every screen the surface needs with dummy data. Keep the prototype cheap
+to rebuild and concrete enough for the user to review.
 
-Invoke the `knowledge-layer` skill, and read `GLOSSARY.md` and
-`docs/specs/<slug>/spec.md` when they exist: screens speak the
-glossary's terms, and a screen the user corrects often corrects the
-knowledge layer too. When the project has a design system, copy its
-tokens verbatim instead of approximating them, and name screen
-elements after its own component names (a `data-component`
-attribute, marking components the system lacks as new) so the
-implementing session maps every block to a real component. A
-contested detail goes back to shape-idea's discipline, two or three
-variants differing only on the governing question, instead of an
-argument in prose.
+Invoke the `project-knowledge` skill, and read `GLOSSARY.md` and
+`docs/specs/<slug>/spec.md` when they exist. Use glossary terms in labels and
+copy. Record confirmed surface choices in the work-unit spec; update a project
+decision contract only when the user explicitly confirmed a choice that is hard
+to reverse, surprising without context, and the result of a real trade-off. Use
+the user's language unless the product uses different terms.
+
+For a contested detail, render two or three variants that differ only on that
+question and let the user choose.
 
 ## One file, from the shell
 
-The prototype is one self-contained HTML file holding every screen.
-Start it from [templates/shell.html](./templates/shell.html), which
-ships the review chrome: screen tabs, per-screen state pills, and a
-viewport cycle. Extend the chrome when the surface demands it, never
-strip it, and keep it self-evident: chrome that needs explaining has
-failed. Everything else in the file belongs to the prototype: design
-tokens in `:root` that every screen must style through (one shared
-funnel is what keeps many screens reading as one product), and no
-build step, no framework, no network dependency. In the real app a
-button drags in routing and state wiring; here it is just a button.
+Build one self-contained HTML file containing every screen. Start from
+[templates/shell.html](./templates/shell.html) and keep its header comment in the
+prototype so later turns retain the contract. Keep the shell's screen tabs,
+per-screen state pills, and viewport cycle. Add review chrome only when the
+surface requires it, and do not add controls that need an explanation.
 
-Render it in whatever visual medium the environment provides,
-cheapest sufficient one first: an inline preview, a local file in a
-browser tab, a hosted page when the user reviews from a phone.
-Pointing at problems is the medium's job (element selection where
-the surface offers it) or prose's; build no pointing machinery into
-the file.
+Put design tokens in `:root` and style every screen through them. Use no build
+step, framework, network dependency, real routing, or production state wiring.
 
-## Skeleton, then fill
+Render the prototype in the cheapest sufficient visual medium available and
+inspect the rendered result before presenting it. Use the medium's element
+selection or prose to identify problems; do not add pointing controls to the
+prototype.
 
-Propose the screen inventory as a draft, never as a question: list
-the screens you believe the surface needs and let the user correct
-the list.
+## Use the project's style from the start
 
-Pass one builds every screen as skeleton: layout, navigation, key
-elements, representative data, all in the shell's wireframe gray so
-the user judges structure rather than styling. Fix structure until
-it is approved; structural misalignment costs minutes here and
-hours after fill.
+Present the screen inventory as a correctable draft and begin building without
+waiting for approval.
 
-Pass two starts by replacing the gray token block with the real one
-(copied from the design system, extracted from the app's styling,
-or decided with the user on a greenfield; a web font substitutes a
-system stack, noted in the spec), then fills the approved structure
-with realistic dummy data. Keep the skeleton's structural CSS apart
-from its skin so the approved structure survives the swap. Never
-lorem ipsum: real-length names, plausible sentences, awkward
-numbers, and the edge states the state pills expose where they bite
-(empty, longest plausible text, error; not every screen needs every
-state). Real data, real latency, and production wiring stay out;
-they are not what alignment is about. Review again, screen by
-screen.
+Inspect the existing product and design system before building. Copy its tokens
+verbatim, or extract the design language when no token file exists. Name elements
+after the system's component names with a `data-component` attribute, using
+`new:Name` for components the system lacks. When no design system exists, keep
+the shell's minimal palette as the finished style rather than a temporary stage.
+
+Never use lorem ipsum. Use real-length names, plausible sentences, awkward
+numbers, and only the edge states relevant to each screen, such as empty,
+longest plausible text, and error. Keep real data, latency, and production wiring
+out. Review the rendered prototype screen by screen.
 
 ## What survives
 
-Stop when every screen is approved or explicitly deferred as a
-remaining risk. Record what the screens settled in
-`docs/specs/<slug>/spec.md` (created when missing: confirmed
-decisions, assumptions, deferred points, and remaining risks,
-addressed to the implementing session), save the approved surface
-as
-`docs/specs/<slug>/prototype.html`, and link it from the spec. The
-implementing session receives both halves: the spec says what was
-decided, the prototype shows what it looks like. Everything built
-between passes is disposable, only the approved surface is
-preserved, and the prototype is a reference, never production code.
+Stop when every screen is approved or explicitly deferred. Record confirmed
+decisions, assumptions, deferred points, and remaining risks in
+`docs/specs/<slug>/spec.md`, creating it when missing. Save the approved surface
+as `docs/specs/<slug>/prototype.html` and link it from the spec.
 
-Anything with a screen is in scope: web app, mobile web, native app
-mockup in a phone frame (start mobile-first prototypes in the
-shell's narrow viewport). Command-line, terminal, and voice
-interfaces are not.
+Discard intermediate work. Keep the approved prototype as a reference, never as
+production code.
+
+Any interface with a screen is in scope, including web, mobile web, and native
+app mockups in a phone frame. Start mobile-first prototypes in the shell's narrow
+viewport. Command-line, terminal, and voice interfaces are not.
