@@ -8,7 +8,7 @@ import type { Point } from "../shared/drawing";
 
 // 핑은 사용자가 색도 배경도 고를 수 없으므로 마크와 달리 스스로 대비를 갖는다.
 // 어두운 바깥 · 마젠타 스트로크 · 밝은 안쪽을 겹쳐 어느 가장자리에서든 대비 쌍이
-// 생긴다. docs/decisions/pointer-ping-carries-its-own-contrast.md
+// 생긴다. docs/decisions/pointer-ping-contrast.md
 const PING_COLOR = "#FF2D95";
 const CORE_COLOR = "#FFFFFF";
 const DARK_EDGE =

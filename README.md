@@ -102,6 +102,6 @@ bun run test:all
 
 Arrowly는 Tauri v2 + React/TypeScript + Bun으로 만듭니다.
 
-- 제품 경계: [docs/specs/product-boundary/spec.md](docs/specs/product-boundary/spec.md)
-- 기능 스펙: [docs/specs](docs/specs)
+- 제품 경계: [docs/decisions/product-boundary.md](docs/decisions/product-boundary.md)
+- 현재 결정: [docs/decisions/README.md](docs/decisions/README.md)
 - 릴리스 절차: [docs/RELEASE.md](docs/RELEASE.md)
