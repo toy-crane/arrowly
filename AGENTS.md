@@ -1,6 +1,6 @@
 # Arrowly
 
-macOS 화면 주석 오버레이 앱. 제품 경계는 `docs/specs/product-boundary/spec.md`, 기능 동작은 `docs/specs/`의 각 스펙을 참고한다.
+macOS 화면 주석 오버레이 앱. 제품 경계는 `docs/decisions/product-boundary.md`, 현재 결정의 읽기 경로는 `docs/decisions/README.md`를 따른다.
 
 ## 스택
 
@@ -8,12 +8,11 @@ Tauri v2 + Vite/React/TypeScript + Bun. 타깃 macOS.
 
 ## 문서와 도메인 언어
 
-- 도메인 용어의 단일 소스는 루트 `GLOSSARY.md`다. 스펙과 코드 설명에서 같은 개념에 다른 이름을 만들지 않는다.
-- 제품 동작·상태 전이·인수 조건은 `docs/specs/<capability>/spec.md`에 둔다. 기능을 바꾸면 코드와 같은 커밋에서 해당 스펙을 갱신한다.
-- 되돌리기 어렵고, 맥락 없이는 의외이며, 실제 대안 사이의 절충인 결정만 `docs/decisions/`에 기록한다. 현재 유효한 결정은 `docs/decisions/README.md`에 주제별 한 줄로 색인하고, 기록 파일명은 번호나 날짜 없이 영구 주소가 될 슬러그만 사용한다.
-- 화면·프로토타입 등 문서용 자산은 `docs/assets/` 또는 해당 기능 스펙 옆에 둔다. 앱 빌드 자산은 루트 `assets/`가 소유한다.
-- 종합 `REQUIREMENTS.md`, `ARCHITECTURE.md`, `TESTING.md`, `PLAN.md`를 다시 만들지 않는다. 제품 계약은 기능 스펙, 기여 규칙은 이 파일, 구현 사실은 코드·테스트·설정에 둔다.
-- 기능별 `plan.md`는 구현 중에만 둘 수 있으며 완료 후 삭제한다. 완료 이력은 Git이 소유한다.
+- 도메인 용어의 단일 소스는 루트 `GLOSSARY.md`다. 현재 용어와 정의만 두고 동작·결정·연혁을 섞지 않는다.
+- `docs/decisions/`에는 사람이 승인한 현재 결정 중 되돌리기 어렵고, 맥락 없이는 의외이며, 실제 대안 사이의 절충인 것만 주제별 계약으로 둔다. `docs/decisions/README.md`는 내용을 요약하지 않고 읽을 주제만 안내한다.
+- 진행 중 작업의 동작·상태 전이·인수 조건은 `docs/specs/<slug>/spec.md`에 둔다. 출하 뒤에는 이후 작업을 제약할 결정만 보존하고 해당 스펙 폴더를 삭제한다. 구현된 동작의 단일 소스는 코드·테스트·설정이며 완료 이력은 Git이 소유한다.
+- 프로토타입과 작업별 계획·태스크는 진행 중인 스펙 폴더에만 둔다. 장기 보존할 문서용 자산은 `docs/assets/`, 앱 빌드 자산은 루트 `assets/`가 소유한다.
+- 종합 `REQUIREMENTS.md`, `ARCHITECTURE.md`, `TESTING.md`, `PLAN.md`를 다시 만들지 않는다. 기여 규칙은 이 파일, 현재 용어는 용어집, 지속 결정은 결정 계약에 둔다.
 
 ## 프로젝트 구조와 프런트엔드 경계
 
@@ -49,7 +48,7 @@ src-tauri/src/
 - 의존은 `composition → adapter → core → policy/leaf` 방향으로만 둔다.
 - `overlay.rs`는 `shortcuts.rs`나 `tray.rs`를 참조하지 않는다. 어댑터는 상태 전이 이벤트를 구독해 현재 `SharedState`로 수렴한다.
 - 순수 상태·단축키 정책은 Tauri 런타임에서 분리해 단위 테스트와 Rust 커버리지 게이트에 포함한다.
-- 네이티브 AppKit·웹뷰·전역 단축키 어댑터는 모의 커버리지 수치로 대체하지 않고 관련 기능 스펙의 macOS 인수 조건으로 검증한다.
+- 네이티브 AppKit·웹뷰·전역 단축키 어댑터는 모의 커버리지 수치로 대체하지 않고 변경 작업 스펙의 macOS 인수 조건으로 검증한다.
 - `lib.rs`가 composition root고 `main.rs`는 shim이다. `#[tauri::command]`는 소유 모듈에 정의해 `generate_handler!`에 경로로 등록한다.
 
 ## Rust↔웹뷰와 설정 계약
@@ -77,7 +76,7 @@ src-tauri/src/
 
 - 프런트 단위·상호작용 테스트는 Vitest와 `@tauri-apps/api/mocks`를 사용한다.
 - Rust 정책·IPC 테스트는 일반 단위 테스트와 `tauri::test::MockRuntime`을 사용한다.
-- 실제 NSPanel, 전체화면 Space, 포커스 유지, 전역 단축키, 메뉴바, IME와 포인터 전달은 관련 스펙의 네이티브 인수 조건으로 검증한다.
+- 실제 NSPanel, 전체화면 Space, 포커스 유지, 전역 단축키, 메뉴바, IME와 포인터 전달은 변경 작업 스펙의 네이티브 인수 조건으로 검증한다.
 - 프런트 커버리지 범위와 90% 게이트의 단일 소스는 `vitest.config.ts`, Rust 정책 모듈의 90% 게이트는 `scripts/rust-coverage.sh`다.
 - 시간 의존 테스트는 fake timer 대상을 필요한 프리미티브로 제한하고 테스트 후 real timer로 복구한다. 동기 `requestAnimationFrame` 스텁과 섞을 때 예약 id가 덮이지 않는지 확인한다.
 - 전체 검증은 `bun run test:all`로 dependency-cruiser, 프런트 커버리지, Rust 커버리지, 빌드를 함께 실행한다.
