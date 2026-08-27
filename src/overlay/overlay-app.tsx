@@ -16,8 +16,11 @@ import {
   onMarkerHiddenChanged,
   onModeChanged,
   onShortcutsChanged,
+  openScreenRecordingSettings,
+  requestMagnifierAccess,
   toggleBoard,
 } from "../shared/ipc";
+import { t } from "../shared/i18n";
 import {
   DEFAULT_SHORTCUTS,
   loadShortcuts,
@@ -28,6 +31,7 @@ import {
 } from "../shared/settings";
 import { applyPenCursor, applyTextCursor, resetCursor } from "./cursor";
 import { DrawingCanvas, type DrawingCanvasHandle } from "./drawing-canvas";
+import { MagnifierLayer } from "./magnifier-layer";
 import { Marker } from "./marker";
 import { PointerPingLayer, type PointerPingLayerHandle } from "./pointer-ping-layer";
 import {
@@ -49,21 +53,26 @@ export function OverlayApp() {
   const [drawingTool, setDrawingTool] = useState<DrawingInspectorTool>("freehand");
   const [editingTextSizeKey, setEditingTextSizeKey] = useState<TextSizeKey | null>(null);
   const [quickColorPaletteOpen, setQuickColorPaletteOpen] = useState(false);
+  const [magnifierNotice, setMagnifierNotice] = useState<"permission" | "capture" | null>(null);
   const canvasRef = useRef<DrawingCanvasHandle>(null);
   const pingLayerRef = useRef<PointerPingLayerHandle>(null);
   const activeToolRef = useRef<DrawingTool>("freehand");
   const drawingToolRef = useRef<DrawingInspectorTool>("freehand");
   const lastToolBeforeDeleteRef = useRef<DrawingTool>("freehand");
+  const drawingRef = useRef(false);
+  const magnifierRequestRef = useRef(0);
 
   const changeTool = (next: DrawingTool) => {
     const current = activeToolRef.current;
     let resolved = next;
 
-    if (next === "delete") {
+    if (next === "magnifier") {
+      resolved = "magnifier";
+    } else if (next === "delete") {
       if (current === "delete") {
         resolved = lastToolBeforeDeleteRef.current;
       } else {
-        lastToolBeforeDeleteRef.current = current;
+        lastToolBeforeDeleteRef.current = current === "magnifier" ? drawingToolRef.current : current;
       }
     } else if (next === "freehand" && current === "text") {
       resolved = drawingToolRef.current;
@@ -74,6 +83,33 @@ export function OverlayApp() {
 
     activeToolRef.current = resolved;
     setTool(resolved);
+  };
+
+  const activateMagnifier = async () => {
+    const request = ++magnifierRequestRef.current;
+    try {
+      const granted = await requestMagnifierAccess();
+      if (request !== magnifierRequestRef.current || !drawingRef.current) return;
+      if (!granted) {
+        setMagnifierNotice("permission");
+        return;
+      }
+      setMagnifierNotice(null);
+      changeTool("magnifier");
+    } catch {
+      if (request === magnifierRequestRef.current && drawingRef.current) {
+        setMagnifierNotice("capture");
+      }
+    }
+  };
+
+  const stopMagnifierAfterCaptureError = () => {
+    if (activeToolRef.current !== "magnifier") return;
+    const fallback = drawingToolRef.current;
+    activeToolRef.current = fallback;
+    lastToolBeforeDeleteRef.current = fallback;
+    setTool(fallback);
+    setMagnifierNotice("capture");
   };
 
   useEffect(() => {
@@ -88,14 +124,20 @@ export function OverlayApp() {
     });
     // mode-changed에 board가 동봉된다 — 웹뷰가 리로드돼도 모드 전환에서 보드 상태가 재동기화된다
     const unMode = onModeChanged((p) => {
+      drawingRef.current = p.drawing;
       setDrawing(p.drawing);
       setBoard(p.board);
       if (!p.drawing) {
-        activeToolRef.current = "freehand";
-        drawingToolRef.current = "freehand";
-        lastToolBeforeDeleteRef.current = "freehand";
-        setDrawingTool("freehand");
-        setTool("freehand"); // Esc·토글로 나가면 일시 도구 선택도 폐기
+        magnifierRequestRef.current += 1;
+        setMagnifierNotice(null);
+        const fallback = activeToolRef.current === "magnifier" ? drawingToolRef.current : "freehand";
+        activeToolRef.current = fallback;
+        lastToolBeforeDeleteRef.current = fallback;
+        if (fallback === "freehand") {
+          drawingToolRef.current = "freehand";
+          setDrawingTool("freehand");
+        }
+        setTool(fallback); // 확대는 자동 재개하지 않고 기억한 그리기 도구로 복귀한다
       }
     });
     const unBoard = onBoardChanged((p) => setBoard(p.on));
@@ -128,7 +170,7 @@ export function OverlayApp() {
       applyTextCursor();
       return;
     }
-    if (tool === "delete") {
+    if (tool === "delete" || tool === "magnifier") {
       resetCursor();
       return;
     }
@@ -162,7 +204,11 @@ export function OverlayApp() {
         clearAccel={clearAccel}
         textAccel={textAccel}
         tool={tool}
-        onToolChange={changeTool}
+        onToolChange={(next) => {
+          magnifierRequestRef.current += 1;
+          setMagnifierNotice(null);
+          changeTool(next);
+        }}
         onWidthStep={changeWidthBy}
         onTextSizeStep={changeTextSizeBy}
         onColorPick={(c) => {
@@ -178,6 +224,15 @@ export function OverlayApp() {
         }}
       />
       <PointerPingLayer ref={pingLayerRef} />
+      {drawing && tool === "magnifier" && (
+        <MagnifierLayer
+          board={board}
+          drawMarks={(target, source) =>
+            canvasRef.current?.drawMarksForMagnifier(target, source)
+          }
+          onCaptureError={stopMagnifierAfterCaptureError}
+        />
+      )}
       {drawing && !markerHidden && (
         <Marker
           color={color}
@@ -212,11 +267,45 @@ export function OverlayApp() {
             if (canvasRef.current?.isEditing()) {
               canvasRef.current.finishTextEditing();
             }
+            if (next === "magnifier") {
+              void activateMagnifier();
+              return;
+            }
+            magnifierRequestRef.current += 1;
+            setMagnifierNotice(null);
             changeTool(next);
           }}
         />
       )}
+      {drawing && magnifierNotice && (
+        <MagnifierNotice
+          kind={magnifierNotice}
+          onOpenSettings={() => void openScreenRecordingSettings()}
+        />
+      )}
     </>
+  );
+}
+
+function MagnifierNotice({
+  kind,
+  onOpenSettings,
+}: {
+  kind: "permission" | "capture";
+  onOpenSettings: () => void;
+}) {
+  return (
+    <div role="alert" style={noticeStyle}>
+      <strong style={noticeTitle}>
+        {t(kind === "permission" ? "magnifier.permissionTitle" : "magnifier.captureStopped")}
+      </strong>
+      <span style={noticeBody}>
+        {t(kind === "permission" ? "magnifier.permissionBody" : "magnifier.captureBody")}
+      </span>
+      <button type="button" style={noticeButton} onClick={onOpenSettings}>
+        {t("magnifier.openSettings")}
+      </button>
+    </div>
   );
 }
 
@@ -231,3 +320,47 @@ const boardBackdrop = (on: boolean): CSSProperties => ({
   visibility: on ? "visible" : "hidden",
   transition: `opacity 150ms ease-out, visibility 0s linear ${on ? "0s" : "150ms"}`,
 });
+
+const noticeStyle: CSSProperties = {
+  position: "fixed",
+  zIndex: 40,
+  left: "50%",
+  top: 22,
+  transform: "translateX(-50%)",
+  width: 360,
+  padding: "12px 14px",
+  display: "grid",
+  gridTemplateColumns: "1fr auto",
+  gap: "4px 12px",
+  alignItems: "center",
+  boxSizing: "border-box",
+  border: "1px solid rgba(255,255,255,0.16)",
+  borderRadius: 12,
+  background: "rgba(28,30,36,0.96)",
+  color: "#fff",
+  boxShadow: "0 8px 24px rgba(0,0,0,0.28)",
+  pointerEvents: "auto",
+  font: "13px/1.35 -apple-system, BlinkMacSystemFont, sans-serif",
+};
+
+const noticeTitle: CSSProperties = {
+  gridColumn: 1,
+  fontWeight: 650,
+};
+
+const noticeBody: CSSProperties = {
+  gridColumn: 1,
+  color: "rgba(255,255,255,0.72)",
+};
+
+const noticeButton: CSSProperties = {
+  gridColumn: 2,
+  gridRow: "1 / span 2",
+  padding: "7px 10px",
+  border: 0,
+  borderRadius: 8,
+  background: "#f2f3f5",
+  color: "#1c1e24",
+  font: "600 12px/1 -apple-system, BlinkMacSystemFont, sans-serif",
+  cursor: "pointer",
+};

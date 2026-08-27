@@ -53,6 +53,7 @@ const en = {
   "marker.drawingTool": "Drawing tool",
   "marker.textTool": "Text tool",
   "marker.deleteTool": "Mark deletion tool",
+  "marker.magnifierTool": "Magnifier tool",
   "marker.drawingProperties": "Drawing properties",
   "marker.textProperties": "Text properties",
   "marker.drawingToolsLabel": "Drawing tools",
@@ -79,6 +80,13 @@ const en = {
   "marker.widthName.xthick": "extra thick",
   "marker.toggleBoard": "Toggle blackboard",
   "marker.textSizeValue": "Text size {value}px",
+  "magnifier.lens": "Magnifier lens",
+  "magnifier.zoom": "2×",
+  "magnifier.permissionTitle": "Screen recording access is required",
+  "magnifier.captureStopped": "Magnifier stopped",
+  "magnifier.permissionBody": "Allow Arrowly to read the screen, then try again.",
+  "magnifier.captureBody": "Arrowly can no longer read this screen. Check access, then try again.",
+  "magnifier.openSettings": "Open System Settings",
 } as const;
 
 export type Key = keyof typeof en;
@@ -135,6 +143,7 @@ const ko: Record<Key, string> = {
   "marker.drawingTool": "그리기 도구",
   "marker.textTool": "텍스트 도구",
   "marker.deleteTool": "마크 삭제 도구",
+  "marker.magnifierTool": "확대 도구",
   "marker.drawingProperties": "그리기 속성",
   "marker.textProperties": "텍스트 속성",
   "marker.drawingToolsLabel": "그리기 도구",
@@ -161,6 +170,13 @@ const ko: Record<Key, string> = {
   "marker.widthName.xthick": "매우 굵음",
   "marker.toggleBoard": "블랙보드 토글",
   "marker.textSizeValue": "텍스트 크기 {value}px",
+  "magnifier.lens": "확대 렌즈",
+  "magnifier.zoom": "2×",
+  "magnifier.permissionTitle": "화면 기록 권한이 필요합니다",
+  "magnifier.captureStopped": "확대를 중단했습니다",
+  "magnifier.permissionBody": "Arrowly의 화면 읽기를 허용한 뒤 다시 시도하세요.",
+  "magnifier.captureBody": "이 화면을 더 이상 읽을 수 없습니다. 권한을 확인한 뒤 다시 시도하세요.",
+  "magnifier.openSettings": "시스템 설정 열기",
 };
 
 // 시스템 언어 자동 감지 — Rust 쪽(i18n.rs)과 같은 소스(macOS 선호 언어)·같은 규칙

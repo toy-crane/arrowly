@@ -4,6 +4,8 @@ export function createCanvasContext() {
   return {
     clearRect: vi.fn(),
     fillRect: vi.fn(),
+    drawImage: vi.fn(),
+    putImageData: vi.fn(),
     strokeRect: vi.fn(),
     setTransform: vi.fn(),
     scale: vi.fn(),
@@ -36,8 +38,14 @@ export function createCanvasContext() {
 
 export function installCanvasMock() {
   const contexts: CanvasRenderingContext2D[] = [];
-  vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(() => {
+  const byCanvas = new WeakMap<HTMLCanvasElement, CanvasRenderingContext2D>();
+  vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(function (
+    this: HTMLCanvasElement,
+  ) {
+    const existing = byCanvas.get(this);
+    if (existing) return existing;
     const context = createCanvasContext();
+    byCanvas.set(this, context);
     contexts.push(context);
     return context;
   });

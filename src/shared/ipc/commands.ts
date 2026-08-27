@@ -33,3 +33,35 @@ export function tryRegisterShortcut(id: GlobalShortcutId, accelerator: string): 
 export function applyShortcuts(shortcuts: Shortcuts): Promise<void> {
   return invoke("apply_shortcuts", { ...shortcuts });
 }
+
+export type MagnifierSourceRect = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+export type MagnifierCaptureRequest = MagnifierSourceRect & {
+  outputWidth: number;
+  outputHeight: number;
+};
+
+/** 화면 기록 권한을 확인하고 필요하면 macOS 권한 요청을 시작한다 (magnifier.rs). */
+export function requestMagnifierAccess(): Promise<boolean> {
+  return invoke("request_magnifier_access");
+}
+
+/** 현재 오버레이 모니터의 CSS 좌표 영역을 Retina RGBA 픽셀로 읽는다 (magnifier.rs). */
+export function captureMagnifierFrame(request: MagnifierCaptureRequest): Promise<ArrayBuffer> {
+  return invoke("capture_magnifier_frame", { ...request });
+}
+
+/** 렌즈 종료 시 네이티브 필터와 대상 디스플레이 참조를 해제한다 (magnifier.rs). */
+export function stopMagnifierCapture(): Promise<void> {
+  return invoke("stop_magnifier_capture");
+}
+
+/** macOS 화면 기록 개인정보 보호 설정을 연다 (magnifier.rs). */
+export function openScreenRecordingSettings(): Promise<void> {
+  return invoke("open_screen_recording_settings");
+}
