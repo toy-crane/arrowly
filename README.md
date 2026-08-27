@@ -95,9 +95,16 @@ bun run tauri dev
 # 온보딩부터 다시 실행
 bun run tauri:fresh
 
+# 화면 기록 권한·확대 도구 검증용 서명 앱 실행
+bun run tauri:screen-access
+
 # 의존 경계·프런트/Rust 커버리지·빌드 전체 검증
 bun run test:all
 ```
+
+`tauri dev`는 빌드마다 TCC 신원이 달라질 수 있는 일반 실행 파일이다. 화면 기록 권한은
+키체인의 Apple Development 인증서로 서명한 `Arrowly.app`을 만드는
+`tauri:screen-access`에서 검증한다. 최초 허용 뒤에는 안내에 따라 앱을 재시작한다.
 
 Arrowly는 Tauri v2 + React/TypeScript + Bun으로 만듭니다.
 

@@ -124,6 +124,27 @@ fn exit_drawing(app: &AppHandle) {
     }
 }
 
+/// macOS 권한 프롬프트처럼 Arrowly 밖의 시스템 UI를 조작하는 동안만 패널을 숨긴다.
+/// 그리기 상태와 Esc 경로는 유지하므로 요청 중 사용자가 탈출하면 복원하지 않는다.
+pub fn suspend_for_system_ui(app: &AppHandle) {
+    if let Ok(panel) = app.get_webview_panel(OVERLAY_LABEL) {
+        panel.set_ignores_mouse_events(true);
+        panel.resign_key_window();
+        panel.hide();
+    }
+}
+
+/// 시스템 UI가 닫힌 뒤 여전히 그리기 모드일 때만 패널 입력 소유권을 복원한다.
+pub fn restore_after_system_ui(app: &AppHandle) {
+    if !app.state::<SharedState>().lock().unwrap().drawing {
+        return;
+    }
+    if let Ok(panel) = app.get_webview_panel(OVERLAY_LABEL) {
+        panel.set_ignores_mouse_events(false);
+        panel.show_and_make_key();
+    }
+}
+
 /// 모드 전이의 단일 소스. 전이에 성공했을 때만 상태를 바꾸고 mode-changed를 emit한다.
 pub fn set_drawing(app: &AppHandle, drawing: bool) {
     {

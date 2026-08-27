@@ -18,6 +18,7 @@ import {
   onShortcutsChanged,
   openScreenRecordingSettings,
   requestMagnifierAccess,
+  restartArrowly,
   toggleBoard,
 } from "../shared/ipc";
 import { t } from "../shared/i18n";
@@ -53,7 +54,9 @@ export function OverlayApp() {
   const [drawingTool, setDrawingTool] = useState<DrawingInspectorTool>("freehand");
   const [editingTextSizeKey, setEditingTextSizeKey] = useState<TextSizeKey | null>(null);
   const [quickColorPaletteOpen, setQuickColorPaletteOpen] = useState(false);
-  const [magnifierNotice, setMagnifierNotice] = useState<"permission" | "capture" | null>(null);
+  const [magnifierNotice, setMagnifierNotice] = useState<
+    "permission" | "capture" | "restart" | "build" | null
+  >(null);
   const canvasRef = useRef<DrawingCanvasHandle>(null);
   const pingLayerRef = useRef<PointerPingLayerHandle>(null);
   const activeToolRef = useRef<DrawingTool>("freehand");
@@ -61,6 +64,7 @@ export function OverlayApp() {
   const lastToolBeforeDeleteRef = useRef<DrawingTool>("freehand");
   const drawingRef = useRef(false);
   const magnifierRequestRef = useRef(0);
+  const preserveToolOnExitRef = useRef(false);
 
   const changeTool = (next: DrawingTool) => {
     const current = activeToolRef.current;
@@ -88,10 +92,14 @@ export function OverlayApp() {
   const activateMagnifier = async () => {
     const request = ++magnifierRequestRef.current;
     try {
-      const granted = await requestMagnifierAccess();
+      const result = await requestMagnifierAccess();
       if (request !== magnifierRequestRef.current || !drawingRef.current) return;
-      if (!granted) {
+      if (result === "denied") {
         setMagnifierNotice("permission");
+        return;
+      }
+      if (result === "restartRequired") {
+        setMagnifierNotice("restart");
         return;
       }
       setMagnifierNotice(null);
@@ -103,13 +111,19 @@ export function OverlayApp() {
     }
   };
 
-  const stopMagnifierAfterCaptureError = () => {
+  const stopMagnifierAfterCaptureError = (reason: string) => {
     if (activeToolRef.current !== "magnifier") return;
     const fallback = drawingToolRef.current;
     activeToolRef.current = fallback;
     lastToolBeforeDeleteRef.current = fallback;
     setTool(fallback);
-    setMagnifierNotice("capture");
+    setMagnifierNotice(
+      reason === "error:screen_capture_permission"
+        ? "permission"
+        : reason === "error:screen_capture_app_not_shareable"
+          ? "build"
+          : "capture",
+    );
   };
 
   useEffect(() => {
@@ -130,7 +144,14 @@ export function OverlayApp() {
       if (!p.drawing) {
         magnifierRequestRef.current += 1;
         setMagnifierNotice(null);
-        const fallback = activeToolRef.current === "magnifier" ? drawingToolRef.current : "freehand";
+        const preserveTool = preserveToolOnExitRef.current;
+        preserveToolOnExitRef.current = false;
+        const fallback =
+          activeToolRef.current === "magnifier"
+            ? drawingToolRef.current
+            : preserveTool
+              ? activeToolRef.current
+              : "freehand";
         activeToolRef.current = fallback;
         lastToolBeforeDeleteRef.current = fallback;
         if (fallback === "freehand") {
@@ -280,7 +301,14 @@ export function OverlayApp() {
       {drawing && magnifierNotice && (
         <MagnifierNotice
           kind={magnifierNotice}
-          onOpenSettings={() => void openScreenRecordingSettings()}
+          onAction={() => {
+            if (magnifierNotice === "restart") {
+              void restartArrowly();
+            } else {
+              preserveToolOnExitRef.current = true;
+              void openScreenRecordingSettings();
+            }
+          }}
         />
       )}
     </>
@@ -289,22 +317,36 @@ export function OverlayApp() {
 
 function MagnifierNotice({
   kind,
-  onOpenSettings,
+  onAction,
 }: {
-  kind: "permission" | "capture";
-  onOpenSettings: () => void;
+  kind: "permission" | "capture" | "restart" | "build";
+  onAction: () => void;
 }) {
+  const restart = kind === "restart";
+  const invalidBuild = kind === "build";
+  const titleKey = restart
+    ? "magnifier.restartTitle"
+    : invalidBuild
+      ? "magnifier.buildTitle"
+      : kind === "permission"
+        ? "magnifier.permissionTitle"
+        : "magnifier.captureStopped";
+  const bodyKey = restart
+    ? "magnifier.restartBody"
+    : invalidBuild
+      ? "magnifier.buildBody"
+      : kind === "permission"
+        ? "magnifier.permissionBody"
+        : "magnifier.captureBody";
   return (
     <div role="alert" style={noticeStyle}>
-      <strong style={noticeTitle}>
-        {t(kind === "permission" ? "magnifier.permissionTitle" : "magnifier.captureStopped")}
-      </strong>
-      <span style={noticeBody}>
-        {t(kind === "permission" ? "magnifier.permissionBody" : "magnifier.captureBody")}
-      </span>
-      <button type="button" style={noticeButton} onClick={onOpenSettings}>
-        {t("magnifier.openSettings")}
-      </button>
+      <strong style={noticeTitle}>{t(titleKey)}</strong>
+      <span style={noticeBody}>{t(bodyKey)}</span>
+      {!invalidBuild && (
+        <button type="button" style={noticeButton} onClick={onAction}>
+          {t(restart ? "magnifier.restartAction" : "magnifier.openSettings")}
+        </button>
+      )}
     </div>
   );
 }

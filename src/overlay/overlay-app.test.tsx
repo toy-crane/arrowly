@@ -137,7 +137,7 @@ vi.mock("./marker", () => ({
 
 describe("OverlayApp", () => {
   const commands: string[] = [];
-  let magnifierAccessGranted = true;
+  let magnifierAccessResult: "ready" | "denied" | "restartRequired" = "ready";
   let magnifierAccessError: string | null = null;
   let magnifierCaptureError: string | null = null;
 
@@ -159,14 +159,14 @@ describe("OverlayApp", () => {
     mocks.setTextSize.mockReset();
     mocks.dismissQuickColorPalette.mockReset();
     mocks.drawMarksForMagnifier.mockReset();
-    magnifierAccessGranted = true;
+    magnifierAccessResult = "ready";
     magnifierAccessError = null;
     magnifierCaptureError = null;
     mockIPC((cmd) => {
       commands.push(cmd);
       if (cmd === "request_magnifier_access") {
         if (magnifierAccessError) throw magnifierAccessError;
-        return magnifierAccessGranted;
+        return magnifierAccessResult;
       }
       if (cmd === "capture_magnifier_frame") {
         if (magnifierCaptureError) throw magnifierCaptureError;
@@ -343,7 +343,7 @@ describe("OverlayApp", () => {
   });
 
   it("keeps the current tool and offers System Settings when capture permission is denied", async () => {
-    magnifierAccessGranted = false;
+    magnifierAccessResult = "denied";
     render(<OverlayApp />);
     await act(async () => {
       await emit("mode-changed", { drawing: true, board: false });
@@ -357,6 +357,29 @@ describe("OverlayApp", () => {
     expect(screen.queryByRole("img", { name: "Magnifier lens" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Open System Settings" }));
     expect(commands).toContain("open_screen_recording_settings");
+
+    await act(async () => {
+      await emit("mode-changed", { drawing: false, board: false });
+      await emit("mode-changed", { drawing: true, board: false });
+    });
+    expect(screen.getByTestId("canvas")).toHaveAttribute("data-tool", "triangle");
+  });
+
+  it("keeps the current tool and offers an app restart after first-time permission", async () => {
+    magnifierAccessResult = "restartRequired";
+    render(<OverlayApp />);
+    await act(async () => {
+      await emit("mode-changed", { drawing: true, board: false });
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "marker-triangle" }));
+    fireEvent.click(screen.getByRole("button", { name: "marker-magnifier" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Restart Arrowly to use magnifier");
+    expect(screen.getByTestId("canvas")).toHaveAttribute("data-tool", "triangle");
+    expect(screen.queryByRole("img", { name: "Magnifier lens" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Restart Arrowly" }));
+    expect(commands).toContain("restart_arrowly");
   });
 
   it("keeps the current tool and reports when screen capture is unavailable", async () => {
@@ -385,8 +408,26 @@ describe("OverlayApp", () => {
     fireEvent.click(screen.getByRole("button", { name: "marker-triangle" }));
     fireEvent.click(screen.getByRole("button", { name: "marker-magnifier" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("Magnifier stopped");
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Screen recording access is required",
+    );
     expect(screen.queryByRole("img", { name: "Magnifier lens" })).not.toBeInTheDocument();
     expect(screen.getByTestId("canvas")).toHaveAttribute("data-tool", "triangle");
+  });
+
+  it("explains when macOS cannot identify the current Arrowly build for safe capture", async () => {
+    magnifierCaptureError = "error:screen_capture_app_not_shareable";
+    render(<OverlayApp />);
+    await act(async () => {
+      await emit("mode-changed", { drawing: true, board: false });
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "marker-magnifier" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Launch a signed Arrowly app",
+    );
+    expect(screen.queryByRole("button", { name: "Open System Settings" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("img", { name: "Magnifier lens" })).not.toBeInTheDocument();
   });
 });

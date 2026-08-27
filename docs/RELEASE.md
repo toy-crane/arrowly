@@ -99,5 +99,6 @@ xcrun stapler validate src-tauri/target/universal-apple-darwin/release/bundle/dm
 ## 참고
 
 - **TCC 권한은 코드 서명 기준으로 기억된다** — 서명된 빌드끼리는 교체해도 권한 유지, 무서명 dev 빌드는 리빌드마다 리셋될 수 있다.
-- 로컬 검증용 무서명 빌드: `bun tauri build --debug --bundles app` → `/Applications`에 복사해 사용.
+- 로컬 화면 기록 권한 검증: `bun run tauri:screen-access`. 키체인의 Apple Development 인증서로
+  debug `Arrowly.app`을 서명·검증한 뒤 실행한다. 일반 `tauri dev` 바이너리는 TCC 검증에 사용하지 않는다.
 - 아이콘 재생성: `scripts/gen-icons.sh` (ImageMagick 필요).

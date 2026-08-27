@@ -46,8 +46,10 @@ export type MagnifierCaptureRequest = MagnifierSourceRect & {
   outputHeight: number;
 };
 
+export type MagnifierAccessResult = "ready" | "denied" | "restartRequired";
+
 /** 화면 기록 권한을 확인하고 필요하면 macOS 권한 요청을 시작한다 (magnifier.rs). */
-export function requestMagnifierAccess(): Promise<boolean> {
+export function requestMagnifierAccess(): Promise<MagnifierAccessResult> {
   return invoke("request_magnifier_access");
 }
 
@@ -64,4 +66,9 @@ export function stopMagnifierCapture(): Promise<void> {
 /** macOS 화면 기록 개인정보 보호 설정을 연다 (magnifier.rs). */
 export function openScreenRecordingSettings(): Promise<void> {
   return invoke("open_screen_recording_settings");
+}
+
+/** 최초 화면 기록 권한 허용 뒤 현재 Arrowly 프로세스를 다시 시작한다 (magnifier.rs). */
+export function restartArrowly(): Promise<void> {
+  return invoke("restart_arrowly");
 }
