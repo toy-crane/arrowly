@@ -112,7 +112,38 @@ describe("Marker", () => {
     expect(screen.getByRole("group", { name: "Text properties" })).toBeInTheDocument();
   });
 
-  it("annotates each color swatch with its number-key shortcut in the accessible name and tooltip", async () => {
+  it("closes its inspector for the quick palette and reports marker interaction", async () => {
+    const user = userEvent.setup();
+    const onInteractionStart = vi.fn();
+    const props = {
+      color: "#FF2D95" as const,
+      widthKey: "medium" as const,
+      textSizeKey: "medium" as const,
+      board: false,
+      tool: "freehand" as const,
+      drawingTool: "freehand" as const,
+      onColorChange: vi.fn(),
+      onWidthChange: vi.fn(),
+      onTextSizeChange: vi.fn(),
+      onBoardToggle: vi.fn(),
+      onToolChange: vi.fn(),
+      onInteractionStart,
+    };
+    const { container, rerender } = render(
+      <Marker {...props} quickColorPaletteOpen={false} />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Drawing tool" }));
+    expect(screen.getByRole("group", { name: "Drawing properties" })).toBeInTheDocument();
+
+    rerender(<Marker {...props} quickColorPaletteOpen />);
+    expect(screen.queryByRole("group", { name: "Drawing properties" })).not.toBeInTheDocument();
+
+    fireEvent.pointerDown(container.querySelector("[data-arrowly-marker]")!);
+    expect(onInteractionStart).toHaveBeenCalled();
+  });
+
+  it("labels each color swatch only by its color name", async () => {
     const user = userEvent.setup();
     render(
       <Marker
@@ -131,10 +162,11 @@ describe("Marker", () => {
     );
 
     await user.click(screen.getByRole("button", { name: "Drawing tool" }));
-    const pink = screen.getByRole("button", { name: "Color pink ⌘3" });
-    expect(pink).toHaveAttribute("title", "Color pink ⌘3");
-    expect(screen.getByRole("button", { name: "Color yellow ⌘1" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Color blue ⌘5" })).toBeInTheDocument();
+    const pink = screen.getByRole("button", { name: "Color pink" });
+    expect(pink).toHaveAttribute("title", "Color pink");
+    expect(screen.getByRole("button", { name: "Color yellow" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Color blue" })).toBeInTheDocument();
+    expect(screen.queryByText(/⌘[1-5]/)).not.toBeInTheDocument();
   });
 
   it("keeps a selected geometric tool fixed and reflects its current ink width", async () => {
@@ -416,7 +448,7 @@ describe("Marker", () => {
     await user.click(freehand);
     expect(screen.getByRole("group", { name: "Drawing properties" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Thickness extra thin" })).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Color blue ⌘5" }));
+    await user.click(screen.getByRole("button", { name: "Color blue" }));
     expect(onColorChange).toHaveBeenCalledWith("#00AEEF");
     expect(screen.queryByRole("group", { name: "Drawing properties" })).not.toBeInTheDocument();
 

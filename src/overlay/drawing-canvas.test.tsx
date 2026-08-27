@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { emit } from "@tauri-apps/api/event";
 import { mockIPC } from "@tauri-apps/api/mocks";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi, Mock } from "vitest";
 import { installCanvasMock } from "../../test/canvas";
 import { DrawingCanvas } from "./drawing-canvas";
@@ -47,6 +47,7 @@ function Harness({
   return (
     <>
       <button data-testid="force-off" onClick={() => setTool("freehand")} />
+      <button data-testid="force-delete" onClick={() => setTool("delete")} />
       <DrawingCanvas
         {...baseProps}
         tool={tool}
@@ -142,6 +143,26 @@ describe("DrawingCanvas", () => {
     fireEvent(window, new Event("resize"));
     expect(live.width).toBe(800);
     fireEvent.keyDown(window, { code: "KeyK", ctrlKey: true });
+  });
+
+  it("anchors the quick palette to the native cursor before the first pointer move", async () => {
+    render(
+      <DrawingCanvas {...baseProps} tool="freehand" onToolChange={vi.fn()} />,
+    );
+
+    await act(async () => {
+      await emit("mode-changed", {
+        drawing: true,
+        board: false,
+        cursor: { x: 790, y: 4 },
+      });
+    });
+    fireEvent.keyDown(window, { code: "KeyC" });
+
+    expect(screen.getByRole("group", { name: "Quick color palette" })).toHaveStyle({
+      left: "550px",
+      top: "17px",
+    });
   });
 
   it("arms and disarms text mode with the text key", () => {
@@ -413,7 +434,7 @@ describe("DrawingCanvas", () => {
       fireEvent.pointerMove(live, { clientX: 100, clientY: 20, pointerId: 1 });
       fireEvent.pointerUp(live, { clientX: 100, clientY: 20, pointerId: 1 });
 
-      fireEvent.keyDown(window, { code: "KeyE" });
+      fireEvent.click(screen.getByTestId("force-delete"));
       fireEvent.pointerMove(live, { clientX: 50, clientY: 20, pointerId: 2 });
       expect(live).toHaveStyle({ cursor: "pointer" });
 
@@ -450,25 +471,23 @@ describe("DrawingCanvas", () => {
       expect(onChange).not.toHaveBeenCalled();
     });
 
-    it("reserves plain E for deletion while allowing a modified E text shortcut", () => {
+    it("allows plain E as the configured text shortcut", () => {
       const onToolChange = vi.fn();
       render(
         <DrawingCanvas
           {...baseProps}
-          textAccel="Shift+KeyE"
+          textAccel="KeyE"
           tool="freehand"
           onToolChange={onToolChange}
         />,
       );
 
-      fireEvent.keyDown(window, { code: "KeyE", shiftKey: true });
-      expect(onToolChange).toHaveBeenLastCalledWith("text");
-
       fireEvent.keyDown(window, { code: "KeyE" });
-      expect(onToolChange).toHaveBeenLastCalledWith("delete");
+      expect(onToolChange).toHaveBeenLastCalledWith("text");
+      expect(onToolChange).not.toHaveBeenCalledWith("delete");
     });
 
-    it("does not enter deletion when E is pressed during an active pointer gesture", () => {
+    it("does not reserve E for deletion during or after a pointer gesture", () => {
       const onToolChange = vi.fn();
       const { container } = render(
         <DrawingCanvas {...baseProps} tool="freehand" onToolChange={onToolChange} />,
@@ -481,7 +500,7 @@ describe("DrawingCanvas", () => {
 
       fireEvent.pointerUp(live, { clientX: 80, clientY: 40, pointerId: 1 });
       fireEvent.keyDown(window, { code: "KeyE" });
-      expect(onToolChange).toHaveBeenCalledWith("delete");
+      expect(onToolChange).not.toHaveBeenCalled();
     });
 
     it("routes Command plus and minus to the active tool and ignores them in deletion", () => {
@@ -526,7 +545,85 @@ describe("DrawingCanvas", () => {
       expect(onTextSizeStep).toHaveBeenCalledTimes(1);
     });
 
-    it("selects palette colors from Command number keys and the numpad, ignoring bare or over-modified digits", () => {
+    it("chooses a quick-palette color by holding C and clicking a swatch", () => {
+      const onColorPick = vi.fn();
+      const onOpenChange = vi.fn();
+      const { container } = render(
+        <DrawingCanvas
+          {...baseProps}
+          tool="freehand"
+          onToolChange={vi.fn()}
+          onColorPick={onColorPick}
+          onQuickColorPaletteOpenChange={onOpenChange}
+        />,
+      );
+      const live = container.querySelectorAll("canvas")[1];
+
+      fireEvent.pointerMove(live, { clientX: 400, clientY: 300, pointerId: 1 });
+      fireEvent.keyDown(window, { code: "KeyC" });
+
+      const palette = screen.getByRole("group", { name: "Quick color palette" });
+      expect(palette).toHaveStyle({ left: "278px", top: "237px", transform: "none" });
+      expect(palette).toHaveAttribute("data-placement", "above");
+      const blue = within(palette).getByRole("button", { name: "Color blue" });
+      fireEvent.pointerEnter(blue);
+      fireEvent.click(blue);
+
+      expect(onColorPick).toHaveBeenCalledWith("#00AEEF");
+      expect(onOpenChange.mock.calls).toEqual([[true], [false]]);
+      expect(screen.queryByRole("group", { name: "Quick color palette" })).not.toBeInTheDocument();
+      fireEvent.keyUp(window, { code: "KeyC" });
+
+      fireEvent.pointerMove(live, { clientX: 3, clientY: 3, pointerId: 1 });
+      fireEvent.keyDown(window, { code: "KeyC" });
+      const clampedPalette = screen.getByRole("group", { name: "Quick color palette" });
+      expect(clampedPalette).toHaveStyle({ left: "6px", top: "16px", transform: "none" });
+      expect(clampedPalette).toHaveAttribute("data-placement", "below");
+      fireEvent.keyUp(window, { code: "KeyC" });
+    });
+
+    it("cancels an aimed quick color when C is released without a click", () => {
+      const onColorPick = vi.fn();
+      render(
+        <DrawingCanvas
+          {...baseProps}
+          tool="freehand"
+          onToolChange={vi.fn()}
+          onColorPick={onColorPick}
+        />,
+      );
+
+      fireEvent.keyDown(window, { code: "KeyC" });
+      const palette = screen.getByRole("group", { name: "Quick color palette" });
+      fireEvent.pointerEnter(within(palette).getByRole("button", { name: "Color blue" }));
+      fireEvent.keyUp(window, { code: "KeyC" });
+
+      expect(onColorPick).not.toHaveBeenCalled();
+      expect(screen.queryByRole("group", { name: "Quick color palette" })).not.toBeInTheDocument();
+    });
+
+    it("cancels the quick palette when drawing mode ends", async () => {
+      const onOpenChange = vi.fn();
+      render(
+        <DrawingCanvas
+          {...baseProps}
+          tool="freehand"
+          onToolChange={vi.fn()}
+          onQuickColorPaletteOpenChange={onOpenChange}
+        />,
+      );
+
+      fireEvent.keyDown(window, { code: "KeyC" });
+      expect(screen.getByRole("group", { name: "Quick color palette" })).toBeInTheDocument();
+      await act(async () => {
+        await emit("mode-changed", { drawing: false });
+      });
+
+      expect(screen.queryByRole("group", { name: "Quick color palette" })).not.toBeInTheDocument();
+      expect(onOpenChange.mock.calls).toEqual([[true], [false]]);
+    });
+
+    it("does not change colors for former Command number shortcuts", () => {
       const onColorPick = vi.fn();
       render(
         <DrawingCanvas
@@ -538,22 +635,53 @@ describe("DrawingCanvas", () => {
       );
 
       fireEvent.keyDown(window, { code: "Digit3", metaKey: true });
-      expect(onColorPick).toHaveBeenLastCalledWith("#FF2D95");
       fireEvent.keyDown(window, { code: "Numpad5", metaKey: true });
-      expect(onColorPick).toHaveBeenLastCalledWith("#00AEEF");
       fireEvent.keyDown(window, { code: "Digit1", metaKey: true });
-      expect(onColorPick).toHaveBeenLastCalledWith("#FFD400");
-      expect(onColorPick).toHaveBeenCalledTimes(3);
-
-      onColorPick.mockClear();
-      fireEvent.keyDown(window, { code: "Digit3" }); // 수식키 없음 → 색 아님
-      fireEvent.keyDown(window, { code: "Digit3", metaKey: true, shiftKey: true }); // ⌘ 외 수식키 섞임
-      fireEvent.keyDown(window, { code: "Digit3", metaKey: true, altKey: true });
-      fireEvent.keyDown(window, { code: "Digit6", metaKey: true }); // 1–5 밖
+      for (const code of ["KeyY", "KeyO", "KeyP", "KeyG", "KeyB"]) {
+        fireEvent.keyDown(window, { code });
+      }
       expect(onColorPick).not.toHaveBeenCalled();
     });
 
-    it("keeps color keys inert while a pointer gesture owns the stroke", () => {
+    it("does not draw from pointer presses while the quick palette is open", () => {
+      const { container } = render(
+        <DrawingCanvas {...baseProps} tool="freehand" onToolChange={vi.fn()} />,
+      );
+      const [baseCtx] = contexts;
+      const live = container.querySelectorAll("canvas")[1];
+
+      fireEvent.pointerMove(live, { clientX: 200, clientY: 200, pointerId: 1 });
+      fireEvent.keyDown(window, { code: "KeyC" });
+      fireEvent.pointerDown(live, { button: 0, clientX: 220, clientY: 220, pointerId: 1 });
+      fireEvent.pointerMove(live, { clientX: 280, clientY: 260, pointerId: 1 });
+      fireEvent.pointerUp(live, { clientX: 280, clientY: 260, pointerId: 1 });
+      fireEvent.keyUp(window, { code: "KeyC" });
+
+      expect(baseCtx.stroke).not.toHaveBeenCalled();
+    });
+
+    it("keeps a selected deletion tool after choosing a color", () => {
+      const onToolChange = vi.fn();
+      const onColorPick = vi.fn();
+      render(
+        <DrawingCanvas
+          {...baseProps}
+          tool="delete"
+          onToolChange={onToolChange}
+          onColorPick={onColorPick}
+        />,
+      );
+
+      fireEvent.keyDown(window, { code: "KeyC" });
+      const palette = screen.getByRole("group", { name: "Quick color palette" });
+      fireEvent.click(within(palette).getByRole("button", { name: "Color green" }));
+      fireEvent.keyUp(window, { code: "KeyC" });
+
+      expect(onColorPick).toHaveBeenCalledWith("#2ED573");
+      expect(onToolChange).not.toHaveBeenCalled();
+    });
+
+    it("opens the quick palette only after an active pointer gesture ends", () => {
       const onColorPick = vi.fn();
       const { container } = render(
         <DrawingCanvas
@@ -566,15 +694,18 @@ describe("DrawingCanvas", () => {
       const live = container.querySelectorAll("canvas")[1];
 
       fireEvent.pointerDown(live, { button: 0, clientX: 20, clientY: 20, pointerId: 1 });
-      fireEvent.keyDown(window, { code: "Digit3", metaKey: true });
+      fireEvent.keyDown(window, { code: "KeyC" });
+      expect(screen.queryByRole("group", { name: "Quick color palette" })).not.toBeInTheDocument();
       expect(onColorPick).not.toHaveBeenCalled();
 
       fireEvent.pointerUp(live, { clientX: 80, clientY: 40, pointerId: 1 });
-      fireEvent.keyDown(window, { code: "Digit3", metaKey: true });
-      expect(onColorPick).toHaveBeenCalledWith("#FF2D95");
+      fireEvent.keyDown(window, { code: "KeyC" });
+      expect(screen.getByRole("group", { name: "Quick color palette" })).toBeInTheDocument();
+      fireEvent.keyUp(window, { code: "KeyC" });
+      expect(onColorPick).not.toHaveBeenCalled();
     });
 
-    it("still switches ink color during a text editing session", async () => {
+    it("keeps C as text input during a text editing session", async () => {
       const onColorPick = vi.fn();
       const { container } = render(
         <DrawingCanvas
@@ -587,11 +718,13 @@ describe("DrawingCanvas", () => {
       const live = container.querySelectorAll("canvas")[1];
       fireEvent.pointerDown(live, { button: 0, clientX: 30, clientY: 40, pointerId: 1 });
       await flushTextEditingStart();
-      expect(screen.getByRole("textbox")).toBeInTheDocument();
+      const input = screen.getByRole("textbox") as HTMLInputElement;
 
-      // ⌘3은 편집 세션 흡수 가드보다 앞서 처리돼 잉크 색을 바꾼다 (굵기 ⌘± 와 동일).
-      fireEvent.keyDown(window, { code: "Digit3", metaKey: true });
-      expect(onColorPick).toHaveBeenCalledWith("#FF2D95");
+      fireEvent.change(input, { target: { value: "c" } });
+      fireEvent.keyDown(input, { key: "c", code: "KeyC" });
+      expect(input).toHaveValue("c");
+      expect(screen.queryByRole("group", { name: "Quick color palette" })).not.toBeInTheDocument();
+      expect(onColorPick).not.toHaveBeenCalled();
     });
   });
 

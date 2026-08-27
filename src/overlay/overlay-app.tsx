@@ -48,6 +48,7 @@ export function OverlayApp() {
   const [tool, setTool] = useState<DrawingTool>("freehand");
   const [drawingTool, setDrawingTool] = useState<DrawingInspectorTool>("freehand");
   const [editingTextSizeKey, setEditingTextSizeKey] = useState<TextSizeKey | null>(null);
+  const [quickColorPaletteOpen, setQuickColorPaletteOpen] = useState(false);
   const canvasRef = useRef<DrawingCanvasHandle>(null);
   const pingLayerRef = useRef<PointerPingLayerHandle>(null);
   const activeToolRef = useRef<DrawingTool>("freehand");
@@ -168,6 +169,7 @@ export function OverlayApp() {
           setColor(c);
           void saveColor(c);
         }}
+        onQuickColorPaletteOpenChange={setQuickColorPaletteOpen}
         onPointerPing={(point) => pingLayerRef.current?.pingAt(point)}
         onEditingTextSizeChange={setEditingTextSizeKey}
         onNewTextSizeCommit={(size) => {
@@ -201,6 +203,8 @@ export function OverlayApp() {
             }
           }}
           onBoardToggle={() => void toggleBoard()}
+          quickColorPaletteOpen={quickColorPaletteOpen}
+          onInteractionStart={() => canvasRef.current?.dismissQuickColorPalette()}
           onToolChange={(next) => {
             if (next === "delete" && canvasRef.current?.isEditing()) {
               return;

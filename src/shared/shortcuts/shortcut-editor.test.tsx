@@ -127,16 +127,24 @@ describe("ShortcutEditor", () => {
     ).toBeInTheDocument();
   });
 
-  it("reserves plain E for the fixed mark deletion tool", async () => {
+  it("reserves plain C for the quick color palette and allows E for text", async () => {
     const user = userEvent.setup();
     render(<ShortcutEditor />);
     await waitFor(() => expect(field("Write text")).toHaveTextContent("T"));
 
     await user.click(field("Write text"));
-    fireEvent.keyDown(window, { code: "KeyE" });
+    fireEvent.keyDown(window, { code: "KeyC" });
 
-    expect(await screen.findByText("E continuously deletes marks. Try another key.")).toBeInTheDocument();
+    expect(
+      await screen.findByText("C opens the quick color palette. Try another key."),
+    ).toBeInTheDocument();
     expect(settings.saveShortcuts).not.toHaveBeenCalled();
+
+    await user.click(field("Write text"));
+    fireEvent.keyDown(window, { code: "KeyE" });
+    await waitFor(() =>
+      expect(settings.saveShortcuts).toHaveBeenLastCalledWith({ ...defaults, text: "KeyE" }),
+    );
   });
 
   it("reports backend conflicts, resets defaults, and restores shortcuts on unmount", async () => {

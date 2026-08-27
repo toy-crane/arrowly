@@ -61,13 +61,15 @@ pub fn create(app: &App) -> tauri::Result<()> {
 }
 
 /// 그리기 ON 시퀀스: 커서가 있는 모니터로 프레임 → Esc 등록 → 표시.
-/// Esc 등록 실패 시 진입하지 않는다(탈출구 없는 진입 금지). 성공 여부를 반환.
-fn enter_drawing(app: &AppHandle) -> bool {
+/// Esc 등록 실패 시 진입하지 않는다(탈출구 없는 진입 금지). 성공하면 대상 모니터
+/// 안의 논리 픽셀 커서 좌표를 반환해 웹뷰가 첫 pointermove 전에도 현재 위치를 안다.
+fn enter_drawing(app: &AppHandle) -> Result<Option<(f64, f64)>, ()> {
     let Some(win) = app.get_webview_window(OVERLAY_LABEL) else {
-        return false;
+        return Err(());
     };
 
     // 커서가 있는 모니터를 덮는다. 모니터가 바뀌었으면 이전 그림 좌표가 무효라 비운다.
+    let mut local_cursor = None;
     if let Ok(cursor) = app.cursor_position() {
         if let Ok(monitors) = win.available_monitors() {
             let target = monitors.iter().find(|m| {
@@ -80,6 +82,11 @@ fn enter_drawing(app: &AppHandle) -> bool {
             });
             if let Some(m) = target {
                 let origin = (m.position().x, m.position().y);
+                let scale = m.scale_factor();
+                local_cursor = Some((
+                    (cursor.x - origin.0 as f64) / scale,
+                    (cursor.y - origin.1 as f64) / scale,
+                ));
                 let state = app.state::<SharedState>();
                 let monitor_changed = {
                     let mut s = state.lock().unwrap();
@@ -96,7 +103,7 @@ fn enter_drawing(app: &AppHandle) -> bool {
 
     if let Err(e) = crate::hotkey::register_escape(app) {
         eprintln!("[arrowly] Esc 전역 등록 실패 — 그리기 진입 중단: {e}");
-        return false;
+        return Err(());
     }
 
     if let Ok(panel) = app.get_webview_panel(OVERLAY_LABEL) {
@@ -104,7 +111,7 @@ fn enter_drawing(app: &AppHandle) -> bool {
         // nonactivating이므로 키를 가져도 아래 앱은 활성으로 남는다
         panel.show_and_make_key();
     }
-    true
+    Ok(local_cursor)
 }
 
 /// 통과 모드 시퀀스: Esc 해제 → 이벤트 무시 → 숨김. 그림 버퍼는 웹뷰가 유지한다(숨김≠삭제).
@@ -127,15 +134,15 @@ pub fn set_drawing(app: &AppHandle, drawing: bool) {
         }
     }
 
-    let ok = if drawing {
-        enter_drawing(app)
+    let cursor = if drawing {
+        match enter_drawing(app) {
+            Ok(cursor) => cursor,
+            Err(()) => return,
+        }
     } else {
         exit_drawing(app);
-        true
+        None
     };
-    if !ok {
-        return;
-    }
 
     let board = {
         let state = app.state::<SharedState>();
@@ -146,11 +153,13 @@ pub fn set_drawing(app: &AppHandle, drawing: bool) {
         }
         s.board
     };
-    // board 동봉 — 웹뷰가 리로드돼도 다음 모드 전환에서 보드 상태가 재동기화된다
+    // board와 진입 커서 동봉 — 웹뷰가 리로드돼도 다음 모드 전환에서 상태와
+    // 첫 pointermove 전 팔레트 기준점을 재동기화한다.
     // (트레이 메뉴는 이 이벤트를 구독해 스스로 갱신한다 — core는 tray를 모른다)
+    let cursor = cursor.map(|(x, y)| serde_json::json!({ "x": x, "y": y }));
     let _ = app.emit(
         crate::events::MODE_CHANGED,
-        serde_json::json!({ "drawing": drawing, "board": board }),
+        serde_json::json!({ "drawing": drawing, "board": board, "cursor": cursor }),
     );
 }
 

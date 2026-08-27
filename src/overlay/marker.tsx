@@ -1,7 +1,6 @@
 import { CSSProperties, useEffect, useRef, useState } from "react";
 import {
   Color,
-  COLORS,
   TEXT_SIZE_KEYS,
   TextSizeKey,
   textSizePx,
@@ -10,6 +9,7 @@ import {
 } from "../shared/constants";
 import { t, type Key } from "../shared/i18n";
 import { loadMarkerPos, MarkerPos, saveMarkerPos } from "../shared/settings";
+import { ColorSwatchStrip } from "./color-swatch-strip";
 import {
   drawingToolIconStrokeWidth,
   FreehandToolLiveStrokeIcon,
@@ -38,19 +38,14 @@ type Props = {
   onTextSizeChange: (size: TextSizeKey) => void;
   onBoardToggle: () => void;
   onToolChange: (tool: DrawingTool) => void;
+  quickColorPaletteOpen?: boolean;
+  onInteractionStart?: () => void;
 };
 
 // 기본 위치 좌하단(시안 확정). 드래그하면 settings.json(markerPos)에 저장된다.
 const DEFAULT_POS: MarkerPos = { xRatio: 0.04, yRatio: 0.92 };
 const BAR_HEIGHTS: Record<WidthKey, number> = { xthin: 3, thin: 5, medium: 7, thick: 9, xthick: 12 };
 const NEUTRAL = "#E8EAF0";
-const COLOR_NAME_KEYS: Record<Color, Key> = {
-  "#FFD400": "marker.colorName.yellow",
-  "#FF7A00": "marker.colorName.orange",
-  "#FF2D95": "marker.colorName.pink",
-  "#2ED573": "marker.colorName.green",
-  "#00AEEF": "marker.colorName.blue",
-};
 const WIDTH_NAME_KEYS: Record<WidthKey, Key> = {
   xthin: "marker.widthName.xthin",
   thin: "marker.widthName.thin",
@@ -74,6 +69,8 @@ export function Marker({
   onTextSizeChange,
   onBoardToggle,
   onToolChange,
+  quickColorPaletteOpen = false,
+  onInteractionStart,
 }: Props) {
   const [panel, setPanel] = useState<Panel>("collapsed");
   const [pos, setPosState] = useState<MarkerPos>(sessionPos ?? DEFAULT_POS);
@@ -119,7 +116,12 @@ export function Marker({
     setPanel("collapsed");
   }, [tool, drawingTool, board]);
 
+  useEffect(() => {
+    if (quickColorPaletteOpen) setPanel("collapsed");
+  }, [quickColorPaletteOpen]);
+
   const onPointerDown = (e: React.PointerEvent) => {
+    onInteractionStart?.();
     e.stopPropagation(); // 마커 위에서 획이 시작되면 안 된다
     const rect = rootRef.current!.getBoundingClientRect();
     dragRef.current = {
@@ -288,27 +290,7 @@ export function Marker({
                 </div>
               </div>
               <div role="group" aria-label={t("marker.colorLabel")} style={inspectorRow}>
-                <div style={choiceStrip}>
-                  {COLORS.map((c, i) => {
-                    // 색 순서와 ⌘1–⌘5 단축키를 접근성 이름·툴팁에 병기한다. 상시 시각 라벨은 두지 않는다.
-                    const label = t("marker.colorValueShortcut", {
-                      value: t(COLOR_NAME_KEYS[c]),
-                      shortcut: `⌘${i + 1}`,
-                    });
-                    return (
-                      <button
-                        key={c}
-                        style={{ ...choice, ...(c === color ? activeCell : undefined) }}
-                        aria-label={label}
-                        aria-pressed={c === color}
-                        title={label}
-                        onClick={() => pickColor(c)}
-                      >
-                        <span style={{ ...dot, background: c, ...(c === color ? currentRing : undefined) }} />
-                      </button>
-                    );
-                  })}
-                </div>
+                <ColorSwatchStrip color={color} onSelect={pickColor} />
               </div>
               <div role="group" aria-label={t("marker.widthLabel")} style={inspectorRow}>
                 <div style={choiceStrip}>
@@ -493,9 +475,6 @@ function DeleteIcon() {
   );
 }
 
-const dot: CSSProperties = { width: 17, height: 17, borderRadius: "50%", display: "block" };
-
-const currentRing: CSSProperties = { outline: `2px solid ${NEUTRAL}`, outlineOffset: 2.5 };
 
 const divider: CSSProperties = {
   width: 1,

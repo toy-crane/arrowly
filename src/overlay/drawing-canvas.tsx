@@ -8,7 +8,6 @@ import {
 } from "react";
 import {
   Color,
-  colorForDigitCode,
   stepTextSize,
   strokeWidthPx,
   TextSizeKey,
@@ -49,6 +48,7 @@ import {
   RING_DELAY_MS,
   STILL_RADIUS_PX,
 } from "./stroke-correction";
+import { QuickColorPalette } from "./quick-color-palette";
 import { TextEditor } from "./text-editor";
 import {
   createGeometricMark,
@@ -86,6 +86,7 @@ type Props = {
   onWidthStep?: (delta: -1 | 1) => void;
   onTextSizeStep?: (delta: -1 | 1) => void;
   onColorPick?: (color: Color) => void;
+  onQuickColorPaletteOpenChange?: (open: boolean) => void;
   onPointerPing?: (point: Point) => void;
   onEditingTextSizeChange?: (size: TextSizeKey | null) => void;
   onNewTextSizeCommit?: (size: TextSizeKey) => void;
@@ -95,6 +96,7 @@ export type DrawingCanvasHandle = {
   setTextSize: (size: TextSizeKey) => void;
   finishTextEditing: () => void;
   isEditing: () => boolean;
+  dismissQuickColorPalette: () => void;
 };
 
 type SessionBase = {
@@ -109,6 +111,11 @@ type SessionBase = {
 type TextEditorSession =
   | (SessionBase & { kind: "new" })
   | (SessionBase & { kind: "existing"; index: number; original: TextMark });
+
+type QuickColorPaletteState = {
+  anchor: Point;
+  aimedColor: Color | null;
+};
 
 /** 편집 요소가 포커스면 오버레이 단축키는 전부 타이핑으로 흡수된다 (우선순위 확정). */
 function isEditableTarget(e: KeyboardEvent): boolean {
@@ -132,6 +139,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
     onWidthStep,
     onTextSizeStep,
     onColorPick,
+    onQuickColorPaletteOpenChange,
     onPointerPing,
     onEditingTextSizeChange,
     onNewTextSizeCommit,
@@ -158,6 +166,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
   onTextSizeStepRef.current = onTextSizeStep;
   const onColorPickRef = useRef(onColorPick);
   onColorPickRef.current = onColorPick;
+  const onQuickColorPaletteOpenChangeRef = useRef(onQuickColorPaletteOpenChange);
+  onQuickColorPaletteOpenChangeRef.current = onQuickColorPaletteOpenChange;
   const onPointerPingRef = useRef(onPointerPing);
   onPointerPingRef.current = onPointerPing;
   const onEditingTextSizeChangeRef = useRef(onEditingTextSizeChange);
@@ -176,6 +186,18 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
   const wantsEditingRef = useRef(false);
   const editingRef = useRef(false);
   editingRef.current = session !== null;
+  const [quickColorPalette, setQuickColorPalette] = useState<QuickColorPaletteState | null>(null);
+  const quickColorPaletteRef = useRef<QuickColorPaletteState | null>(null);
+  quickColorPaletteRef.current = quickColorPalette;
+  const lastPointerRef = useRef<Point>({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
+
+  const updateQuickColorPalette = (next: QuickColorPaletteState | null) => {
+    const wasOpen = quickColorPaletteRef.current !== null;
+    const isOpen = next !== null;
+    quickColorPaletteRef.current = next;
+    setQuickColorPalette(next);
+    if (wasOpen !== isOpen) onQuickColorPaletteOpenChangeRef.current?.(isOpen);
+  };
 
   const renderBaseRef = useRef<() => void>(() => undefined);
   const resetGestureRef = useRef<() => void>(() => undefined);
@@ -202,6 +224,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       setTextSize: setEditingSize,
       finishTextEditing: () => finishSessionRef.current(true),
       isEditing: () => sessionRef.current !== null,
+      dismissQuickColorPalette: () => updateQuickColorPalette(null),
     }),
     [],
   );
@@ -685,6 +708,11 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
     const onPointerDown = (e: PointerEvent) => {
       if (e.button !== 0) return;
       if (activePointerId !== null && e.pointerId !== activePointerId) return;
+      lastPointerRef.current = toPoint(e);
+      if (quickColorPaletteRef.current) {
+        e.preventDefault();
+        return;
+      }
       if (suppressNextPointerDown) {
         suppressNextPointerDown = false;
         e.preventDefault();
@@ -776,6 +804,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
     };
 
     const onPointerMove = (e: PointerEvent) => {
+      lastPointerRef.current = toPoint(e);
+      if (quickColorPaletteRef.current) return;
       if (activePointerId !== null && e.pointerId !== activePointerId) return;
       if (activePointerId === null && interaction.phase === "discovery" && interaction.visible) {
         hoverPointer = toPoint(e);
@@ -999,6 +1029,26 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
         applyInteractionEvent({ type: "shortcut-chord" });
         if (interaction !== previous) renderLive();
       }
+      if (
+        e.code === "KeyC" &&
+        !e.metaKey &&
+        !e.altKey &&
+        !e.ctrlKey &&
+        !e.shiftKey
+      ) {
+        if (
+          e.repeat ||
+          quickColorPaletteRef.current ||
+          activePointerId !== null ||
+          isEditableTarget(e) ||
+          editingRef.current
+        ) {
+          return;
+        }
+        e.preventDefault();
+        updateQuickColorPalette({ anchor: lastPointerRef.current, aimedColor: null });
+        return;
+      }
       const sizeDelta =
         e.metaKey &&
         !e.altKey &&
@@ -1026,17 +1076,6 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
         }
         return;
       }
-      // ⌘1–⌘5 색 선택 — 굵기 ⌘± 와 같은 우선순위라 흡수 가드보다 앞서 편집 세션 중에도 동작한다.
-      // 수정자 없는 숫자는 글자 입력으로 흘려보내고, 진행 중 포인터 제스처 동안에는 무시해
-      // "색은 제스처 시작 시 결정" 잉크 속성 계약을 지킨다.
-      if (e.metaKey && !e.altKey && !e.ctrlKey && !e.shiftKey && activePointerId === null) {
-        const nextColor = colorForDigitCode(e.code);
-        if (nextColor) {
-          e.preventDefault();
-          onColorPickRef.current?.(nextColor);
-          return;
-        }
-      }
       // 입력 중에는 모든 오버레이 단축키를 흡수. editingRef는 DOM 포커스와 무관한
       // 2차 방어 — non-activating panel에서 포커스가 유실돼도 획 버퍼를 오발화로 지키지 않는다
       if (isEditableTarget(e) || editingRef.current) return;
@@ -1056,18 +1095,6 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       } else if (matchesAccelerator(e, clearAccelRef.current)) {
         e.preventDefault();
         clearAll();
-      } else if (
-        !e.metaKey &&
-        !e.altKey &&
-        !e.ctrlKey &&
-        !e.shiftKey &&
-        activePointerId === null &&
-        e.code === "KeyE"
-      ) {
-        e.preventDefault();
-        resetGestureState();
-        renderLive();
-        onToolChangeRef.current("delete");
       } else if (matchesAccelerator(e, textAccelRef.current)) {
         e.preventDefault();
         resetGestureState();
@@ -1077,6 +1104,11 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
     };
 
     const onKeyUp = (e: KeyboardEvent) => {
+      if (e.code === "KeyC" && quickColorPaletteRef.current) {
+        e.preventDefault();
+        updateQuickColorPalette(null);
+        return;
+      }
       if (e.key === "Meta" || e.key === "Alt") {
         clearRevealTimer();
         applyInteractionEvent({
@@ -1094,6 +1126,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
     };
 
     const resetLostInteractionState = () => {
+      updateQuickColorPalette(null);
       resetGestureState();
       live.style.cursor = "default";
       renderLive();
@@ -1119,10 +1152,12 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
 
     const unlistenMode = onModeChanged((p) => {
       if (p.drawing) {
+        if (p.cursor) lastPointerRef.current = p.cursor;
         setupBacking(); // 모니터·해상도가 바뀌었을 수 있음 (기존 획은 재렌더로 복원)
       } else {
         // 숨김≠삭제: 텍스트는 현재 내용 확정, 진행 중 live 획만 취소한다.
         finishSession(true);
+        updateQuickColorPalette(null);
         resetGestureState();
         renderLive();
       }
@@ -1178,6 +1213,21 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
           onOutsidePointerDown={(point) => {
             finishSessionRef.current(true);
             rememberOutsideClickRef.current(point);
+          }}
+        />
+      )}
+      {quickColorPalette && (
+        <QuickColorPalette
+          anchor={quickColorPalette.anchor}
+          color={color}
+          aimedColor={quickColorPalette.aimedColor}
+          onAimChange={(aimedColor) => {
+            const current = quickColorPaletteRef.current;
+            if (current) updateQuickColorPalette({ ...current, aimedColor });
+          }}
+          onSelect={(selected) => {
+            updateQuickColorPalette(null);
+            onColorPickRef.current?.(selected);
           }}
         />
       )}
