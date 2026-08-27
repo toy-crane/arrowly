@@ -1,6 +1,7 @@
 mod events;
 mod hotkey;
 mod i18n;
+mod magnifier;
 mod overlay;
 mod shortcut_policy;
 mod shortcuts;
@@ -22,6 +23,7 @@ pub fn run() {
         ))
         .plugin(tauri_nspanel::init())
         .manage(state::SharedState::default())
+        .manage(magnifier::MagnifierState::default())
         .invoke_handler(tauri::generate_handler![
             shortcuts::try_register_shortcut,
             shortcuts::apply_shortcuts,
@@ -29,6 +31,10 @@ pub fn run() {
             shortcuts::resume_shortcuts,
             overlay::toggle_board,
             overlay::set_text_editing,
+            magnifier::request_magnifier_access,
+            magnifier::capture_magnifier_frame,
+            magnifier::stop_magnifier_capture,
+            magnifier::open_screen_recording_settings,
         ])
         .on_window_event(|window, event| {
             // 유틸 창(온보딩·설정)이 닫히면 Dock 표시를 원상 복구

@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { createRef, useState } from "react";
 import { emit } from "@tauri-apps/api/event";
 import { mockIPC } from "@tauri-apps/api/mocks";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi, Mock } from "vitest";
 import { installCanvasMock } from "../../test/canvas";
-import { DrawingCanvas } from "./drawing-canvas";
+import { DrawingCanvas, type DrawingCanvasHandle } from "./drawing-canvas";
 import type { DrawingTool } from "./tools";
 
 let contexts: CanvasRenderingContext2D[];
@@ -116,6 +116,51 @@ describe("DrawingCanvas", () => {
     fireEvent.pointerCancel(live, { pointerId: 3 });
     unmount();
     expect(cancelAnimationFrame).not.toHaveBeenCalled(); // 동기 rAF는 이미 완료되어 취소할 예약이 없다
+  });
+
+  it("does not create or edit marks while the magnifier owns pointer input", () => {
+    const { container } = render(
+      <DrawingCanvas {...baseProps} tool="magnifier" onToolChange={vi.fn()} />,
+    );
+    const [baseCtx, liveCtx] = contexts;
+    const live = container.querySelectorAll("canvas")[1];
+
+    fireEvent.pointerDown(live, { button: 0, clientX: 100, clientY: 120, pointerId: 1 });
+    fireEvent.pointerMove(live, { clientX: 180, clientY: 160, pointerId: 1 });
+    fireEvent.pointerUp(live, { clientX: 180, clientY: 160, pointerId: 1 });
+
+    expect(baseCtx.stroke).not.toHaveBeenCalled();
+    expect(liveCtx.stroke).not.toHaveBeenCalled();
+    expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+  });
+
+  it("draws the marked source region into the magnifier at the fixed 2x output size", () => {
+    const ref = createRef<DrawingCanvasHandle>();
+    const { container } = render(
+      <DrawingCanvas ref={ref} {...baseProps} tool="freehand" onToolChange={vi.fn()} />,
+    );
+    const [base] = Array.from(container.querySelectorAll("canvas"));
+    const target = document.createElement("canvas");
+    const targetContext = target.getContext("2d")!;
+
+    ref.current!.drawMarksForMagnifier(targetContext, {
+      x: 100,
+      y: 80,
+      width: 174,
+      height: 88,
+    });
+
+    expect(targetContext.drawImage).toHaveBeenCalledWith(
+      base,
+      200,
+      160,
+      348,
+      176,
+      0,
+      0,
+      348,
+      176,
+    );
   });
 
   it("responds to resize and mocked Tauri mode/clear events without deleting hidden strokes", async () => {

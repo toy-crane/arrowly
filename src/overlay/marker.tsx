@@ -241,6 +241,17 @@ export function Marker({
       >
         <DeleteIcon />
       </button>
+      <button
+        style={{ ...btn, ...(tool === "magnifier" ? modeOn : undefined) }}
+        aria-label={t("marker.magnifierTool")}
+        aria-pressed={tool === "magnifier"}
+        onClick={() => {
+          setPanel("collapsed");
+          onToolChange("magnifier");
+        }}
+      >
+        <MagnifierIcon />
+      </button>
       <span style={divider} />
       <button
         style={{ ...btn, ...(board ? modeOn : undefined) }}
@@ -357,7 +368,7 @@ const surface: CSSProperties = {
 const capsule: CSSProperties = {
   ...surface,
   position: "fixed",
-  width: 209,
+  width: 251,
   cursor: "default",
   touchAction: "none",
 };
@@ -475,6 +486,24 @@ function DeleteIcon() {
   );
 }
 
+function MagnifierIcon() {
+  return (
+    <svg
+      width="22"
+      height="22"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke={NEUTRAL}
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="10.5" cy="10.5" r="6.5" />
+      <path d="m15.3 15.3 5 5" />
+    </svg>
+  );
+}
 
 const divider: CSSProperties = {
   width: 1,

@@ -51,6 +51,11 @@ import {
 import { QuickColorPalette } from "./quick-color-palette";
 import { TextEditor } from "./text-editor";
 import {
+  MAGNIFIER_HEIGHT,
+  MAGNIFIER_WIDTH,
+  type MagnifierRect,
+} from "./magnifier-layout";
+import {
   createGeometricMark,
   type DrawingTool,
   isGeometricTool,
@@ -97,6 +102,10 @@ export type DrawingCanvasHandle = {
   finishTextEditing: () => void;
   isEditing: () => boolean;
   dismissQuickColorPalette: () => void;
+  drawMarksForMagnifier: (
+    target: CanvasRenderingContext2D,
+    source: MagnifierRect,
+  ) => void;
 };
 
 type SessionBase = {
@@ -225,6 +234,22 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       finishTextEditing: () => finishSessionRef.current(true),
       isEditing: () => sessionRef.current !== null,
       dismissQuickColorPalette: () => updateQuickColorPalette(null),
+      drawMarksForMagnifier: (target, source) => {
+        const base = baseRef.current;
+        if (!base) return;
+        const dpr = window.devicePixelRatio || 1;
+        target.drawImage(
+          base,
+          source.x * dpr,
+          source.y * dpr,
+          source.width * dpr,
+          source.height * dpr,
+          0,
+          0,
+          MAGNIFIER_WIDTH,
+          MAGNIFIER_HEIGHT,
+        );
+      },
     }),
     [],
   );
@@ -710,6 +735,10 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       if (activePointerId !== null && e.pointerId !== activePointerId) return;
       lastPointerRef.current = toPoint(e);
       if (quickColorPaletteRef.current) {
+        e.preventDefault();
+        return;
+      }
+      if (activeToolRef.current === "magnifier") {
         e.preventDefault();
         return;
       }

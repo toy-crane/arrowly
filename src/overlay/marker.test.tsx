@@ -42,7 +42,7 @@ describe("Marker", () => {
     const deletion = screen.getByRole("button", { name: "Mark deletion tool" });
     const sweep = freehand.querySelector("svg")!;
 
-    expect(marker).toHaveStyle({ width: "209px", height: "44px" });
+    expect(marker).toHaveStyle({ width: "251px", height: "44px" });
     expect(freehand).toHaveStyle({ marginRight: "4px", color: "#FF2D95" });
     expect(sweep).toHaveAttribute("stroke", "currentColor");
     expect(sweep).toHaveAttribute("stroke-width", "3.2");
@@ -64,6 +64,40 @@ describe("Marker", () => {
     expect(freehand).toHaveStyle({ color: "#00AEEF" });
     expect(sweep).toHaveAttribute("stroke-width", "5.6");
     expect(text.querySelector("span")).toHaveStyle({ fontSize: "24px" });
+  });
+
+  it("places the magnifier after deletion and starts it without opening properties", async () => {
+    const user = userEvent.setup();
+    const onToolChange = vi.fn();
+    const { container } = render(
+      <Marker
+        color="#FF2D95"
+        widthKey="medium"
+        textSizeKey="medium"
+        board={false}
+        tool="freehand"
+        drawingTool="freehand"
+        onColorChange={vi.fn()}
+        onWidthChange={vi.fn()}
+        onTextSizeChange={vi.fn()}
+        onBoardToggle={vi.fn()}
+        onToolChange={onToolChange}
+      />,
+    );
+
+    const marker = container.querySelector<HTMLElement>("[data-arrowly-marker]")!;
+    expect(within(marker).getAllByRole("button").map((button) => button.getAttribute("aria-label")))
+      .toEqual([
+        "Drawing tool",
+        "Text tool",
+        "Mark deletion tool",
+        "Magnifier tool",
+        "Toggle blackboard",
+      ]);
+
+    await user.click(screen.getByRole("button", { name: "Magnifier tool" }));
+    expect(onToolChange).toHaveBeenCalledWith("magnifier");
+    expect(screen.queryByRole("group", { name: /properties/i })).not.toBeInTheDocument();
   });
 
   it("switches an inactive tool without opening properties and toggles properties from the active tool", async () => {

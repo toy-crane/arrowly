@@ -5,7 +5,7 @@ export const GEOMETRIC_TOOLS = ["arrow", "rect", "ellipse", "triangle"] as const
 export type GeometricTool = (typeof GEOMETRIC_TOOLS)[number];
 export const DRAWING_INSPECTOR_TOOLS = ["freehand", ...GEOMETRIC_TOOLS] as const;
 export type DrawingInspectorTool = (typeof DRAWING_INSPECTOR_TOOLS)[number];
-export type DrawingTool = "freehand" | "text" | "delete" | GeometricTool;
+export type DrawingTool = "freehand" | "text" | "delete" | "magnifier" | GeometricTool;
 
 export function isGeometricTool(tool: string): tool is GeometricTool {
   return GEOMETRIC_TOOLS.includes(tool as GeometricTool);

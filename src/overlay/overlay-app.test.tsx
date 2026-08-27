@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   finishTextEditing: vi.fn(),
   setTextSize: vi.fn(),
   dismissQuickColorPalette: vi.fn(),
+  drawMarksForMagnifier: vi.fn(),
 }));
 
 vi.mock("../shared/settings", async (importOriginal) => {
@@ -55,7 +56,7 @@ vi.mock("./drawing-canvas", () => ({
       textAccel: string;
       tool: string;
       textSizeKey: string;
-      onToolChange: (tool: "freehand" | "text" | "delete") => void;
+      onToolChange: (tool: "freehand" | "text" | "delete" | "magnifier") => void;
       onWidthStep: (delta: -1 | 1) => void;
       onTextSizeStep: (delta: -1 | 1) => void;
       onColorPick: (color: "#FFD400") => void;
@@ -70,6 +71,7 @@ vi.mock("./drawing-canvas", () => ({
           mocks.dismissQuickColorPalette();
           onQuickColorPaletteOpenChange(false);
         },
+        drawMarksForMagnifier: mocks.drawMarksForMagnifier,
       }));
       return (
         <div
@@ -108,7 +110,7 @@ vi.mock("./marker", () => ({
     onWidthChange: (value: "thick") => void;
     onTextSizeChange: (value: "large") => void;
     onBoardToggle: () => void;
-    onToolChange: (tool: "freehand" | "text" | "delete" | "triangle") => void;
+    onToolChange: (tool: "freehand" | "text" | "delete" | "magnifier" | "triangle") => void;
     quickColorPaletteOpen: boolean;
     onInteractionStart: () => void;
   }) => (
@@ -127,6 +129,7 @@ vi.mock("./marker", () => ({
       <button onClick={() => props.onToolChange(props.tool === "text" ? "freehand" : "text")}>marker-text</button>
       <button onClick={() => props.onToolChange("triangle")}>marker-triangle</button>
       <button onClick={() => props.onToolChange("delete")}>marker-delete</button>
+      <button onClick={() => props.onToolChange("magnifier")}>marker-magnifier</button>
       <span>{props.color}:{props.widthKey}:{props.textSizeKey}</span>
     </div>
   ),
@@ -134,6 +137,9 @@ vi.mock("./marker", () => ({
 
 describe("OverlayApp", () => {
   const commands: string[] = [];
+  let magnifierAccessGranted = true;
+  let magnifierAccessError: string | null = null;
+  let magnifierCaptureError: string | null = null;
 
   beforeEach(() => {
     commands.length = 0;
@@ -152,9 +158,26 @@ describe("OverlayApp", () => {
     mocks.finishTextEditing.mockReset();
     mocks.setTextSize.mockReset();
     mocks.dismissQuickColorPalette.mockReset();
-    mockIPC((cmd) => void commands.push(cmd), { shouldMockEvents: true });
+    mocks.drawMarksForMagnifier.mockReset();
+    magnifierAccessGranted = true;
+    magnifierAccessError = null;
+    magnifierCaptureError = null;
+    mockIPC((cmd) => {
+      commands.push(cmd);
+      if (cmd === "request_magnifier_access") {
+        if (magnifierAccessError) throw magnifierAccessError;
+        return magnifierAccessGranted;
+      }
+      if (cmd === "capture_magnifier_frame") {
+        if (magnifierCaptureError) throw magnifierCaptureError;
+        return new ArrayBuffer(348 * 176 * 4);
+      }
+      return undefined;
+    }, { shouldMockEvents: true });
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null);
     Object.defineProperty(window, "innerWidth", { configurable: true, value: 1200 });
     Object.defineProperty(window, "innerHeight", { configurable: true, value: 800 });
+    Object.defineProperty(window, "devicePixelRatio", { configurable: true, value: 1 });
   });
 
   it("synchronizes settings and Rust events and routes marker actions", async () => {
@@ -293,6 +316,77 @@ describe("OverlayApp", () => {
     expect(screen.getByTestId("marker")).toHaveAttribute("data-drawing-tool", "triangle");
 
     fireEvent.click(screen.getByRole("button", { name: "text-toggle" }));
+    expect(screen.getByTestId("canvas")).toHaveAttribute("data-tool", "triangle");
+  });
+
+  it("starts the magnifier after permission, keeps it through blackboard changes and restores drawing on exit", async () => {
+    render(<OverlayApp />);
+    await act(async () => {
+      await emit("mode-changed", { drawing: true, board: false });
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "marker-triangle" }));
+    fireEvent.click(screen.getByRole("button", { name: "marker-magnifier" }));
+    await waitFor(() => expect(screen.getByTestId("canvas")).toHaveAttribute("data-tool", "magnifier"));
+    expect(screen.getByRole("img", { name: "Magnifier lens" })).toBeInTheDocument();
+
+    await act(async () => {
+      await emit("board-changed", { on: true });
+    });
+    expect(screen.getByRole("img", { name: "Magnifier lens" })).toBeInTheDocument();
+
+    await act(async () => {
+      await emit("mode-changed", { drawing: false, board: true });
+    });
+    expect(screen.queryByRole("img", { name: "Magnifier lens" })).not.toBeInTheDocument();
+    expect(screen.getByTestId("canvas")).toHaveAttribute("data-tool", "triangle");
+  });
+
+  it("keeps the current tool and offers System Settings when capture permission is denied", async () => {
+    magnifierAccessGranted = false;
+    render(<OverlayApp />);
+    await act(async () => {
+      await emit("mode-changed", { drawing: true, board: false });
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "marker-triangle" }));
+    fireEvent.click(screen.getByRole("button", { name: "marker-magnifier" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Screen recording access is required");
+    expect(screen.getByTestId("canvas")).toHaveAttribute("data-tool", "triangle");
+    expect(screen.queryByRole("img", { name: "Magnifier lens" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Open System Settings" }));
+    expect(commands).toContain("open_screen_recording_settings");
+  });
+
+  it("keeps the current tool and reports when screen capture is unavailable", async () => {
+    magnifierAccessError = "error:screen_capture_unavailable";
+    render(<OverlayApp />);
+    await act(async () => {
+      await emit("mode-changed", { drawing: true, board: false });
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "marker-triangle" }));
+    fireEvent.click(screen.getByRole("button", { name: "marker-magnifier" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Arrowly can no longer read this screen",
+    );
+    expect(screen.getByTestId("canvas")).toHaveAttribute("data-tool", "triangle");
+  });
+
+  it("closes the lens and restores the remembered drawing tool when capture is lost", async () => {
+    magnifierCaptureError = "error:screen_capture_permission";
+    render(<OverlayApp />);
+    await act(async () => {
+      await emit("mode-changed", { drawing: true, board: false });
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "marker-triangle" }));
+    fireEvent.click(screen.getByRole("button", { name: "marker-magnifier" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Magnifier stopped");
+    expect(screen.queryByRole("img", { name: "Magnifier lens" })).not.toBeInTheDocument();
     expect(screen.getByTestId("canvas")).toHaveAttribute("data-tool", "triangle");
   });
 });
