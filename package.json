@@ -15,6 +15,7 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "tauri:fresh": "bun scripts/reset-onboarding.ts && tauri dev",
+    "tauri:screen-access": "bash scripts/run-screen-access-app.sh",
     "agent:sync-check": "bash .agent-sync/check.sh"
   },
   "dependencies": {

@@ -5,6 +5,7 @@ import {
   captureMagnifierFrame,
   openScreenRecordingSettings,
   requestMagnifierAccess,
+  restartArrowly,
   resumeShortcuts,
   setTextEditing,
   suspendShortcuts,
@@ -61,6 +62,7 @@ describe("ipc commands", () => {
     });
     await stopMagnifierCapture();
     await openScreenRecordingSettings();
+    await restartArrowly();
 
     expect(calls).toEqual([
       { cmd: "request_magnifier_access", args: {} },
@@ -77,6 +79,7 @@ describe("ipc commands", () => {
       },
       { cmd: "stop_magnifier_capture", args: {} },
       { cmd: "open_screen_recording_settings", args: {} },
+      { cmd: "restart_arrowly", args: {} },
     ]);
   });
 });

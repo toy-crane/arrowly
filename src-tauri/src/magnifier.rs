@@ -18,7 +18,34 @@ const INVALID_CAPTURE_RECT: &str = "error:invalid_capture_rect";
 const INVALID_CAPTURE_OUTPUT: &str = "error:invalid_capture_output";
 const PERMISSION_DENIED: &str = "error:screen_capture_permission";
 const CAPTURE_UNAVAILABLE: &str = "error:screen_capture_unavailable";
+const APP_NOT_SHAREABLE: &str = "error:screen_capture_app_not_shareable";
 const CAPTURE_FAILED: &str = "error:screen_capture_failed";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum MagnifierAccessResult {
+    Ready,
+    Denied,
+    RestartRequired,
+}
+
+fn classify_access(
+    preflight: bool,
+    requested: bool,
+    restart_pending: bool,
+) -> MagnifierAccessResult {
+    if preflight {
+        if restart_pending {
+            MagnifierAccessResult::RestartRequired
+        } else {
+            MagnifierAccessResult::Ready
+        }
+    } else if requested {
+        MagnifierAccessResult::RestartRequired
+    } else {
+        MagnifierAccessResult::Denied
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct CaptureRect {
@@ -69,6 +96,7 @@ impl CaptureOutput {
 struct NativeCaptureState {
     display_id: Option<u32>,
     filter: Option<Arc<SCContentFilter>>,
+    restart_pending: bool,
 }
 
 #[derive(Default)]
@@ -106,7 +134,7 @@ fn build_filter(display_id: u32) -> Result<SCContentFilter, &'static str> {
         .collect();
     if excluded.is_empty() {
         // Capturing without excluding Arrowly would recursively include the lens and marker.
-        return Err(CAPTURE_UNAVAILABLE);
+        return Err(APP_NOT_SHAREABLE);
     }
     SCContentFilter::create()
         .with_display(display)
@@ -130,32 +158,51 @@ fn capture_rgba(
         .with_source_rect(CGRect::new(rect.x, rect.y, rect.width, rect.height))
         .with_scales_to_fit(true)
         .with_shows_cursor(false);
-    let image =
-        SCScreenshotManager::capture_image(filter, &configuration).map_err(|_| CAPTURE_FAILED)?;
-    let bytes = image.rgba_data().map_err(|_| CAPTURE_FAILED)?;
+    let image = SCScreenshotManager::capture_image(filter, &configuration).map_err(|error| {
+        eprintln!("[arrowly] 화면 캡처 실패: {error}");
+        CAPTURE_FAILED
+    })?;
+    let bytes = image.rgba_data().map_err(|error| {
+        eprintln!("[arrowly] RGBA 변환 실패: {error}");
+        CAPTURE_FAILED
+    })?;
     if bytes.len() != output.byte_len() {
         return Err(CAPTURE_FAILED);
     }
     Ok(bytes)
 }
 
-/// 권한을 요청하고 캡처 대상 디스플레이를 고정한다. 거부 시 기존 도구를 유지하도록 false를 반환한다.
+/// 권한을 요청하고 캡처 대상 디스플레이를 고정한다.
+/// 최초 허용은 현재 프로세스를 재시작해야 하므로 Ready와 구분해 반환한다.
 #[tauri::command]
 pub fn request_magnifier_access(
     app: AppHandle,
     state: tauri::State<'_, MagnifierState>,
-) -> Result<bool, String> {
+) -> Result<MagnifierAccessResult, String> {
     #[cfg(target_os = "macos")]
     {
         let access = ScreenCaptureAccess;
-        if !access.preflight() && !access.request() {
-            return Ok(false);
-        }
+        let preflight = access.preflight();
         let display_id = overlay_display_id(&app).map_err(str::to_string)?;
+        let restart_pending = state.native.lock().unwrap().restart_pending;
+        let preflight_result = classify_access(preflight, false, restart_pending);
+        if preflight && preflight_result != MagnifierAccessResult::Ready {
+            return Ok(preflight_result);
+        }
+        if !preflight {
+            crate::overlay::suspend_for_system_ui(&app);
+            let requested = access.request();
+            crate::overlay::restore_after_system_ui(&app);
+            let mut native = state.native.lock().unwrap();
+            native.display_id = None;
+            native.filter = None;
+            native.restart_pending = true;
+            return Ok(classify_access(false, requested, false));
+        }
         let mut native = state.native.lock().unwrap();
         native.display_id = Some(display_id);
         native.filter = None;
-        Ok(true)
+        Ok(MagnifierAccessResult::Ready)
     }
     #[cfg(not(target_os = "macos"))]
     {
@@ -201,7 +248,11 @@ pub async fn capture_magnifier_frame(
         match result {
             Ok(Ok(bytes)) => Ok(tauri::ipc::Response::new(bytes)),
             Ok(Err(error)) => {
-                state.native.lock().unwrap().filter = None;
+                let mut native = state.native.lock().unwrap();
+                native.filter = None;
+                if error == PERMISSION_DENIED {
+                    native.restart_pending = true;
+                }
                 Err(error.to_string())
             }
             Err(_) => Err(CAPTURE_FAILED.to_string()),
@@ -227,7 +278,8 @@ pub fn stop_magnifier_capture(state: tauri::State<'_, MagnifierState>) {
 }
 
 #[tauri::command]
-pub fn open_screen_recording_settings() -> Result<(), String> {
+pub fn open_screen_recording_settings(app: AppHandle) -> Result<(), String> {
+    crate::overlay::set_drawing(&app, false);
     std::process::Command::new("/usr/bin/open")
         .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")
         .spawn()
@@ -235,9 +287,14 @@ pub fn open_screen_recording_settings() -> Result<(), String> {
         .map_err(|_| "error:open_screen_recording_settings".to_string())
 }
 
+#[tauri::command]
+pub fn restart_arrowly(app: AppHandle) {
+    app.restart();
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{CaptureOutput, CaptureRect};
+    use super::{classify_access, CaptureOutput, CaptureRect, MagnifierAccessResult};
     use tauri::{webview::InvokeRequest, Manager};
 
     fn request(command: &str, body: serde_json::Value) -> InvokeRequest {
@@ -296,6 +353,30 @@ mod tests {
         assert_eq!(
             CaptureOutput::try_new(10_000, 10_000),
             Err("error:invalid_capture_output")
+        );
+    }
+
+    #[test]
+    fn access_contract_distinguishes_ready_denied_and_restart_required() {
+        assert_eq!(
+            classify_access(true, false, false),
+            MagnifierAccessResult::Ready
+        );
+        assert_eq!(
+            classify_access(true, false, true),
+            MagnifierAccessResult::RestartRequired
+        );
+        assert_eq!(
+            classify_access(false, false, false),
+            MagnifierAccessResult::Denied
+        );
+        assert_eq!(
+            classify_access(false, true, false),
+            MagnifierAccessResult::RestartRequired
+        );
+        assert_eq!(
+            serde_json::to_value(MagnifierAccessResult::RestartRequired).unwrap(),
+            serde_json::json!("restartRequired")
         );
     }
 

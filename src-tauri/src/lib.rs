@@ -35,6 +35,7 @@ pub fn run() {
             magnifier::capture_magnifier_frame,
             magnifier::stop_magnifier_capture,
             magnifier::open_screen_recording_settings,
+            magnifier::restart_arrowly,
         ])
         .on_window_event(|window, event| {
             // 유틸 창(온보딩·설정)이 닫히면 Dock 표시를 원상 복구

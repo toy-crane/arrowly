@@ -87,6 +87,11 @@ const en = {
   "magnifier.permissionBody": "Allow Arrowly to read the screen, then try again.",
   "magnifier.captureBody": "Arrowly can no longer read this screen. Check access, then try again.",
   "magnifier.openSettings": "Open System Settings",
+  "magnifier.restartTitle": "Restart Arrowly to use magnifier",
+  "magnifier.restartBody": "macOS applies newly granted screen access after the app restarts.",
+  "magnifier.restartAction": "Restart Arrowly",
+  "magnifier.buildTitle": "Launch a signed Arrowly app",
+  "magnifier.buildBody": "macOS could not identify this copy for safe screen capture.",
 } as const;
 
 export type Key = keyof typeof en;
@@ -177,6 +182,11 @@ const ko: Record<Key, string> = {
   "magnifier.permissionBody": "Arrowly의 화면 읽기를 허용한 뒤 다시 시도하세요.",
   "magnifier.captureBody": "이 화면을 더 이상 읽을 수 없습니다. 권한을 확인한 뒤 다시 시도하세요.",
   "magnifier.openSettings": "시스템 설정 열기",
+  "magnifier.restartTitle": "확대를 사용하려면 Arrowly를 재시작하세요",
+  "magnifier.restartBody": "새 화면 기록 권한은 앱을 다시 시작한 뒤 적용됩니다.",
+  "magnifier.restartAction": "Arrowly 재시작",
+  "magnifier.buildTitle": "서명된 Arrowly 앱을 실행하세요",
+  "magnifier.buildBody": "macOS가 이 실행 파일을 안전한 화면 캡처 앱으로 식별하지 못했습니다.",
 };
 
 // 시스템 언어 자동 감지 — Rust 쪽(i18n.rs)과 같은 소스(macOS 선호 언어)·같은 규칙
