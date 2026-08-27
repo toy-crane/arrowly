@@ -92,7 +92,7 @@ export function ToolInspector({ markerRef, anchorRef, ariaLabel, children }: Pro
       role="group"
       aria-label={ariaLabel}
       style={{
-        ...popover,
+        ...toolInspectorSurface,
         ...(openBelow ? { top: "calc(100% + 8px)" } : { bottom: "calc(100% + 8px)" }),
       }}
     >
@@ -110,7 +110,7 @@ export function ToolInspector({ markerRef, anchorRef, ariaLabel, children }: Pro
   );
 }
 
-const popover: CSSProperties = {
+export const toolInspectorSurface: CSSProperties = {
   position: "absolute",
   left: "50%",
   transform: "translateX(-50%)",

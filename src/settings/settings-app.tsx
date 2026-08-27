@@ -8,9 +8,8 @@ const FIXED_ROWS: { label: string; keys: string[]; gesture?: string }[] = [
   { label: t("settings.deleteOne"), keys: ["⌥"], gesture: t("settings.click") },
   { label: t("settings.undo"), keys: ["⌘", "Z"] },
   { label: t("settings.redo"), keys: ["⇧", "⌘", "Z"] },
-  { label: t("settings.deleteTool"), keys: ["E"] },
   { label: t("settings.toolSize"), keys: ["⌘", "±"] },
-  { label: t("settings.colorSwitch"), keys: ["⌘", "1–5"] },
+  { label: t("settings.colorSwitch"), keys: ["C"] },
   { label: t("settings.exit"), keys: ["Esc"] },
 ];
 

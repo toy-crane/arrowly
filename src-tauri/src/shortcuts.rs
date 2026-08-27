@@ -315,5 +315,15 @@ mod tests {
             ipc_request_for("validate_local_shortcut_command", "Escape"),
             Err("error:reserved_escape"),
         );
+        tauri::test::assert_ipc_response(
+            &webview,
+            ipc_request_for("validate_local_shortcut_command", "KeyC"),
+            Err("error:reserved_color_palette"),
+        );
+        tauri::test::assert_ipc_response(
+            &webview,
+            ipc_request_for("validate_local_shortcut_command", "KeyE"),
+            Ok(()),
+        );
     }
 }

@@ -9,7 +9,7 @@ pub const DEFAULT_BOARD: &str = "Shift+Alt+Tab";
 pub const DEFAULT_CLEAR: &str = "Alt+Backspace";
 /// 텍스트 키는 전역 미등록 로컬 키(오버레이 keydown)라 수식키 없는 단독 키가 기본이다.
 pub const DEFAULT_TEXT: &str = "KeyT";
-pub const DELETE_TOOL_ACCELERATOR: &str = "KeyE";
+pub const QUICK_COLOR_PALETTE_ACCELERATOR: &str = "KeyC";
 const BOARD_FALLBACKS: [&str; 4] = [
     DEFAULT_BOARD,
     "Control+Cmd+KeyB",
@@ -38,8 +38,8 @@ fn validate_shortcut(shortcut: &Shortcut, require_modifier: bool) -> Result<(), 
     if shortcut.key == Code::Escape {
         return Err("error:reserved_escape".into());
     }
-    if !require_modifier && shortcut.key == Code::KeyE && shortcut.mods.is_empty() {
-        return Err("error:reserved_delete".into());
+    if !require_modifier && shortcut.key == Code::KeyC && shortcut.mods.is_empty() {
+        return Err("error:reserved_color_palette".into());
     }
     if require_modifier && shortcut.mods.is_empty() {
         return Err("error:modifier_required".into());
@@ -55,10 +55,10 @@ fn validate_shortcut(shortcut: &Shortcut, require_modifier: bool) -> Result<(), 
     Ok(())
 }
 
-/// 삭제 도구 키가 설정 가능하던 버전의 텍스트 단축키를 현재 안전한 기본값으로 바꾼다.
+/// 빠른 컬러 팔레트 키와 겹치는 기존 텍스트 단축키를 현재 안전한 기본값으로 바꾼다.
 pub fn migrated_text_shortcut(text: Option<&str>) -> Option<String> {
     text.map(|value| {
-        if value == DELETE_TOOL_ACCELERATOR {
+        if value == QUICK_COLOR_PALETTE_ACCELERATOR {
             DEFAULT_TEXT
         } else {
             value
@@ -167,19 +167,20 @@ mod tests {
     }
 
     #[test]
-    fn local_validation_reserves_plain_e_and_migrates_legacy_text_settings() {
+    fn local_validation_reserves_plain_c_and_migrates_legacy_text_settings() {
         assert_eq!(
-            parse_valid_local("KeyE").unwrap_err(),
-            "error:reserved_delete"
+            parse_valid_local("KeyC").unwrap_err(),
+            "error:reserved_color_palette"
         );
-        assert!(parse_valid_local("Shift+KeyE").is_ok());
+        assert!(parse_valid_local("Shift+KeyC").is_ok());
+        assert!(parse_valid_local("KeyE").is_ok());
         assert_eq!(
-            migrated_text_shortcut(Some("KeyE")),
+            migrated_text_shortcut(Some("KeyC")),
             Some(DEFAULT_TEXT.to_string())
         );
         assert_eq!(
-            migrated_text_shortcut(Some("Shift+KeyE")),
-            Some("Shift+KeyE".to_string())
+            migrated_text_shortcut(Some("KeyE")),
+            Some("KeyE".to_string())
         );
         assert_eq!(migrated_text_shortcut(None), None);
     }

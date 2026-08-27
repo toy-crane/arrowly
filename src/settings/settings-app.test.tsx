@@ -20,21 +20,22 @@ describe("SettingsApp", () => {
     expect(within(fixedSection).getByText("Delete one mark")).toBeInTheDocument();
     expect(screen.getByText("Undo")).toBeInTheDocument();
     expect(screen.getByText("Redo")).toBeInTheDocument();
-    expect(screen.getByText("Delete marks continuously")).toBeInTheDocument();
+    expect(screen.queryByText("Delete marks continuously")).not.toBeInTheDocument();
     expect(screen.getByText("Adjust tool size")).toBeInTheDocument();
     expect(screen.getByText("Finish drawing")).toBeInTheDocument();
     expect(within(fixedSection).queryByRole("button")).not.toBeInTheDocument();
     expect(screen.queryByText("Fixed")).not.toBeInTheDocument();
   });
 
-  it("lists color switching as a fixed reference row with its shortcut and no swatches", () => {
+  it("lists cursor color picking as a fixed C gesture without color-specific shortcuts", () => {
     render(<SettingsApp />);
     const fixedSection = screen
       .getByRole("heading", { name: "Fixed controls" })
       .closest("section")!;
-    const colorRow = within(fixedSection).getByText("Change color").closest("div")!;
-    expect(within(colorRow).getByText("⌘")).toBeInTheDocument();
-    expect(within(colorRow).getByText("1–5")).toBeInTheDocument();
+    const colorRow = within(fixedSection).getByText("Choose color").closest("div")!;
+    expect(within(colorRow).getByText("C")).toBeInTheDocument();
+    expect(within(colorRow).queryByText("⌘")).not.toBeInTheDocument();
+    expect(within(colorRow).queryByText("1–5")).not.toBeInTheDocument();
     // 잉크 5색 견본을 크롬에 두지 않는다 — 시각 언어 계약.
     const inkColors = ["#FFD400", "#FF7A00", "#FF2D95", "#2ED573", "#00AEEF"];
     for (const hex of inkColors) {

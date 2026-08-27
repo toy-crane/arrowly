@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   isEditing: vi.fn(),
   finishTextEditing: vi.fn(),
   setTextSize: vi.fn(),
+  dismissQuickColorPalette: vi.fn(),
 }));
 
 vi.mock("../shared/settings", async (importOriginal) => {
@@ -47,6 +48,7 @@ vi.mock("./drawing-canvas", () => ({
       onWidthStep,
       onTextSizeStep,
       onColorPick,
+      onQuickColorPaletteOpenChange,
       onPointerPing,
     }: {
       clearAccel: string;
@@ -57,12 +59,17 @@ vi.mock("./drawing-canvas", () => ({
       onWidthStep: (delta: -1 | 1) => void;
       onTextSizeStep: (delta: -1 | 1) => void;
       onColorPick: (color: "#FFD400") => void;
+      onQuickColorPaletteOpenChange: (open: boolean) => void;
       onPointerPing: (point: { x: number; y: number }) => void;
     }, ref) {
       useImperativeHandle(ref, () => ({
         isEditing: mocks.isEditing,
         finishTextEditing: mocks.finishTextEditing,
         setTextSize: mocks.setTextSize,
+        dismissQuickColorPalette: () => {
+          mocks.dismissQuickColorPalette();
+          onQuickColorPaletteOpenChange(false);
+        },
       }));
       return (
         <div
@@ -76,6 +83,7 @@ vi.mock("./drawing-canvas", () => ({
           <button onClick={() => onWidthStep(1)}>width-step</button>
           <button onClick={() => onTextSizeStep(-1)}>text-step</button>
           <button onClick={() => onColorPick("#FFD400")}>color-key</button>
+          <button onClick={() => onQuickColorPaletteOpenChange(true)}>quick-palette</button>
           <button onClick={() => onPointerPing({ x: 80, y: 90 })}>pointer-ping</button>
           {clearAccel}
         </div>
@@ -101,12 +109,16 @@ vi.mock("./marker", () => ({
     onTextSizeChange: (value: "large") => void;
     onBoardToggle: () => void;
     onToolChange: (tool: "freehand" | "text" | "delete" | "triangle") => void;
+    quickColorPaletteOpen: boolean;
+    onInteractionStart: () => void;
   }) => (
     <div
       data-testid="marker"
       data-board={String(props.board)}
       data-tool={props.tool}
       data-drawing-tool={props.drawingTool}
+      data-quick-color={String(props.quickColorPaletteOpen)}
+      onPointerDown={props.onInteractionStart}
     >
       <button onClick={() => props.onColorChange("#00AEEF")}>color</button>
       <button onClick={() => props.onWidthChange("thick")}>width</button>
@@ -139,6 +151,7 @@ describe("OverlayApp", () => {
     mocks.isEditing.mockReset().mockReturnValue(false);
     mocks.finishTextEditing.mockReset();
     mocks.setTextSize.mockReset();
+    mocks.dismissQuickColorPalette.mockReset();
     mockIPC((cmd) => void commands.push(cmd), { shouldMockEvents: true });
     Object.defineProperty(window, "innerWidth", { configurable: true, value: 1200 });
     Object.defineProperty(window, "innerHeight", { configurable: true, value: 800 });
@@ -168,7 +181,13 @@ describe("OverlayApp", () => {
     fireEvent.click(screen.getByRole("button", { name: "pointer-ping" }));
     expect(mocks.pingAt).toHaveBeenCalledWith({ x: 80, y: 90 });
 
-    // 캔버스 색 단축키(⌘1–⌘5)도 잉크 색을 저장하고 커서에 즉시 반영한다.
+    fireEvent.click(screen.getByRole("button", { name: "quick-palette" }));
+    expect(screen.getByTestId("marker")).toHaveAttribute("data-quick-color", "true");
+    fireEvent.pointerDown(screen.getByTestId("marker"));
+    expect(mocks.dismissQuickColorPalette).toHaveBeenCalledOnce();
+    expect(screen.getByTestId("marker")).toHaveAttribute("data-quick-color", "false");
+
+    // 캔버스의 빠른 색 선택도 잉크 색을 저장하고 커서에 즉시 반영한다.
     // (직전 width 클릭으로 굵기는 thick=6px 상태)
     fireEvent.click(screen.getByRole("button", { name: "color-key" }));
     expect(mocks.saveColor).toHaveBeenLastCalledWith("#FFD400");

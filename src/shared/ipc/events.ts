@@ -3,7 +3,12 @@ import { listen, UnlistenFn } from "@tauri-apps/api/event";
 // Rust가 emit하는 이벤트의 이름·페이로드 계약. 이벤트명 문자열은 이 파일에만 존재한다.
 // Rust는 상태 전이의 단일 소스 — 웹뷰는 이 이벤트로만 상태를 동기화한다.
 
-export type ModeChangedPayload = { drawing: boolean; board: boolean };
+export type ModeChangedPayload = {
+  drawing: boolean;
+  board: boolean;
+  /** 그리기 진입 시 대상 모니터 안의 논리 픽셀 좌표. */
+  cursor?: { x: number; y: number } | null;
+};
 export type BoardChangedPayload = { on: boolean };
 export type MarkerHiddenChangedPayload = { hidden: boolean };
 export type ShortcutsChangedPayload = { board: string; clear: string; text: string };

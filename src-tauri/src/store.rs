@@ -21,7 +21,7 @@ pub struct StoredShortcuts {
     pub text: Option<String>,
 }
 
-/// shortcuts를 읽되, board가 없는 기존 설정과 삭제 도구 E를 텍스트에 할당한
+/// shortcuts를 읽되, board가 없는 기존 설정과 빠른 색 팔레트 C를 텍스트에 할당한
 /// 기존 설정을 안전한 기본값으로 마이그레이션해 저장까지 마친다.
 pub fn load_shortcuts_with_migration(app: &AppHandle) -> Option<StoredShortcuts> {
     let store = app.store(SETTINGS_FILE).ok()?;
