@@ -1,47 +1,62 @@
 ---
 name: split-into-tasks
-description: Split work that exceeds one session into session-sized task files for fresh sessions to implement. Use when an existing spec is too large to implement or review in one sitting. Skip when the work fits one session.
+description: Split an implementation-ready spec into the fewest independently deliverable vertical tasks and select only risk-justified intermediate review checkpoints. Use when a spec has multiple outcomes needing separate delivery or dependency tracking; keep one coherent outcome as the spec itself.
 ---
 
 # Split Into Tasks
 
-Start from a spec folder at `docs/specs/<slug>/`. If none is named, list the
-candidates and ask which to use. If none exists, stop and request a spec instead
-of splitting directly from conversation. Read `spec.md` and `GLOSSARY.md`, then
-use `docs/decisions/README.md` to load only relevant decision subjects. Inspect
-the codebase before splitting. If spec, code, and a decision contract conflict
-at the decision level, surface the conflict rather than choosing an authority.
+## Read the spec
 
-Make each task a session-sized vertical slice: a complete path through every
-layer it touches, independently verifiable when done, and small enough for one
-fresh implementation session and one review. Do not create horizontal layers or
-fine-grained to-do lists. Declare which tasks block each task; tasks with no
-unfinished blockers form the frontier for the next session.
+Require `docs/specs/<slug>/spec.md`; if it is missing, stop before proposing
+tasks.
 
-Present the breakdown before writing files. Show each task's title, blockers,
-and working behavior in a numbered list. Revise granularity and dependencies
-with the user until they approve, then publish one file per task at
-`docs/specs/<slug>/tasks/<NN>-<slug>.md`, numbered with blockers first.
+Read the spec and current code, plus relevant project decisions, glossary terms,
+and an approved prototype when present. Treat missing implementation as the
+target gap. Pause on conflicting settled sources and present the exact decision
+to resolve. When the approved behavior forms one coherent user workflow, keep
+the spec as the sole handoff; separate operations or states inside that workflow
+do not create task boundaries.
 
-Each task file contains:
+## Propose the complete outcome map
 
-- end-to-end behavior from the user's perspective;
-- blocking tasks;
-- status;
-- acceptance criteria the implementing session can check;
-- constraints specific to that task, such as a file another branch is changing
-  or an interface frozen until a migration lands.
+For work with multiple independently deliverable outcomes, draft the complete
+shallow map using the fewest independently usable and verifiable outcomes. Fold
+prerequisite work into the first outcome that makes it useful unless that work
+is independently deliverable. Declare only blockers that genuinely prevent a
+dependent outcome.
 
-Put longer-lived constraints in `spec.md`. Name modules and behavior, not file
-paths or code snippets. A prototype-produced snippet may be included only when
-it expresses a decision more precisely than prose; trim it to the
-decision-bearing part.
+Cover every spec outcome. For each proposed task show its title, delivered
+behavior, observable acceptance criteria, focused deterministic verification,
+task-specific constraints, blockers with reasons, and any review checkpoint.
+Implementation derives the active outcome's technical approach just in time
+from the then-current repository, so omit predicted files, functions, code
+structure, technical-layer steps, context boundaries, and internal sequences.
+Reference an approved prototype when relevant without copying its implementation.
 
-Open every task file with this contract:
+Add an intermediate review checkpoint only when a material error could compound
+through substantial dependent work, or when deterministic checks cannot
+adequately settle a material risk such as security, data, permission, migration,
+recovery, or an external contract. Name its cumulative scope and concrete risk.
+A checkpoint buys one review pass over that scope, not a round that repeats
+until it reports nothing. The implementation phase owns the single final review
+over the whole diff.
 
-> Follow current code for implementation details. If it conflicts with spec.md
-> at the decision level, update spec.md rather than working around the conflict.
+Present the complete proposal and iterate until the user approves it. Write no
+task files before that approval.
 
-The user runs one fresh session per task, choosing from the frontier. Each
-implementing session updates its task's status and checkboxes. If new information
-invalidates later tasks, re-invoke this skill to split the remaining work again.
+## Write the approved handoff
+
+After approval, record shared settled constraints in the spec and only
+task-specific constraints in task files. Do not invent unsettled behavior.
+
+Write each approved task to
+`docs/specs/<slug>/tasks/<NN>-<slug>.md` using
+[`templates/task.md`](templates/task.md), with blockers before dependents.
+For an approved revision, remove replaced tasks that have never recorded
+completion. Preserve a task with recorded completion history even if it later
+returned to `in-progress` or `blocked`; after its still-required obligations and
+blocker references move to the approved replacement, set it to `superseded` and
+append revision evidence naming the replacement and reason. A `superseded` task
+is terminal for that approved breakdown and is inactive recovery history, not
+part of the current delivery map. Do not create an archive. End after writing
+the current task handoff, before implementation.
