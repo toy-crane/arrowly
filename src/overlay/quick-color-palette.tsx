@@ -32,9 +32,10 @@ type Props = {
   color: string;
   aimedColor: Color | null;
   onAimChange: (color: Color | null) => void;
+  onSelect: (color: Color) => void;
 };
 
-export function QuickColorPalette({ anchor, color, aimedColor, onAimChange }: Props) {
+export function QuickColorPalette({ anchor, color, aimedColor, onAimChange, onSelect }: Props) {
   const placement = calculateQuickColorPalettePlacement(
     anchor,
     window.innerWidth,
@@ -48,12 +49,16 @@ export function QuickColorPalette({ anchor, color, aimedColor, onAimChange }: Pr
       data-placement={placement.opensAbove ? "above" : "below"}
       style={{ ...toolInspectorSurface, ...palette, left: placement.left, top: placement.top }}
       onPointerDown={(event) => {
-        event.preventDefault();
         event.stopPropagation();
       }}
       onPointerLeave={() => onAimChange(null)}
     >
-      <ColorSwatchStrip color={color} aimedColor={aimedColor} onAimChange={onAimChange} />
+      <ColorSwatchStrip
+        color={color}
+        aimedColor={aimedColor}
+        onAimChange={onAimChange}
+        onSelect={onSelect}
+      />
     </div>
   );
 }

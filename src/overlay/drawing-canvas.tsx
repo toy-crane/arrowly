@@ -1106,9 +1106,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
     const onKeyUp = (e: KeyboardEvent) => {
       if (e.code === "KeyC" && quickColorPaletteRef.current) {
         e.preventDefault();
-        const selected = quickColorPaletteRef.current.aimedColor;
         updateQuickColorPalette(null);
-        if (selected) onColorPickRef.current?.(selected);
         return;
       }
       if (e.key === "Meta" || e.key === "Alt") {
@@ -1226,6 +1224,10 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
           onAimChange={(aimedColor) => {
             const current = quickColorPaletteRef.current;
             if (current) updateQuickColorPalette({ ...current, aimedColor });
+          }}
+          onSelect={(selected) => {
+            updateQuickColorPalette(null);
+            onColorPickRef.current?.(selected);
           }}
         />
       )}

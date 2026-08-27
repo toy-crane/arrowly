@@ -545,7 +545,7 @@ describe("DrawingCanvas", () => {
       expect(onTextSizeStep).toHaveBeenCalledTimes(1);
     });
 
-    it("chooses a quick-palette color by holding C, aiming, and releasing C", () => {
+    it("chooses a quick-palette color by holding C and clicking a swatch", () => {
       const onColorPick = vi.fn();
       const onOpenChange = vi.fn();
       const { container } = render(
@@ -565,12 +565,14 @@ describe("DrawingCanvas", () => {
       const palette = screen.getByRole("group", { name: "Quick color palette" });
       expect(palette).toHaveStyle({ left: "278px", top: "237px", transform: "none" });
       expect(palette).toHaveAttribute("data-placement", "above");
-      fireEvent.pointerEnter(within(palette).getByRole("button", { name: "Color blue" }));
-      fireEvent.keyUp(window, { code: "KeyC" });
+      const blue = within(palette).getByRole("button", { name: "Color blue" });
+      fireEvent.pointerEnter(blue);
+      fireEvent.click(blue);
 
       expect(onColorPick).toHaveBeenCalledWith("#00AEEF");
       expect(onOpenChange.mock.calls).toEqual([[true], [false]]);
       expect(screen.queryByRole("group", { name: "Quick color palette" })).not.toBeInTheDocument();
+      fireEvent.keyUp(window, { code: "KeyC" });
 
       fireEvent.pointerMove(live, { clientX: 3, clientY: 3, pointerId: 1 });
       fireEvent.keyDown(window, { code: "KeyC" });
@@ -578,6 +580,26 @@ describe("DrawingCanvas", () => {
       expect(clampedPalette).toHaveStyle({ left: "6px", top: "16px", transform: "none" });
       expect(clampedPalette).toHaveAttribute("data-placement", "below");
       fireEvent.keyUp(window, { code: "KeyC" });
+    });
+
+    it("cancels an aimed quick color when C is released without a click", () => {
+      const onColorPick = vi.fn();
+      render(
+        <DrawingCanvas
+          {...baseProps}
+          tool="freehand"
+          onToolChange={vi.fn()}
+          onColorPick={onColorPick}
+        />,
+      );
+
+      fireEvent.keyDown(window, { code: "KeyC" });
+      const palette = screen.getByRole("group", { name: "Quick color palette" });
+      fireEvent.pointerEnter(within(palette).getByRole("button", { name: "Color blue" }));
+      fireEvent.keyUp(window, { code: "KeyC" });
+
+      expect(onColorPick).not.toHaveBeenCalled();
+      expect(screen.queryByRole("group", { name: "Quick color palette" })).not.toBeInTheDocument();
     });
 
     it("cancels the quick palette when drawing mode ends", async () => {
@@ -652,7 +674,7 @@ describe("DrawingCanvas", () => {
 
       fireEvent.keyDown(window, { code: "KeyC" });
       const palette = screen.getByRole("group", { name: "Quick color palette" });
-      fireEvent.pointerEnter(within(palette).getByRole("button", { name: "Color green" }));
+      fireEvent.click(within(palette).getByRole("button", { name: "Color green" }));
       fireEvent.keyUp(window, { code: "KeyC" });
 
       expect(onColorPick).toHaveBeenCalledWith("#2ED573");
