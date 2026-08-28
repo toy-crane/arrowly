@@ -1,62 +1,60 @@
 ---
 name: split-into-tasks
-description: Split an implementation-ready spec into the fewest independently deliverable vertical tasks and select only risk-justified intermediate review checkpoints. Use when a spec has multiple outcomes needing separate delivery or dependency tracking; keep one coherent outcome as the spec itself.
+description: "Split work that exceeds one session into session-sized tasks, published one file per task for fresh sessions to pick up. Use when a spec is too big to implement or review in one sitting. Needs an existing spec folder; for work that fits one session, skip it and implement straight from the spec."
 ---
 
 # Split Into Tasks
 
-## Read the spec
+Turn a spec folder whose work exceeds one session into session-sized
+tasks. Spec folders live at `docs/specs/<slug>/`: when none is named,
+list the candidates and ask which; when none exists, stop and say a spec
+is needed first, rather than cutting from conversation. Read the
+folder's spec.md, plus `GLOSSARY.md` and `docs/decisions/` where the
+repo keeps them, and explore the codebase before cutting.
 
-Require `docs/specs/<slug>/spec.md`; if it is missing, stop before proposing
-tasks.
+A task is a session-sized cut of the work: a complete path through
+every layer it touches, independently verifiable when done, sized for
+one fresh session to implement and one review to read. Never a
+horizontal slice of one layer, and never a finer to-do-grain list,
+whose predictions rot as execution learns the terrain. Each task
+declares which tasks block it; tasks whose blockers are all done form
+the frontier the next session picks from.
 
-Read the spec and current code, plus relevant project decisions, glossary terms,
-and an approved prototype when present. Treat missing implementation as the
-target gap. Pause on conflicting settled sources and present the exact decision
-to resolve. When the approved behavior forms one coherent user workflow, keep
-the spec as the sole handoff; separate operations or states inside that workflow
-do not create task boundaries.
+The one exception to vertical cutting is a wide refactor: one
+mechanical change whose blast radius spans the codebase. Sequence it
+expand–contract — add the new form beside the old, migrate call sites
+in batches sized by blast radius (each batch a task blocked by the
+expand), and delete the old form in a task blocked by every batch — so
+the build stays green batch to batch.
 
-## Propose the complete outcome map
+Present the breakdown before writing anything: a numbered list showing
+each task's title, what blocks it, and what works when it is done.
+Iterate with the user on granularity, on whether each edge genuinely
+gates, and on merging or splitting, until they approve. Publish only
+then, so an interrupted review never leaves a half-agreed breakdown
+looking authoritative: one file per task at
+`docs/specs/<slug>/tasks/<NN>-<slug>.md`, numbered in dependency order
+with blockers first.
 
-For work with multiple independently deliverable outcomes, draft the complete
-shallow map using the fewest independently usable and verifiable outcomes. Fold
-prerequisite work into the first outcome that makes it useful unless that work
-is independently deliverable. Declare only blockers that genuinely prevent a
-dependent outcome.
+Each task file states what to build as end-to-end behavior from the
+user's perspective, never a layer-by-layer implementation list; which
+tasks block it; its status; and acceptance criteria as a checklist the
+implementing session can self-grade against. Add what this task must not
+touch when the constraint is shorter-lived than the spec — a file another
+branch is moving, an interface frozen until a migration lands; constraints
+that outlive the work go to spec.md, not here. Name modules and behavior,
+never file paths or code snippets, which rot as the code moves. The one
+exception is a prototype-produced snippet that encodes a decision more
+precisely than prose can (a schema shape, a state machine), trimmed to
+its decision-rich part.
 
-Cover every spec outcome. For each proposed task show its title, delivered
-behavior, observable acceptance criteria, focused deterministic verification,
-task-specific constraints, blockers with reasons, and any review checkpoint.
-Implementation derives the active outcome's technical approach just in time
-from the then-current repository, so omit predicted files, functions, code
-structure, technical-layer steps, context boundaries, and internal sequences.
-Reference an approved prototype when relevant without copying its implementation.
+Every task file opens with this contract, verbatim:
 
-Add an intermediate review checkpoint only when a material error could compound
-through substantial dependent work, or when deterministic checks cannot
-adequately settle a material risk such as security, data, permission, migration,
-recovery, or an external contract. Name its cumulative scope and concrete risk.
-A checkpoint buys one review pass over that scope, not a round that repeats
-until it reports nothing. The implementation phase owns the single final review
-over the whole diff.
+> The code is the terrain and this task is a map: where they disagree,
+> the terrain wins. A divergence at the decision level flows back to
+> spec.md instead of being worked around.
 
-Present the complete proposal and iterate until the user approves it. Write no
-task files before that approval.
-
-## Write the approved handoff
-
-After approval, record shared settled constraints in the spec and only
-task-specific constraints in task files. Do not invent unsettled behavior.
-
-Write each approved task to
-`docs/specs/<slug>/tasks/<NN>-<slug>.md` using
-[`templates/task.md`](templates/task.md), with blockers before dependents.
-For an approved revision, remove replaced tasks that have never recorded
-completion. Preserve a task with recorded completion history even if it later
-returned to `in-progress` or `blocked`; after its still-required obligations and
-blocker references move to the approved replacement, set it to `superseded` and
-append revision evidence naming the replacement and reason. A `superseded` task
-is terminal for that approved breakdown and is inactive recovery history, not
-part of the current delivery map. Do not create an archive. End after writing
-the current task handoff, before implementation.
+The user runs one fresh session per task, picking freely from the
+frontier. The implementing session updates its task's status and
+checkboxes as it finishes; when a session's learning invalidates tasks
+still ahead, re-invoke this skill to re-cut the remainder.
