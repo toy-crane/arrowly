@@ -50,11 +50,7 @@ import {
 } from "./stroke-correction";
 import { QuickColorPalette } from "./quick-color-palette";
 import { TextEditor } from "./text-editor";
-import {
-  MAGNIFIER_HEIGHT,
-  MAGNIFIER_WIDTH,
-  type MagnifierRect,
-} from "./magnifier-layout";
+import { MAGNIFIER_ZOOM, type MagnifierRect } from "./magnifier-layout";
 import {
   createGeometricMark,
   type DrawingTool,
@@ -246,8 +242,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
           source.height * dpr,
           0,
           0,
-          MAGNIFIER_WIDTH,
-          MAGNIFIER_HEIGHT,
+          source.width * MAGNIFIER_ZOOM,
+          source.height * MAGNIFIER_ZOOM,
         );
       },
     }),

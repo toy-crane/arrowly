@@ -5,12 +5,7 @@ import {
   type MagnifierSourceRect,
 } from "../shared/ipc";
 import { t } from "../shared/i18n";
-import {
-  MAGNIFIER_HEIGHT,
-  MAGNIFIER_WIDTH,
-  placeMagnifier,
-  type MagnifierRect,
-} from "./magnifier-layout";
+import { placeMagnifier, type MagnifierRect } from "./magnifier-layout";
 
 const CAPTURE_INTERVAL_MS = 50;
 
@@ -36,8 +31,8 @@ export function MagnifierLayer({ board, drawMarks, onCaptureError }: Props) {
     pointer,
   );
   const pixelRatio = Math.max(1, window.devicePixelRatio || 1);
-  const outputWidth = Math.round(MAGNIFIER_WIDTH * pixelRatio);
-  const outputHeight = Math.round(MAGNIFIER_HEIGHT * pixelRatio);
+  const outputWidth = Math.round(layout.lens.width * pixelRatio);
+  const outputHeight = Math.round(layout.lens.height * pixelRatio);
 
   boardRef.current = board;
   drawMarksRef.current = drawMarks;
@@ -48,27 +43,30 @@ export function MagnifierLayer({ board, drawMarks, onCaptureError }: Props) {
     let mounted = true;
 
     const contextForLens = () => canvasRef.current?.getContext("2d") ?? null;
-    const drawBoard = (source: MagnifierSourceRect) => {
+    const drawBoard = (lens: MagnifierRect, source: MagnifierSourceRect) => {
       const context = contextForLens();
       if (!context) return;
       context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
-      context.clearRect(0, 0, MAGNIFIER_WIDTH, MAGNIFIER_HEIGHT);
+      context.clearRect(0, 0, lens.width, lens.height);
       context.fillStyle = "#000";
-      context.fillRect(0, 0, MAGNIFIER_WIDTH, MAGNIFIER_HEIGHT);
+      context.fillRect(0, 0, lens.width, lens.height);
       drawMarksRef.current(context, source);
     };
     const tick = () => {
       if (!mounted || failedRef.current) return;
-      const source = placeMagnifier(
+      const { lens, source } = placeMagnifier(
         { width: window.innerWidth, height: window.innerHeight },
         pointerRef.current,
-      ).source;
+      );
       if (boardRef.current) {
-        drawBoard(source);
+        drawBoard(lens, source);
         return;
       }
       if (captureInFlightRef.current) return;
       captureInFlightRef.current = true;
+      // 렌즈 크기는 화면 크기를 따르므로 출력 크기도 매 프레임의 배치에서 정한다.
+      const outputWidth = Math.round(lens.width * pixelRatio);
+      const outputHeight = Math.round(lens.height * pixelRatio);
       void captureMagnifierFrame({ ...source, outputWidth, outputHeight })
         .then((buffer) => {
           if (!mounted || boardRef.current || failedRef.current) return;
