@@ -249,8 +249,8 @@ export function OverlayApp() {
       {drawing && tool === "magnifier" && (
         <MagnifierLayer
           board={board}
-          drawMarks={(target, source) =>
-            canvasRef.current?.drawMarksForMagnifier(target, source)
+          drawMarks={(target, source, zoom) =>
+            canvasRef.current?.drawMarksForMagnifier(target, source, zoom)
           }
           onCaptureError={stopMagnifierAfterCaptureError}
         />

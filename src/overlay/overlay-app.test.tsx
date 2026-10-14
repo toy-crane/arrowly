@@ -342,6 +342,28 @@ describe("OverlayApp", () => {
     expect(screen.getByTestId("canvas")).toHaveAttribute("data-tool", "triangle");
   });
 
+  it("restarts the magnifier at 2.0x after leaving it and ignores the wheel in other tools", async () => {
+    render(<OverlayApp />);
+    await act(async () => {
+      await emit("mode-changed", { drawing: true, board: false });
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "marker-magnifier" }));
+    await waitFor(() => expect(screen.getByTestId("canvas")).toHaveAttribute("data-tool", "magnifier"));
+    act(() => {
+      fireEvent.wheel(window, { deltaY: -200 });
+    });
+    expect(screen.queryByText("2.0×")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "marker-triangle" }));
+    const wheelInPen = new WheelEvent("wheel", { deltaY: -200, cancelable: true });
+    window.dispatchEvent(wheelInPen);
+    expect(wheelInPen.defaultPrevented).toBe(false);
+
+    fireEvent.click(screen.getByRole("button", { name: "marker-magnifier" }));
+    await waitFor(() => expect(screen.getByText("2.0×")).toBeInTheDocument());
+  });
+
   it("leaves the first permission request to macOS without its own notice", async () => {
     magnifierAccessResult = "requested";
     render(<OverlayApp />);

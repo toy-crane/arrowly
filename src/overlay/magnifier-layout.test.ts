@@ -19,6 +19,35 @@ describe("magnifier layout", () => {
     expect(layout.source.height).toBe(164.5);
   });
 
+  it("keeps the lens size and narrows the source as the zoom rises", () => {
+    const layout = placeMagnifier({ width: 1920, height: 1080 }, { x: 900, y: 700 }, 4);
+
+    expect(layout.lens.width).toBe(600);
+    expect(layout.lens.height).toBe(400);
+    expect(layout.source).toEqual({ x: 825, y: 650, width: 150, height: 100 });
+    expect(layout.zoom).toBe(4);
+  });
+
+  it("shrinks the lens slightly below 2x so the wider source stays uncovered", () => {
+    const layout = placeMagnifier({ width: 1920, height: 1080 }, { x: 900, y: 700 }, 1.5);
+
+    expect(layout.lens.width).toBe(564);
+    expect(layout.lens.height).toBe(376);
+    expect(layout.source.width).toBe(376);
+    expect(layout.source.height).toBeCloseTo(250.667, 3);
+  });
+
+  it.each([1.5, 2, 3, 4])("never covers the source at %sx while the pointer sweeps", (zoom) => {
+    const viewport = { width: 1920, height: 1080 };
+    for (let y = 0; y <= viewport.height; y += 10) {
+      const layout = placeMagnifier(viewport, { x: viewport.width / 2, y }, zoom);
+      const verticallySeparate =
+        layout.lens.y + layout.lens.height <= layout.source.y ||
+        layout.source.y + layout.source.height <= layout.lens.y;
+      expect(verticallySeparate, `zoom ${zoom} pointer y=${y}`).toBe(true);
+    }
+  });
+
   it.each([
     { width: 1440, height: 900 },
     { width: 1512, height: 982 },
