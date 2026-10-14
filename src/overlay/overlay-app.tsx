@@ -301,13 +301,10 @@ export function OverlayApp() {
       {drawing && magnifierNotice && (
         <MagnifierNotice
           kind={magnifierNotice}
-          onAction={() => {
-            if (magnifierNotice === "restart") {
-              void restartArrowly();
-            } else {
-              preserveToolOnExitRef.current = true;
-              void openScreenRecordingSettings();
-            }
+          onRestart={() => void restartArrowly()}
+          onOpenSettings={() => {
+            preserveToolOnExitRef.current = true;
+            void openScreenRecordingSettings();
           }}
         />
       )}
@@ -317,10 +314,12 @@ export function OverlayApp() {
 
 function MagnifierNotice({
   kind,
-  onAction,
+  onRestart,
+  onOpenSettings,
 }: {
   kind: "permission" | "capture" | "restart" | "build";
-  onAction: () => void;
+  onRestart: () => void;
+  onOpenSettings: () => void;
 }) {
   const restart = kind === "restart";
   const invalidBuild = kind === "build";
@@ -342,10 +341,22 @@ function MagnifierNotice({
     <div role="alert" style={noticeStyle}>
       <strong style={noticeTitle}>{t(titleKey)}</strong>
       <span style={noticeBody}>{t(bodyKey)}</span>
+      {/* 재시작 안내는 권한을 아직 켜지 않은 경우를 위해 시스템 설정 열기를 보조 동작으로 함께 둔다. */}
       {!invalidBuild && (
-        <button type="button" style={noticeButton} onClick={onAction}>
-          {t(restart ? "magnifier.restartAction" : "magnifier.openSettings")}
-        </button>
+        <div style={noticeActions}>
+          {restart && (
+            <button type="button" style={noticeButton} onClick={onRestart}>
+              {t("magnifier.restartAction")}
+            </button>
+          )}
+          <button
+            type="button"
+            style={restart ? noticeSecondaryButton : noticeButton}
+            onClick={onOpenSettings}
+          >
+            {t("magnifier.openSettings")}
+          </button>
+        </div>
       )}
     </div>
   );
@@ -395,9 +406,15 @@ const noticeBody: CSSProperties = {
   color: "rgba(255,255,255,0.72)",
 };
 
-const noticeButton: CSSProperties = {
+const noticeActions: CSSProperties = {
   gridColumn: 2,
   gridRow: "1 / span 2",
+  display: "flex",
+  flexDirection: "column",
+  gap: 6,
+};
+
+const noticeButton: CSSProperties = {
   padding: "7px 10px",
   border: 0,
   borderRadius: 8,
@@ -405,4 +422,11 @@ const noticeButton: CSSProperties = {
   color: "#1c1e24",
   font: "600 12px/1 -apple-system, BlinkMacSystemFont, sans-serif",
   cursor: "pointer",
+};
+
+const noticeSecondaryButton: CSSProperties = {
+  ...noticeButton,
+  border: "1px solid rgba(255,255,255,0.24)",
+  background: "transparent",
+  color: "#fff",
 };

@@ -355,6 +355,7 @@ describe("OverlayApp", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Screen recording access is required");
     expect(screen.getByTestId("canvas")).toHaveAttribute("data-tool", "triangle");
     expect(screen.queryByRole("img", { name: "Magnifier lens" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Restart Arrowly" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Open System Settings" }));
     expect(commands).toContain("open_screen_recording_settings");
 
@@ -365,7 +366,7 @@ describe("OverlayApp", () => {
     expect(screen.getByTestId("canvas")).toHaveAttribute("data-tool", "triangle");
   });
 
-  it("keeps the current tool and offers an app restart after first-time permission", async () => {
+  it("offers a restart first and System Settings second when access is not yet reflected", async () => {
     magnifierAccessResult = "restartRequired";
     render(<OverlayApp />);
     await act(async () => {
@@ -375,9 +376,28 @@ describe("OverlayApp", () => {
     fireEvent.click(screen.getByRole("button", { name: "marker-triangle" }));
     fireEvent.click(screen.getByRole("button", { name: "marker-magnifier" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("Restart Arrowly to use magnifier");
+    const notice = await screen.findByRole("alert");
+    expect(notice).toHaveTextContent("Restart Arrowly to use magnifier");
+    expect(notice).toHaveTextContent("If you allowed screen recording, restart Arrowly to apply it.");
     expect(screen.getByTestId("canvas")).toHaveAttribute("data-tool", "triangle");
     expect(screen.queryByRole("img", { name: "Magnifier lens" })).not.toBeInTheDocument();
+    const actions = Array.from(notice.querySelectorAll("button")).map((button) => button.textContent);
+    expect(actions).toEqual(["Restart Arrowly", "Open System Settings"]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Open System Settings" }));
+    expect(commands).toContain("open_screen_recording_settings");
+    expect(commands).not.toContain("restart_arrowly");
+  });
+
+  it("restarts Arrowly from the restart notice", async () => {
+    magnifierAccessResult = "restartRequired";
+    render(<OverlayApp />);
+    await act(async () => {
+      await emit("mode-changed", { drawing: true, board: false });
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "marker-magnifier" }));
+    await screen.findByRole("alert");
     fireEvent.click(screen.getByRole("button", { name: "Restart Arrowly" }));
     expect(commands).toContain("restart_arrowly");
   });
