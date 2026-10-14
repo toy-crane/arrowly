@@ -36,7 +36,7 @@ Polar는 웹사이트 없이 판매를 시작할 수 있고(계정 심사는 첫
 - Mac App Store — 투명 웹뷰가 macOS 비공개 API에 의존하고 샌드박스 밖에서 동작한다. 공개 API만으로 같은 오버레이를 구현할 수 있게 되면 재검토한다.
 - Setapp — 단일 앱 판매가 한국 개발자를 받지 않고, Setapp 프레임워크 연동이 필수이며, Tauri 앱 경로가 문서화되어 있지 않다.
 - Lemon Squeezy — 한국이 빠진 Stripe Managed Payments로 이전 중이라 판매 경로를 잃을 수 있다.
-- Gumroad — 수수료가 10% + 50¢로 가장 높다. Polar 정산이 막히면 첫 대안이다.
+- Gumroad — 수수료가 10% + 50¢로 가장 높다. Polar 정산이 막히면 대안 후보지만 한국 법인의 원화 정산은 공식 문서로 확인하지 못했다.
 - Paddle·Creem — 약관·환불·개인정보 정책을 갖춘 웹사이트 심사가 필요하다. Paddle은 파일 전달을 제공하지 않는다.
 - 국내 PG 직접 결제 — 통신판매업 신고와 부가세를 직접 처리해야 한다.
 - 저장소 비공개 전환 — README·이슈 창구를 잃고 macOS CI 비용이 생긴다.
@@ -45,4 +45,4 @@ Polar는 웹사이트 없이 판매를 시작할 수 있고(계정 심사는 첫
 ## Evidence worth preserving
 
 - 2026-10-14 Polar 공식 문서 확인: 정산 국가 목록에 한국 포함(Stripe Connect Express 경유, 법인 가입 여부는 국가 단위로만 명시), 계정 심사는 첫 정산 전 최대 14일, 웹사이트는 권장 사항, 파일당 10GB와 추가 파일의 기존 구매자 소급 제공, 삭제한 파일은 기존 구매자 접근도 회수, 원화 결제창에서 카카오페이·네이버페이·삼성페이 제공. Starter 수수료 5% + 50¢, 미국 외 카드 +1.5%, Stripe 정산 비용 별도.
-- 2026-10-14 Stripe Managed Payments(Lemon Squeezy 후속)의 사업자 국가 목록에 한국 없음.
+- 2026-10-14 확인: Lemon Squeezy 공식 블로그가 사용자를 Stripe Managed Payments로 옮기는 것을 목표로 밝혔고, Stripe Managed Payments의 사업자 국가 목록(북미 2개국, 유럽, AU·HK·JP·SG)에 한국이 없다.
