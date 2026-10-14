@@ -46,7 +46,7 @@ export type MagnifierCaptureRequest = MagnifierSourceRect & {
   outputHeight: number;
 };
 
-export type MagnifierAccessResult = "ready" | "denied" | "restartRequired";
+export type MagnifierAccessResult = "ready" | "requested" | "restartRequired";
 
 /** 화면 기록 권한을 확인하고 필요하면 macOS 권한 요청을 시작한다 (magnifier.rs). */
 export function requestMagnifierAccess(): Promise<MagnifierAccessResult> {
