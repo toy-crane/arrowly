@@ -11,6 +11,7 @@
 - [docs/decisions/shortcut-policy.md](../../decisions/shortcut-policy.md) — 샌드박스 빌드에서도 유지해야 하는 전역 단축키 동작.
 - [docs/decisions/product-boundary.md](../../decisions/product-boundary.md) — 앱 기능 범위. 이 작업은 앱 기능을 바꾸지 않는다.
 - 게이트 실패 시 Polar 직판 계약: 커밋 `d9b94a8`의 `docs/specs/paid-distribution/spec.md`.
+- [docs/specs/app-store-screenshots/spec.md](../app-store-screenshots/spec.md) — 스토어 스크린샷. 심사 제출 전에 끝나야 한다.
 
 ## 1단계: 심사 게이트
 
