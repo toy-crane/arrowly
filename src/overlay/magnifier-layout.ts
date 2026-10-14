@@ -1,4 +1,6 @@
-export const MAGNIFIER_ZOOM = 2;
+export const DEFAULT_MAGNIFIER_ZOOM = 2;
+export const MIN_MAGNIFIER_ZOOM = 1.5;
+export const MAX_MAGNIFIER_ZOOM = 4;
 const DEFAULT_LENS_WIDTH = 600;
 const DEFAULT_LENS_HEIGHT = 400;
 
@@ -12,14 +14,14 @@ export type MagnifierRect = Point & Size;
 export type MagnifierLayout = {
   lens: MagnifierRect;
   source: MagnifierRect;
-  zoom: typeof MAGNIFIER_ZOOM;
+  zoom: number;
 };
 
 // 렌즈는 커서 위나 아래에 확대 원본과 겹치지 않게 놓인다. 어느 높이의 커서에서도
 // 둘 중 한쪽에 들어가려면 화면 절반이 여백·간격·렌즈·원본 절반을 담아야 하므로,
 // 낮은 화면에서는 비율과 배율을 유지한 채 그 높이에 맞춰 렌즈와 원본을 함께 줄인다.
-function lensSize(viewport: Size): Size {
-  const sourceHalfPerLens = 1 / MAGNIFIER_ZOOM / 2;
+function lensSize(viewport: Size, zoom: number): Size {
+  const sourceHalfPerLens = 1 / zoom / 2;
   const fitHeight = (viewport.height / 2 - SAFE_MARGIN - GAP) / (1 + sourceHalfPerLens);
   const fitWidth = viewport.width - SAFE_MARGIN * 2;
   const aspect = DEFAULT_LENS_WIDTH / DEFAULT_LENS_HEIGHT;
@@ -30,10 +32,14 @@ function lensSize(viewport: Size): Size {
   return { width: Math.floor(height * aspect), height };
 }
 
-export function placeMagnifier(viewport: Size, pointer: Point): MagnifierLayout {
-  const { width, height } = lensSize(viewport);
-  const sourceWidth = width / MAGNIFIER_ZOOM;
-  const sourceHeight = height / MAGNIFIER_ZOOM;
+export function placeMagnifier(
+  viewport: Size,
+  pointer: Point,
+  zoom: number = DEFAULT_MAGNIFIER_ZOOM,
+): MagnifierLayout {
+  const { width, height } = lensSize(viewport, zoom);
+  const sourceWidth = width / zoom;
+  const sourceHeight = height / zoom;
   let x = pointer.x + GAP;
   let y = pointer.y - sourceHeight / 2 - height - GAP;
 
@@ -59,6 +65,6 @@ export function placeMagnifier(viewport: Size, pointer: Point): MagnifierLayout 
       width: sourceWidth,
       height: sourceHeight,
     },
-    zoom: MAGNIFIER_ZOOM,
+    zoom,
   };
 }

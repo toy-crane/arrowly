@@ -50,7 +50,7 @@ import {
 } from "./stroke-correction";
 import { QuickColorPalette } from "./quick-color-palette";
 import { TextEditor } from "./text-editor";
-import { MAGNIFIER_ZOOM, type MagnifierRect } from "./magnifier-layout";
+import { type MagnifierRect } from "./magnifier-layout";
 import {
   createGeometricMark,
   type DrawingTool,
@@ -101,6 +101,7 @@ export type DrawingCanvasHandle = {
   drawMarksForMagnifier: (
     target: CanvasRenderingContext2D,
     source: MagnifierRect,
+    zoom: number,
   ) => void;
 };
 
@@ -230,7 +231,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       finishTextEditing: () => finishSessionRef.current(true),
       isEditing: () => sessionRef.current !== null,
       dismissQuickColorPalette: () => updateQuickColorPalette(null),
-      drawMarksForMagnifier: (target, source) => {
+      drawMarksForMagnifier: (target, source, zoom) => {
         const base = baseRef.current;
         if (!base) return;
         const dpr = window.devicePixelRatio || 1;
@@ -242,8 +243,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
           source.height * dpr,
           0,
           0,
-          source.width * MAGNIFIER_ZOOM,
-          source.height * MAGNIFIER_ZOOM,
+          source.width * zoom,
+          source.height * zoom,
         );
       },
     }),

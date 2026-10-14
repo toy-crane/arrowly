@@ -5,19 +5,49 @@ import {
   type MagnifierSourceRect,
 } from "../shared/ipc";
 import { t } from "../shared/i18n";
-import { placeMagnifier, type MagnifierRect } from "./magnifier-layout";
+import {
+  DEFAULT_MAGNIFIER_ZOOM,
+  MAX_MAGNIFIER_ZOOM,
+  MIN_MAGNIFIER_ZOOM,
+  placeMagnifier,
+  type MagnifierRect,
+} from "./magnifier-layout";
 
 const CAPTURE_INTERVAL_MS = 50;
+// 스크롤 1px당 배율의 로그 변화량. 휠은 한 칸(약 40px)에 약 10%, 트랙패드 핀치는
+// WebKit이 ctrl 휠로 보내는 작은 값에 맞춰 더 민감하게 반응한다.
+const WHEEL_ZOOM_PER_PIXEL = 0.0025;
+const PINCH_ZOOM_PER_PIXEL = 0.01;
+const LINE_HEIGHT_PX = 16;
+
+function zoomAfterWheel(zoom: number, event: WheelEvent): number {
+  const unit =
+    event.deltaMode === WheelEvent.DOM_DELTA_LINE
+      ? LINE_HEIGHT_PX
+      : event.deltaMode === WheelEvent.DOM_DELTA_PAGE
+        ? window.innerHeight
+        : 1;
+  const sensitivity = event.ctrlKey ? PINCH_ZOOM_PER_PIXEL : WHEEL_ZOOM_PER_PIXEL;
+  // 위로 밀거나 핀치를 벌리면 deltaY가 음수다. 곱셈 비율이라 어느 배율에서도 체감 변화가 같다.
+  const next = zoom * Math.exp(-event.deltaY * unit * sensitivity);
+  return Math.min(MAX_MAGNIFIER_ZOOM, Math.max(MIN_MAGNIFIER_ZOOM, next));
+}
 
 type Props = {
   board: boolean;
-  drawMarks: (target: CanvasRenderingContext2D, source: MagnifierRect) => void;
+  drawMarks: (
+    target: CanvasRenderingContext2D,
+    source: MagnifierRect,
+    zoom: number,
+  ) => void;
   onCaptureError: (reason: string) => void;
 };
 
 export function MagnifierLayer({ board, drawMarks, onCaptureError }: Props) {
   const initialPointer = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
   const [pointer, setPointer] = useState(initialPointer);
+  const [zoom, setZoom] = useState(DEFAULT_MAGNIFIER_ZOOM);
+  const zoomRef = useRef(DEFAULT_MAGNIFIER_ZOOM);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const pointerRef = useRef(initialPointer);
   const boardRef = useRef(board);
@@ -29,6 +59,7 @@ export function MagnifierLayer({ board, drawMarks, onCaptureError }: Props) {
   const layout = placeMagnifier(
     { width: window.innerWidth, height: window.innerHeight },
     pointer,
+    zoom,
   );
   const pixelRatio = Math.max(1, window.devicePixelRatio || 1);
   const outputWidth = Math.round(layout.lens.width * pixelRatio);
@@ -43,23 +74,24 @@ export function MagnifierLayer({ board, drawMarks, onCaptureError }: Props) {
     let mounted = true;
 
     const contextForLens = () => canvasRef.current?.getContext("2d") ?? null;
-    const drawBoard = (lens: MagnifierRect, source: MagnifierSourceRect) => {
+    const drawBoard = (lens: MagnifierRect, source: MagnifierSourceRect, zoom: number) => {
       const context = contextForLens();
       if (!context) return;
       context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
       context.clearRect(0, 0, lens.width, lens.height);
       context.fillStyle = "#000";
       context.fillRect(0, 0, lens.width, lens.height);
-      drawMarksRef.current(context, source);
+      drawMarksRef.current(context, source, zoom);
     };
     const tick = () => {
       if (!mounted || failedRef.current) return;
-      const { lens, source } = placeMagnifier(
+      const { lens, source, zoom } = placeMagnifier(
         { width: window.innerWidth, height: window.innerHeight },
         pointerRef.current,
+        zoomRef.current,
       );
       if (boardRef.current) {
-        drawBoard(lens, source);
+        drawBoard(lens, source, zoom);
         return;
       }
       if (captureInFlightRef.current) return;
@@ -82,7 +114,7 @@ export function MagnifierLayer({ board, drawMarks, onCaptureError }: Props) {
           );
           context.putImageData(pixels, 0, 0);
           context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
-          drawMarksRef.current(context, source);
+          drawMarksRef.current(context, source, zoom);
         })
         .catch((error: unknown) => {
           if (!mounted || failedRef.current) return;
@@ -103,13 +135,23 @@ export function MagnifierLayer({ board, drawMarks, onCaptureError }: Props) {
       pointerRef.current = next;
       setPointer(next);
     };
+    // 확대 중 휠과 핀치는 배율만 바꾸고 웹뷰 스크롤·페이지 확대로 이어지지 않게 막는다.
+    const changeZoom = (event: WheelEvent) => {
+      event.preventDefault();
+      const next = zoomAfterWheel(zoomRef.current, event);
+      if (next === zoomRef.current) return;
+      zoomRef.current = next;
+      setZoom(next);
+    };
     window.addEventListener("pointermove", follow);
+    window.addEventListener("wheel", changeZoom, { passive: false });
     tick();
     const interval = window.setInterval(tick, CAPTURE_INTERVAL_MS);
     return () => {
       mounted = false;
       window.clearInterval(interval);
       window.removeEventListener("pointermove", follow);
+      window.removeEventListener("wheel", changeZoom);
       document.body.style.cursor = previousCursor;
       tickRef.current = () => undefined;
       captureInFlightRef.current = false;
@@ -119,7 +161,7 @@ export function MagnifierLayer({ board, drawMarks, onCaptureError }: Props) {
 
   useEffect(() => {
     tickRef.current();
-  }, [board]);
+  }, [board, zoom]);
 
   return (
     <div aria-hidden={false} style={layer}>
@@ -152,7 +194,7 @@ export function MagnifierLayer({ board, drawMarks, onCaptureError }: Props) {
           height={outputHeight}
           style={lensCanvas}
         />
-        <span style={zoomBadge}>{t("magnifier.zoom")}</span>
+        <span style={zoomBadge}>{`${zoom.toFixed(1)}×`}</span>
       </div>
     </div>
   );
