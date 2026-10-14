@@ -94,16 +94,23 @@ App Store 빌드는 지금의 Developer ID 빌드와 같은 사용자 동작을 
 - 게이트가 실패하면 오버레이를 다시 만들지 않고 Polar 직판으로 간다.
 - 샌드박스 대응은 기존 결정 계약의 사용자 동작을 바꾸지 않는 범위에서만 한다.
 - App Store 빌드의 번들 ID는 `com.oddcorp.arrowly`다. 같은 팀의 다른 앱(`com.oddcorp.*`)과 이름 규칙을 맞추며, 등록 뒤에는 바꿀 수 없다. App Store 버전은 샌드박스 때문에 어차피 기존 설정을 이어받지 않으므로 식별자 변경으로 사용자가 추가로 잃는 것은 없다.
+- 유료 앱(선결제)으로 판매한다. 무료 앱에 인앱 구매로 기능을 여는 방식은 StoreKit 연동이 필요하고, 출시 뒤 바꾸면 기존 구매자를 영수증으로 구분하는 코드가 필요해 되돌리기 비싸다.
+- 스토어 표시 이름은 `Arrowly: Draw on Screen`이다. `Arrowly`는 다른 개발자가 이미 쓰고 있다. 설치된 앱과 메뉴바 이름은 `Arrowly`로 유지한다. App Store Connect 앱 레코드(SKU `arrowly-macos`)는 이 이름으로 만들어져 있다.
+- 첫 App Store 버전은 1.0.0이다.
+- 카테고리는 주 생산성, 보조 교육이다.
+- 스토어 기본 언어는 영어(미국)이고 한국어 현지화를 함께 둔다.
+- 개인정보 처리방침과 지원 URL은 GitHub 저장소에 둔다. 처리방침은 데이터를 수집하지 않는다는 문서 하나이고, 지원은 저장소 Issues로 연결한다.
+- 스크린샷은 실제 앱 화면에 짧은 문구를 얹은 마케팅형으로 만든다(Mac 2880×1800).
+- 빌드 업로드와 심사 제출은 App Store Connect API 키와 CLI로 한다.
+- 심사 연락처는 App Store Connect의 앱 심사 정보에 둔다. 저장소에는 기록하지 않는다.
 
 ## 가정
 
 다음은 사용자가 바꿀 수 있는 에이전트 기본값이다.
 
-- 유료 앱(선결제)으로 판매한다. 무료 앱에 인앱 구매로 기능을 여는 방식은 체험을 줄 수 있지만 StoreKit 연동이 필요해 제외한다. 출시 뒤 유료 앱을 무료 앱과 인앱 구매로 바꾸면 기존 구매자를 영수증으로 구분하는 코드가 필요해 되돌리기 비싸므로, 바꾸려면 첫 제출 전에 정한다.
 - App Store만 판매 채널로 둔다. 게이트를 통과하면 Polar 직판을 함께 운영하지 않는다.
 - 판매 국가는 App Store가 지원하는 전체 국가다.
-- 카테고리는 생산성이다.
-- 스토어 설명은 영어를 기본으로 하고 한국어 현지화를 함께 둔다. README의 소개 문구와 기존 데모 이미지를 재사용한다.
+- 스토어 설명은 README의 소개 문구와 기존 데모 이미지를 바탕으로 쓴다.
 - 기존 사용자 설정은 App Store 버전으로 옮기지 않는다.
 - Developer ID 서명·공증 빌드 경로는 내부 검증과 게이트 실패 대비용으로 유지하되 공개 게시하지 않는다.
 
@@ -142,5 +149,5 @@ App Store 빌드는 지금의 Developer ID 빌드와 같은 사용자 동작을 
 - App Store 소규모 사업자 프로그램 등록 — 수수료 15% 적용 — 등록 승인 상태가 확인된다.
 - Apple Distribution 인증서, Mac Installer Distribution 인증서, `com.oddcorp.arrowly`용 Mac App Store Connect 프로비저닝 프로필 — 샌드박스 빌드 서명과 업로드 — `security find-identity -v`에 두 인증서가 보이고 개발자 포털에서 프로필이 유효로 표시된다.
 - App Store Connect의 macOS용 Arrowly 앱 레코드(`com.oddcorp.arrowly`) — 게이트 제출 — App Store Connect 앱 목록에 Arrowly가 나타난다.
-- CLI로 업로드·제출할 경우 App Store Connect API 키 — 업로드와 제출 자동화 — App Store Connect 통합 화면에 활성 API 키가 있다.
+- App Store Connect API 키(App Manager 권한) — CLI 업로드와 심사 제출 — App Store Connect 통합 화면에 활성 API 키가 있다.
 - 국내 세무 확인 — App Store 판매 수익 처리와 통신판매업 신고 필요 여부 — 세무 대리인의 답변을 받았거나 필요한 신고를 마친 상태다.
