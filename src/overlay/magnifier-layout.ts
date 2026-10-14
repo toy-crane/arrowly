@@ -1,5 +1,5 @@
 export const MAGNIFIER_ZOOM = 2;
-const DEFAULT_LENS_WIDTH = 800;
+const DEFAULT_LENS_WIDTH = 600;
 const DEFAULT_LENS_HEIGHT = 400;
 
 const GAP = 26;
@@ -27,7 +27,7 @@ function lensSize(viewport: Size): Size {
     0,
     Math.floor(Math.min(DEFAULT_LENS_HEIGHT, fitHeight, fitWidth / aspect)),
   );
-  return { width: height * aspect, height };
+  return { width: Math.floor(height * aspect), height };
 }
 
 export function placeMagnifier(viewport: Size, pointer: Point): MagnifierLayout {
