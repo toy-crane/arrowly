@@ -93,6 +93,7 @@ App Store 빌드는 지금의 Developer ID 빌드와 같은 사용자 동작을 
 - 앱은 라이선스·영수증을 확인하지 않는다. 이유는 결정 계약을 따른다.
 - 게이트가 실패하면 오버레이를 다시 만들지 않고 Polar 직판으로 간다.
 - 샌드박스 대응은 기존 결정 계약의 사용자 동작을 바꾸지 않는 범위에서만 한다.
+- App Store 빌드의 번들 ID는 `com.oddcorp.arrowly`다. 같은 팀의 다른 앱(`com.oddcorp.*`)과 이름 규칙을 맞추며, 등록 뒤에는 바꿀 수 없다. App Store 버전은 샌드박스 때문에 어차피 기존 설정을 이어받지 않으므로 식별자 변경으로 사용자가 추가로 잃는 것은 없다.
 
 ## 가정
 
@@ -103,7 +104,6 @@ App Store 빌드는 지금의 Developer ID 빌드와 같은 사용자 동작을 
 - 판매 국가는 App Store가 지원하는 전체 국가다.
 - 카테고리는 생산성이다.
 - 스토어 설명은 영어를 기본으로 하고 한국어 현지화를 함께 둔다. README의 소개 문구와 기존 데모 이미지를 재사용한다.
-- 번들 ID는 지금의 `com.toycrane.arrowly`를 그대로 쓴다.
 - 기존 사용자 설정은 App Store 버전으로 옮기지 않는다.
 - Developer ID 서명·공증 빌드 경로는 내부 검증과 게이트 실패 대비용으로 유지하되 공개 게시하지 않는다.
 
@@ -129,7 +129,7 @@ App Store 빌드는 지금의 Developer ID 빌드와 같은 사용자 동작을 
 - 게이트를 통과해도 이후 업데이트 심사에서 같은 이유로 거절될 수 있다. 당시 Electron 사례에서도 집행이 일관되지 않았다.
 - 샌드박스에서 전역 단축키, 비활성 패널, 전체화면 Space 위 표시, 화면 기록이 지금처럼 동작하는지 아직 확인하지 않았다.
 - 화면 기록 권한은 서명 신원 기준으로 기억되므로, App Store 서명 빌드에서 권한 흐름을 다시 검증해야 한다.
-- 같은 번들 ID의 무료 사본이 Applications에 있을 때 App Store 설치가 어떻게 동작하는지 확인하지 않았다.
+- 번들 ID가 다른 무료 사본(`com.toycrane.arrowly`)과 App Store 버전이 Applications에서 같은 이름으로 부딪힐 때 설치가 어떻게 동작하는지 확인하지 않았다. 두 앱이 함께 실행되면 전역 단축키가 충돌할 수 있다.
 - 체험판이 없어 구매 전환이 낮을 수 있다. 환불은 Apple 정책을 따른다.
 - 영수증을 확인하지 않으므로 앱 복사본의 실행을 막지 않는다.
 - 업데이트마다 심사를 기다려야 한다.
@@ -140,7 +140,7 @@ App Store 빌드는 지금의 Developer ID 빌드와 같은 사용자 동작을 
 
 - Apple Developer 계정 소유자의 유료 앱 계약(Paid Applications Agreement) 수락과 은행·세금 정보 등록 — 유료 판매와 정산 — App Store Connect의 계약 화면에서 유료 앱 계약이 활성 상태로 표시된다.
 - App Store 소규모 사업자 프로그램 등록 — 수수료 15% 적용 — 등록 승인 상태가 확인된다.
-- Apple Distribution 인증서, Mac Installer Distribution 인증서, `com.toycrane.arrowly`용 Mac App Store Connect 프로비저닝 프로필 — 샌드박스 빌드 서명과 업로드 — `security find-identity -v`에 두 인증서가 보이고 개발자 포털에서 프로필이 유효로 표시된다.
-- App Store Connect의 macOS용 Arrowly 앱 레코드(`com.toycrane.arrowly`) — 게이트 제출 — App Store Connect 앱 목록에 Arrowly가 나타난다.
+- Apple Distribution 인증서, Mac Installer Distribution 인증서, `com.oddcorp.arrowly`용 Mac App Store Connect 프로비저닝 프로필 — 샌드박스 빌드 서명과 업로드 — `security find-identity -v`에 두 인증서가 보이고 개발자 포털에서 프로필이 유효로 표시된다.
+- App Store Connect의 macOS용 Arrowly 앱 레코드(`com.oddcorp.arrowly`) — 게이트 제출 — App Store Connect 앱 목록에 Arrowly가 나타난다.
 - CLI로 업로드·제출할 경우 App Store Connect API 키 — 업로드와 제출 자동화 — App Store Connect 통합 화면에 활성 API 키가 있다.
 - 국내 세무 확인 — App Store 판매 수익 처리와 통신판매업 신고 필요 여부 — 세무 대리인의 답변을 받았거나 필요한 신고를 마친 상태다.
