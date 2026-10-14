@@ -27,20 +27,33 @@ fail() {
 # Developer ID 공증 변수가 남아 있으면 Tauri가 App Store 빌드를 공증하려 한다.
 unset APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID APPLE_API_KEY APPLE_API_ISSUER
 
+profile_value() {
+  plutil -extract "$2" raw -o - "$1" 2>/dev/null || true
+}
+
+# 이름·앱 ID·팀이 맞고 만료되지 않은 프로필 중 만료일이 가장 늦은 것을 고른다.
 install_profile() {
   local dir="$HOME/Library/MobileDevice/Provisioning Profiles"
-  local found=""
+  local now found="" found_expiry=""
+  now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  local decoded
+  decoded="$(mktemp)"
   for profile in "$dir"/*.provisionprofile; do
     [[ -e "$profile" ]] || continue
-    local name
-    name="$(security cms -D -i "$profile" 2>/dev/null \
-      | plutil -extract Name raw -o - - 2>/dev/null || true)"
-    if [[ "$name" == "$profile_name" ]]; then
+    security cms -D -i "$profile" >"$decoded" 2>/dev/null || continue
+    [[ "$(profile_value "$decoded" Name)" == "$profile_name" ]] || continue
+    [[ "$(profile_value "$decoded" Entitlements.com\\.apple\\.application-identifier)" == "$team_id.$identifier" ]] || continue
+    [[ "$(profile_value "$decoded" TeamIdentifier.0)" == "$team_id" ]] || continue
+    local expiry
+    expiry="$(profile_value "$decoded" ExpirationDate)"
+    [[ "$expiry" > "$now" ]] || continue
+    if [[ -z "$found" || "$expiry" > "$found_expiry" ]]; then
       found="$profile"
-      break
+      found_expiry="$expiry"
     fi
   done
-  [[ -n "$found" ]] || fail "프로비저닝 프로필 '$profile_name'을 찾지 못했습니다: $dir"
+  rm -f "$decoded"
+  [[ -n "$found" ]] || fail "유효한 프로비저닝 프로필 '$profile_name'을 찾지 못했습니다: $dir"
   cp "$found" "$tauri_dir/appstore/embedded.provisionprofile"
 }
 
