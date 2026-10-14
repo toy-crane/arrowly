@@ -39,9 +39,9 @@ src/
 ```text
 src-tauri/src/
 ├── main.rs · lib.rs               # composition
-├── shortcuts.rs · tray.rs         # OS adapter
+├── shortcuts.rs · tray.rs · login_item.rs  # OS adapter
 ├── overlay.rs                     # overlay core
-├── state.rs · shortcut_policy.rs  # runtime-free policy
+├── state.rs · shortcut_policy.rs · login_item_policy.rs  # runtime-free policy
 └── events.rs · hotkey.rs · store.rs · i18n.rs  # leaf
 ```
 

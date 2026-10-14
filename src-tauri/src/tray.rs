@@ -4,7 +4,6 @@ use tauri::{
     tray::TrayIconBuilder,
     AppHandle, Emitter, Listener, Manager, Wry,
 };
-use tauri_plugin_autostart::ManagerExt as _;
 
 use crate::state::SharedState;
 
@@ -186,22 +185,10 @@ fn toggle_marker_hidden(app: &AppHandle) {
 }
 
 fn toggle_autostart(app: &AppHandle) {
-    set_autostart(app, !autostart_enabled(app));
+    crate::login_item::toggle();
     sync(app);
 }
 
-fn set_autostart(app: &AppHandle, enabled: bool) {
-    let manager = app.autolaunch();
-    let result = if enabled {
-        manager.enable()
-    } else {
-        manager.disable()
-    };
-    if let Err(e) = result {
-        eprintln!("[arrowly] 자동 실행 설정 실패: {e}");
-    }
-}
-
-fn autostart_enabled(app: &AppHandle) -> bool {
-    app.autolaunch().is_enabled().unwrap_or(false)
+fn autostart_enabled(_app: &AppHandle) -> bool {
+    crate::login_item_policy::is_checked(crate::login_item::status())
 }
