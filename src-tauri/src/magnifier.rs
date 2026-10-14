@@ -109,10 +109,21 @@ pub struct MagnifierState {
 fn overlay_display_id(app: &AppHandle) -> Result<u32, &'static str> {
     let panel = app
         .get_webview_panel(crate::overlay::OVERLAY_LABEL)
-        .map_err(|_| CAPTURE_UNAVAILABLE)?;
-    let description = panel.as_panel().deviceDescription();
+        .map_err(|_| {
+            eprintln!("[arrowly] 오버레이 패널을 찾지 못해 확대 대상 화면을 정할 수 없습니다");
+            CAPTURE_UNAVAILABLE
+        })?;
+    // NSScreenNumber exists only in NSScreen's deviceDescription, not NSWindow's.
+    let screen = panel.as_panel().screen().ok_or_else(|| {
+        eprintln!("[arrowly] 오버레이 패널이 놓인 화면을 찾지 못했습니다");
+        CAPTURE_UNAVAILABLE
+    })?;
+    let description = screen.deviceDescription();
     let key = NSString::from_str("NSScreenNumber");
-    let value = description.objectForKey(&key).ok_or(CAPTURE_UNAVAILABLE)?;
+    let value = description.objectForKey(&key).ok_or_else(|| {
+        eprintln!("[arrowly] 화면 장치 정보에 NSScreenNumber가 없습니다");
+        CAPTURE_UNAVAILABLE
+    })?;
     // NSScreenNumber is an NSNumber containing the corresponding CGDirectDisplayID.
     let display_id: u32 = unsafe { tauri_nspanel::objc2::msg_send![&*value, unsignedIntValue] };
     Ok(display_id)
@@ -120,12 +131,18 @@ fn overlay_display_id(app: &AppHandle) -> Result<u32, &'static str> {
 
 #[cfg(target_os = "macos")]
 fn build_filter(display_id: u32) -> Result<SCContentFilter, &'static str> {
-    let content = SCShareableContent::get().map_err(|_| CAPTURE_UNAVAILABLE)?;
+    let content = SCShareableContent::get().map_err(|error| {
+        eprintln!("[arrowly] 캡처 가능한 화면 목록 조회 실패: {error}");
+        CAPTURE_UNAVAILABLE
+    })?;
     let displays = content.displays();
     let display = displays
         .iter()
         .find(|display| display.display_id() == display_id)
-        .ok_or(CAPTURE_UNAVAILABLE)?;
+        .ok_or_else(|| {
+            eprintln!("[arrowly] 캡처 가능한 화면 목록에 디스플레이 {display_id}가 없습니다");
+            CAPTURE_UNAVAILABLE
+        })?;
     let applications = content.applications();
     let current_pid = std::process::id() as i32;
     let excluded: Vec<_> = applications
@@ -134,13 +151,17 @@ fn build_filter(display_id: u32) -> Result<SCContentFilter, &'static str> {
         .collect();
     if excluded.is_empty() {
         // Capturing without excluding Arrowly would recursively include the lens and marker.
+        eprintln!("[arrowly] 캡처 가능한 앱 목록에 Arrowly(pid {current_pid})가 없습니다");
         return Err(APP_NOT_SHAREABLE);
     }
     SCContentFilter::create()
         .with_display(display)
         .with_excluding_applications(&excluded, &[])
         .try_build()
-        .map_err(|_| CAPTURE_UNAVAILABLE)
+        .map_err(|error| {
+            eprintln!("[arrowly] 캡처 필터 생성 실패: {error:?}");
+            CAPTURE_UNAVAILABLE
+        })
 }
 
 #[cfg(target_os = "macos")]
@@ -167,6 +188,15 @@ fn capture_rgba(
         CAPTURE_FAILED
     })?;
     if bytes.len() != output.byte_len() {
+        eprintln!(
+            "[arrowly] 캡처 크기 불일치: {}x{} 이미지 {}바이트, 기대 {}x{} {}바이트",
+            image.width(),
+            image.height(),
+            bytes.len(),
+            output.width,
+            output.height,
+            output.byte_len()
+        );
         return Err(CAPTURE_FAILED);
     }
     Ok(bytes)
@@ -183,7 +213,6 @@ pub fn request_magnifier_access(
     {
         let access = ScreenCaptureAccess;
         let preflight = access.preflight();
-        let display_id = overlay_display_id(&app).map_err(str::to_string)?;
         let restart_pending = state.native.lock().unwrap().restart_pending;
         let preflight_result = classify_access(preflight, false, restart_pending);
         if preflight && preflight_result != MagnifierAccessResult::Ready {
@@ -199,6 +228,8 @@ pub fn request_magnifier_access(
             native.restart_pending = true;
             return Ok(classify_access(false, requested, false));
         }
+        // 권한 판정이 끝난 뒤에만 화면을 식별해, 식별 실패가 권한 안내를 가리지 않게 한다.
+        let display_id = overlay_display_id(&app).map_err(str::to_string)?;
         let mut native = state.native.lock().unwrap();
         native.display_id = Some(display_id);
         native.filter = None;
