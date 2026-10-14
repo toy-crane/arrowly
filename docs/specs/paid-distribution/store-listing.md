@@ -20,6 +20,11 @@ App Store Connect에 입력할 값의 작업 사본이다. 입력이 끝나면 A
 | 수출 규정 | 비면제 암호화 사용 안 함 (`ITSAppUsesNonExemptEncryption` = false) |
 | 출시 방식 | 수동 출시 |
 
+## 검토 상태
+
+- 한국어 설명 본문은 사용자 승인 완료. 주요 기능의 상세 전달은 스크린샷이 맡는다.
+- 영어 설명은 승인한 한국어 본문에 맞춘 번역 초안이다. 부제·프로모션 텍스트·키워드는 기존 초안이며 최종 검토 전이다.
+
 ## English (U.S.)
 
 **Subtitle** (30자 이내)
@@ -32,32 +37,21 @@ Draw arrows, shapes, and notes right on top of whatever you are presenting, then
 annotate,presentation,teaching,lecture,highlight,arrow,whiteboard,blackboard,magnifier,marker,pen
 
 **Description**
-Arrowly is a screen annotation overlay for teaching and presenting on a Mac. Explain right where you are looking without switching apps: draw, point, and clear the screen when you are done.
+Make your point clear.
 
-Draw and correct quickly
-• Draw freehand, or pause at the end of a stroke to snap it into a straight line, rectangle, ellipse, or triangle.
-• Pick arrows and shapes from the floating marker to draw the same form repeatedly.
-• Five ink colors and five stroke widths. Hold C to pick a color right next to your pointer.
-• Press T and click to write text. Double-click any text to edit it.
+Even a well-prepared slide has a detail worth pointing out.
+Circle an important number, connect ideas with arrows, and add a short note. Arrowly lets you draw directly on your presentation screen to help your audience follow what matters.
 
-Move or remove just what you need
-• ⌘-drag to move a mark, ⌥-click to delete one.
-• Undo and redo every mark, move, edit, and deletion.
+Explain right where it matters
+Emphasize with freehand drawing, arrows, shapes, and text. Magnify small text and numbers, or open a blackboard when an idea needs more room.
 
-Made for live explanations
-• Blackboard: switch to a black background while keeping your marks.
-• Pointer ping: double-click to send a ripple that leaves no trace.
-• Magnifier: show the area around your pointer at 2× for the back row.
-• Works over full-screen apps, and the app underneath stays active while you draw.
-• Lives in the menu bar and stays out of the Dock.
+Easy to correct
+Move or remove a single mark, or undo a change. When you have made your point, clear the screen and keep presenting.
 
-Shortcuts
-• ⌥Tab: start or stop drawing
-• ⇧⌥Tab: blackboard
-• ⌥⌫: clear all marks
-• Esc: return to your screen
+Buy once. Keep using it.
+No subscription. Future updates are included. No account is required, and Arrowly does not collect or transmit your screen content or drawings.
 
-Arrowly collects no data. Marks disappear when you quit, and the magnifier never saves or sends your screen.
+Requires macOS 14 or later. Drawings disappear when you quit the app; saving and loading drawings are not supported. The magnifier requires Screen Recording permission.
 
 ## 한국어
 
@@ -71,32 +65,21 @@ Arrowly collects no data. Marks disappear when you quit, and the magnifier never
 판서,주석,강의,발표,화면그리기,화살표,형광펜,칠판,돋보기,확대,마커,수업
 
 **설명**
-Arrowly는 Mac에서 강의하고 발표할 때 쓰는 화면 주석 오버레이입니다. 앱을 바꾸지 않고 보고 있는 곳에 바로 설명하고, 설명이 끝나면 화면을 비웁니다.
+전달할 핵심을, 선명하게.
 
-빠르게 그리고 바로 고치기
-• 자유롭게 그리거나, 획 끝에서 잠시 멈춰 직선·사각형·타원·삼각형으로 보정합니다.
-• 플로팅 마커에서 화살표와 도형을 골라 같은 형태를 연속으로 그립니다.
-• 5가지 색과 5단계 굵기. C를 누른 채 포인터 옆에서 바로 색을 고릅니다.
-• T를 누르고 클릭하면 텍스트를 쓰고, 더블클릭으로 고칩니다.
+잘 준비한 슬라이드에도, 지금 짚어줘야 할 부분이 있습니다.
+Arrowly로 중요한 숫자에 동그라미를 치고, 화살표로 흐름을 연결하고, 짧은 메모로 설명을 더하세요. 발표 화면 위에 직접 그려 청중이 핵심을 따라오도록 돕는 Mac 앱입니다.
 
-필요한 것만 옮기고 지우기
-• ⌘ 드래그로 마크를 옮기고, ⌥ 클릭으로 하나만 지웁니다.
-• 그리기, 이동, 수정, 삭제를 모두 되돌리고 되살립니다.
+설명이 필요한 곳에 바로
+펜, 화살표, 도형, 텍스트로 강조하세요. 작은 글씨와 숫자는 확대하고, 새로운 설명이 필요하면 블랙보드를 펼치세요.
 
-라이브 설명을 위한 기능
-• 블랙보드: 마크를 유지한 채 배경만 검게 바꿉니다.
-• 포인터 핑: 더블클릭하면 흔적 없이 퍼지는 리플로 한 곳을 가리킵니다.
-• 확대 도구: 포인터 주변을 2배로 보여 줘 뒷자리에서도 읽힙니다.
-• 전체화면 앱 위에서도 동작하고, 그리는 동안 아래 앱은 활성 상태를 유지합니다.
-• 메뉴바에 머물고 Dock을 차지하지 않습니다.
+잘못 그려도 간단하게
+표시 하나만 옮기거나 지우고, 실행 취소로 되돌리세요. 설명을 마치면 화면을 비우고 발표를 이어가세요.
 
-단축키
-• ⌥Tab: 그리기 시작·끝내기
-• ⇧⌥Tab: 블랙보드
-• ⌥⌫: 마크 모두 지우기
-• Esc: 원래 화면으로 돌아가기
+한 번 구매하고 계속 사용하세요
+구독 없이 이후 업데이트까지 포함됩니다. 계정 없이 사용하며, 화면과 그린 내용을 수집하거나 전송하지 않습니다.
 
-Arrowly는 어떤 데이터도 수집하지 않습니다. 마크는 앱을 종료하면 사라지고, 확대 도구는 화면을 저장하거나 전송하지 않습니다.
+macOS 14 이상을 지원합니다. 그린 내용은 앱을 종료하면 사라지며, 저장·불러오기는 제공하지 않습니다. 확대 기능에는 화면 기록 권한이 필요합니다.
 
 ## 심사 메모 (App Review Information > Notes)
 
