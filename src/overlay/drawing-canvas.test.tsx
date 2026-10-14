@@ -134,7 +134,7 @@ describe("DrawingCanvas", () => {
     expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
   });
 
-  it("draws the marked source region into the magnifier at the fixed 2x output size", () => {
+  it("draws the marked source region into the magnifier at twice the source size", () => {
     const ref = createRef<DrawingCanvasHandle>();
     const { container } = render(
       <DrawingCanvas ref={ref} {...baseProps} tool="freehand" onToolChange={vi.fn()} />,
@@ -146,20 +146,20 @@ describe("DrawingCanvas", () => {
     ref.current!.drawMarksForMagnifier(targetContext, {
       x: 100,
       y: 80,
-      width: 174,
-      height: 88,
+      width: 400,
+      height: 200,
     });
 
     expect(targetContext.drawImage).toHaveBeenCalledWith(
       base,
       200,
       160,
-      348,
-      176,
+      800,
+      400,
       0,
       0,
-      348,
-      176,
+      800,
+      400,
     );
   });
 

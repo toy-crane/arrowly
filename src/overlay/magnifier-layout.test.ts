@@ -2,23 +2,37 @@ import { describe, expect, it } from "vitest";
 import { placeMagnifier } from "./magnifier-layout";
 
 describe("magnifier layout", () => {
-  it("places the 2x lens above-right of a central pointer and maps its source exactly", () => {
-    expect(placeMagnifier({ width: 1200, height: 800 }, { x: 600, y: 400 })).toEqual({
-      lens: { x: 626, y: 154, width: 348, height: 176 },
-      source: { x: 513, y: 356, width: 174, height: 88 },
+  it("uses the default 800x400 lens over a 400x200 source on a 1080-high screen", () => {
+    expect(placeMagnifier({ width: 1920, height: 1080 }, { x: 600, y: 700 })).toEqual({
+      lens: { x: 626, y: 174, width: 800, height: 400 },
+      source: { x: 400, y: 600, width: 400, height: 200 },
       zoom: 2,
     });
   });
 
-  it("flips below-left at the top-right edge without clipping or covering the source", () => {
-    const layout = placeMagnifier({ width: 1200, height: 800 }, { x: 1180, y: 20 });
+  it("shrinks the lens and source together on a shorter screen", () => {
+    const layout = placeMagnifier({ width: 1440, height: 900 }, { x: 700, y: 450 });
 
-    expect(layout.lens).toEqual({ x: 806, y: 90, width: 348, height: 176 });
-    expect(layout.lens.x).toBeGreaterThanOrEqual(12);
-    expect(layout.lens.y).toBeGreaterThanOrEqual(12);
-    expect(layout.lens.x + layout.lens.width).toBeLessThanOrEqual(1188);
-    expect(layout.lens.y + layout.lens.height).toBeLessThanOrEqual(788);
-    expect(layout.lens.y).toBeGreaterThanOrEqual(layout.source.y + layout.source.height + 26);
+    expect(layout.lens.width).toBe(658);
+    expect(layout.lens.height).toBe(329);
+    expect(layout.source.width).toBe(329);
+    expect(layout.source.height).toBe(164.5);
+  });
+
+  it.each([
+    { width: 1440, height: 900 },
+    { width: 1512, height: 982 },
+    { width: 1920, height: 1080 },
+  ])("never covers the source while the pointer sweeps a $width x $height screen", (viewport) => {
+    for (let y = 0; y <= viewport.height; y += 10) {
+      const layout = placeMagnifier(viewport, { x: viewport.width / 2, y });
+      const verticallySeparate =
+        layout.lens.y + layout.lens.height <= layout.source.y ||
+        layout.source.y + layout.source.height <= layout.lens.y;
+      expect(verticallySeparate, `pointer y=${y}`).toBe(true);
+      expect(layout.lens.y).toBeGreaterThanOrEqual(12);
+      expect(layout.lens.y + layout.lens.height).toBeLessThanOrEqual(viewport.height - 12);
+    }
   });
 
   it.each([

@@ -16,10 +16,10 @@ vi.mock("../shared/ipc", () => ({
 describe("MagnifierLayer", () => {
   beforeEach(() => {
     installCanvasMock();
-    mocks.capture.mockReset().mockResolvedValue(new ArrayBuffer(696 * 352 * 4));
+    mocks.capture.mockReset().mockResolvedValue(new ArrayBuffer(1600 * 800 * 4));
     mocks.stop.mockReset().mockResolvedValue(undefined);
-    Object.defineProperty(window, "innerWidth", { configurable: true, value: 1200 });
-    Object.defineProperty(window, "innerHeight", { configurable: true, value: 800 });
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 1920 });
+    Object.defineProperty(window, "innerHeight", { configurable: true, value: 1080 });
     Object.defineProperty(window, "devicePixelRatio", { configurable: true, value: 2 });
     vi.stubGlobal(
       "ImageData",
@@ -40,33 +40,33 @@ describe("MagnifierLayer", () => {
     );
 
     await waitFor(() => expect(mocks.capture).toHaveBeenCalledWith({
-      x: 513,
-      y: 356,
-      width: 174,
-      height: 88,
-      outputWidth: 696,
-      outputHeight: 352,
+      x: 760,
+      y: 440,
+      width: 400,
+      height: 200,
+      outputWidth: 1600,
+      outputHeight: 800,
     }));
     const canvas = screen.getByRole("img", { name: "Magnifier lens" }).querySelector("canvas")!;
     const context = canvas.getContext("2d")!;
-    expect(canvas.width).toBe(696);
-    expect(canvas.height).toBe(352);
+    expect(canvas.width).toBe(1600);
+    expect(canvas.height).toBe(800);
     expect(context.putImageData).toHaveBeenCalledWith(expect.any(ImageData), 0, 0);
     expect(drawMarks).toHaveBeenCalledWith(context, {
-      x: 513,
-      y: 356,
-      width: 174,
-      height: 88,
+      x: 760,
+      y: 440,
+      width: 400,
+      height: 200,
     });
 
     fireEvent.pointerMove(window, { clientX: 700, clientY: 450 });
     await waitFor(() => expect(mocks.capture).toHaveBeenLastCalledWith({
-      x: 613,
-      y: 406,
-      width: 174,
-      height: 88,
-      outputWidth: 696,
-      outputHeight: 352,
+      x: 500,
+      y: 350,
+      width: 400,
+      height: 200,
+      outputWidth: 1600,
+      outputHeight: 800,
     }));
 
     unmount();
@@ -81,7 +81,7 @@ describe("MagnifierLayer", () => {
     const canvas = screen.getByRole("img", { name: "Magnifier lens" }).querySelector("canvas")!;
     const context = canvas.getContext("2d")!;
     expect(mocks.capture).not.toHaveBeenCalled();
-    expect(context.fillRect).toHaveBeenCalledWith(0, 0, 348, 176);
+    expect(context.fillRect).toHaveBeenCalledWith(0, 0, 800, 400);
     expect(drawMarks).toHaveBeenCalled();
   });
 
