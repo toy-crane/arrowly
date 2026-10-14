@@ -126,6 +126,21 @@ describe("MagnifierLayer", () => {
     expect(Number(screen.getByText(/×$/).textContent!.replace("×", ""))).toBeGreaterThan(3);
   });
 
+  it("resizes the lens when the screen resolution changes without pointer movement", () => {
+    render(<MagnifierLayer board={false} drawMarks={vi.fn()} onCaptureError={vi.fn()} />);
+    const canvas = screen.getByRole("img", { name: "Magnifier lens" }).querySelector("canvas")!;
+    expect(canvas.width).toBe(1200);
+
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 1440 });
+    Object.defineProperty(window, "innerHeight", { configurable: true, value: 900 });
+    act(() => {
+      window.dispatchEvent(new Event("resize"));
+    });
+
+    expect(canvas.width).toBe(1058);
+    expect(canvas.height).toBe(706);
+  });
+
   it("renders blackboard and marks without reading the screen", async () => {
     const drawMarks = vi.fn();
     render(<MagnifierLayer board drawMarks={drawMarks} onCaptureError={vi.fn()} />);
