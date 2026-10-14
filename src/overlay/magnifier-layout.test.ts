@@ -3,7 +3,7 @@ import { placeMagnifier } from "./magnifier-layout";
 
 describe("magnifier layout", () => {
   it("uses the default 600x400 lens over a 300x200 source on a 1080-high screen", () => {
-    expect(placeMagnifier({ width: 1920, height: 1080 }, { x: 600, y: 700 })).toEqual({
+    expect(placeMagnifier({ width: 1920, height: 1080 }, { x: 600, y: 700 }, 2)).toEqual({
       lens: { x: 626, y: 174, width: 600, height: 400 },
       source: { x: 450, y: 600, width: 300, height: 200 },
       zoom: 2,
@@ -11,7 +11,7 @@ describe("magnifier layout", () => {
   });
 
   it("shrinks the lens and source together on a shorter screen", () => {
-    const layout = placeMagnifier({ width: 1440, height: 900 }, { x: 700, y: 450 });
+    const layout = placeMagnifier({ width: 1440, height: 900 }, { x: 700, y: 450 }, 2);
 
     expect(layout.lens.width).toBe(493);
     expect(layout.lens.height).toBe(329);
@@ -28,16 +28,16 @@ describe("magnifier layout", () => {
     expect(layout.zoom).toBe(4);
   });
 
-  it("shrinks the lens slightly below 2x so the wider source stays uncovered", () => {
-    const layout = placeMagnifier({ width: 1920, height: 1080 }, { x: 900, y: 700 }, 1.5);
+  it("narrows the source to 100x66.7 at the 6x maximum", () => {
+    const layout = placeMagnifier({ width: 1920, height: 1080 }, { x: 900, y: 700 }, 6);
 
-    expect(layout.lens.width).toBe(564);
-    expect(layout.lens.height).toBe(376);
-    expect(layout.source.width).toBe(376);
-    expect(layout.source.height).toBeCloseTo(250.667, 3);
+    expect(layout.lens.width).toBe(600);
+    expect(layout.lens.height).toBe(400);
+    expect(layout.source.width).toBe(100);
+    expect(layout.source.height).toBeCloseTo(66.667, 3);
   });
 
-  it.each([1.5, 2, 3, 4])("never covers the source at %sx while the pointer sweeps", (zoom) => {
+  it.each([2, 3, 4, 6])("never covers the source at %sx while the pointer sweeps", (zoom) => {
     const viewport = { width: 1920, height: 1080 };
     for (let y = 0; y <= viewport.height; y += 10) {
       const layout = placeMagnifier(viewport, { x: viewport.width / 2, y }, zoom);

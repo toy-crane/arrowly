@@ -1,6 +1,6 @@
-export const DEFAULT_MAGNIFIER_ZOOM = 2;
-export const MIN_MAGNIFIER_ZOOM = 1.5;
-export const MAX_MAGNIFIER_ZOOM = 4;
+export const DEFAULT_MAGNIFIER_ZOOM = 3;
+export const MIN_MAGNIFIER_ZOOM = 2;
+export const MAX_MAGNIFIER_ZOOM = 6;
 const DEFAULT_LENS_WIDTH = 600;
 const DEFAULT_LENS_HEIGHT = 400;
 

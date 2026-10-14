@@ -40,10 +40,10 @@ describe("MagnifierLayer", () => {
     );
 
     await waitFor(() => expect(mocks.capture).toHaveBeenCalledWith({
-      x: 810,
-      y: 440,
-      width: 300,
-      height: 200,
+      x: 860,
+      y: expect.closeTo(473.333, 3),
+      width: 200,
+      height: expect.closeTo(133.333, 3),
       outputWidth: 1200,
       outputHeight: 800,
     }));
@@ -54,16 +54,16 @@ describe("MagnifierLayer", () => {
     expect(context.putImageData).toHaveBeenCalledWith(expect.any(ImageData), 0, 0);
     expect(drawMarks).toHaveBeenCalledWith(
       context,
-      { x: 810, y: 440, width: 300, height: 200 },
-      2,
+      expect.objectContaining({ x: 860, width: 200 }),
+      3,
     );
 
     fireEvent.pointerMove(window, { clientX: 700, clientY: 450 });
     await waitFor(() => expect(mocks.capture).toHaveBeenLastCalledWith({
-      x: 550,
-      y: 350,
-      width: 300,
-      height: 200,
+      x: 600,
+      y: expect.closeTo(383.333, 3),
+      width: 200,
+      height: expect.closeTo(133.333, 3),
       outputWidth: 1200,
       outputHeight: 800,
     }));
@@ -72,13 +72,13 @@ describe("MagnifierLayer", () => {
     expect(mocks.stop).toHaveBeenCalledOnce();
   });
 
-  it("starts at 2.0x and narrows the captured source as the wheel zooms in", async () => {
+  it("starts at 3.0x and narrows the captured source as the wheel zooms in", async () => {
     const drawMarks = vi.fn();
     render(<MagnifierLayer board={false} drawMarks={drawMarks} onCaptureError={vi.fn()} />);
 
-    const badge = screen.getByText("2.0×");
+    const badge = screen.getByText("3.0×");
     await waitFor(() => expect(mocks.capture).toHaveBeenCalledWith(
-      expect.objectContaining({ x: 810, y: 440, width: 300, height: 200 }),
+      expect.objectContaining({ x: 860, width: 200 }),
     ));
 
     const wheel = new WheelEvent("wheel", { deltaY: -40, cancelable: true });
@@ -87,31 +87,31 @@ describe("MagnifierLayer", () => {
     });
 
     expect(wheel.defaultPrevented).toBe(true);
-    expect(badge.textContent).toBe("2.2×");
+    expect(badge.textContent).toBe("3.3×");
     await waitFor(() => {
       const { width, height } = mocks.capture.mock.lastCall![0];
       const zoom = drawMarks.mock.lastCall![2] as number;
-      expect(width).toBeLessThan(300);
+      expect(width).toBeLessThan(200);
       expect(width * zoom).toBeCloseTo(600, 6);
       expect(height * zoom).toBeCloseTo(400, 6);
     });
   });
 
-  it("keeps the zoom between 1.5x and 4.0x", async () => {
+  it("keeps the zoom between 2.0x and 6.0x", async () => {
     render(<MagnifierLayer board={false} drawMarks={vi.fn()} onCaptureError={vi.fn()} />);
 
     act(() => {
       for (let i = 0; i < 40; i += 1) fireEvent.wheel(window, { deltaY: -400 });
     });
-    expect(screen.getByText("4.0×")).toBeInTheDocument();
+    expect(screen.getByText("6.0×")).toBeInTheDocument();
     await waitFor(() => expect(mocks.capture).toHaveBeenLastCalledWith(
-      expect.objectContaining({ x: 885, y: 490, width: 150, height: 100 }),
+      expect.objectContaining({ x: 910, width: 100, height: expect.closeTo(66.667, 3) }),
     ));
 
     act(() => {
       for (let i = 0; i < 80; i += 1) fireEvent.wheel(window, { deltaY: 400 });
     });
-    expect(screen.getByText("1.5×")).toBeInTheDocument();
+    expect(screen.getByText("2.0×")).toBeInTheDocument();
   });
 
   it("zooms with a trackpad pinch delivered as a ctrl wheel", () => {
@@ -123,7 +123,7 @@ describe("MagnifierLayer", () => {
     });
 
     expect(pinch.defaultPrevented).toBe(true);
-    expect(Number(screen.getByText(/×$/).textContent!.replace("×", ""))).toBeGreaterThan(2);
+    expect(Number(screen.getByText(/×$/).textContent!.replace("×", ""))).toBeGreaterThan(3);
   });
 
   it("renders blackboard and marks without reading the screen", async () => {
