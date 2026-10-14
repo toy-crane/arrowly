@@ -47,6 +47,21 @@ fn classify_access(
     }
 }
 
+/// 새 macOS 권한 요청 없이 판정할 수 있으면 결과를, 요청이 필요하면 None을 반환한다.
+/// 화면 기록 권한 변경은 재시작 뒤에 반영되므로, 이번 실행에서 이미 권한을 요청했거나
+/// 시스템 설정을 열었는데 아직 권한이 없으면 다시 요청하지 않고 재시작을 안내한다.
+fn settled_access(
+    preflight: bool,
+    restart_pending: bool,
+    access_requested: bool,
+) -> Option<MagnifierAccessResult> {
+    if preflight || access_requested {
+        Some(classify_access(preflight, access_requested, restart_pending))
+    } else {
+        None
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct CaptureRect {
     x: f64,
@@ -97,6 +112,8 @@ struct NativeCaptureState {
     display_id: Option<u32>,
     filter: Option<Arc<SCContentFilter>>,
     restart_pending: bool,
+    /// 이번 실행에서 macOS 권한 요청을 띄웠거나 화면 기록 설정을 열었는지.
+    access_requested: bool,
 }
 
 #[derive(Default)]
@@ -213,27 +230,30 @@ pub fn request_magnifier_access(
     {
         let access = ScreenCaptureAccess;
         let preflight = access.preflight();
-        let restart_pending = state.native.lock().unwrap().restart_pending;
-        let preflight_result = classify_access(preflight, false, restart_pending);
-        if preflight && preflight_result != MagnifierAccessResult::Ready {
-            return Ok(preflight_result);
-        }
-        if !preflight {
-            crate::overlay::suspend_for_system_ui(&app);
-            let requested = access.request();
-            crate::overlay::restore_after_system_ui(&app);
+        let (restart_pending, access_requested) = {
+            let native = state.native.lock().unwrap();
+            (native.restart_pending, native.access_requested)
+        };
+        if let Some(result) = settled_access(preflight, restart_pending, access_requested) {
+            if result != MagnifierAccessResult::Ready {
+                return Ok(result);
+            }
+            // 권한 판정이 끝난 뒤에만 화면을 식별해, 식별 실패가 권한 안내를 가리지 않게 한다.
+            let display_id = overlay_display_id(&app).map_err(str::to_string)?;
             let mut native = state.native.lock().unwrap();
-            native.display_id = None;
+            native.display_id = Some(display_id);
             native.filter = None;
-            native.restart_pending = true;
-            return Ok(classify_access(false, requested, false));
+            return Ok(result);
         }
-        // 권한 판정이 끝난 뒤에만 화면을 식별해, 식별 실패가 권한 안내를 가리지 않게 한다.
-        let display_id = overlay_display_id(&app).map_err(str::to_string)?;
+        crate::overlay::suspend_for_system_ui(&app);
+        let requested = access.request();
+        crate::overlay::restore_after_system_ui(&app);
         let mut native = state.native.lock().unwrap();
-        native.display_id = Some(display_id);
+        native.display_id = None;
         native.filter = None;
-        Ok(MagnifierAccessResult::Ready)
+        native.restart_pending = true;
+        native.access_requested = true;
+        Ok(classify_access(false, requested, false))
     }
     #[cfg(not(target_os = "macos"))]
     {
@@ -309,7 +329,16 @@ pub fn stop_magnifier_capture(state: tauri::State<'_, MagnifierState>) {
 }
 
 #[tauri::command]
-pub fn open_screen_recording_settings(app: AppHandle) -> Result<(), String> {
+pub fn open_screen_recording_settings(
+    app: AppHandle,
+    state: tauri::State<'_, MagnifierState>,
+) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        state.native.lock().unwrap().access_requested = true;
+    }
+    #[cfg(not(target_os = "macos"))]
+    let _ = &state;
     crate::overlay::set_drawing(&app, false);
     std::process::Command::new("/usr/bin/open")
         .arg("x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")
@@ -325,7 +354,9 @@ pub fn restart_arrowly(app: AppHandle) {
 
 #[cfg(test)]
 mod tests {
-    use super::{classify_access, CaptureOutput, CaptureRect, MagnifierAccessResult};
+    use super::{
+        classify_access, settled_access, CaptureOutput, CaptureRect, MagnifierAccessResult,
+    };
     use tauri::{webview::InvokeRequest, Manager};
 
     fn request(command: &str, body: serde_json::Value) -> InvokeRequest {
@@ -408,6 +439,31 @@ mod tests {
         assert_eq!(
             serde_json::to_value(MagnifierAccessResult::RestartRequired).unwrap(),
             serde_json::json!("restartRequired")
+        );
+    }
+
+    #[test]
+    fn retry_after_access_was_requested_in_this_run_asks_for_restart_without_a_new_request() {
+        assert_eq!(settled_access(false, false, false), None);
+        assert_eq!(
+            settled_access(false, false, true),
+            Some(MagnifierAccessResult::RestartRequired)
+        );
+        assert_eq!(
+            settled_access(false, true, true),
+            Some(MagnifierAccessResult::RestartRequired)
+        );
+    }
+
+    #[test]
+    fn reflected_access_starts_unless_a_restart_is_pending() {
+        assert_eq!(
+            settled_access(true, false, true),
+            Some(MagnifierAccessResult::Ready)
+        );
+        assert_eq!(
+            settled_access(true, true, false),
+            Some(MagnifierAccessResult::RestartRequired)
         );
     }
 
