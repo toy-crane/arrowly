@@ -1,109 +1,174 @@
 ---
 name: shape-idea
-description: Shape a chosen idea or opportunity into shared, implementation-ready decisions. Use when the user can already name the problem or intended change and has a broad direction, but wants to clarify, align, or stress-test behavior and scope before implementation, or wants a spec a later session can implement from. If the user does not yet know what to build, tell them to invoke discover-opportunity instead.
+description: Turn a chosen problem and broad direction into shared decisions and an implementation-ready spec. Use when the user wants to clarify behavior or scope, stress-test an idea, align before implementation, or produce a spec.
 ---
 
 # Shape Idea
 
-Shape the user's chosen idea until you and the user understand it the same way.
-If the user cannot yet name a concrete problem or a broad direction, send them to
-`discover-opportunity`. Do not invoke it for them, and do not manufacture a spec
-from a blank page. When discovery just established a direction, carry its
-conversational summary forward; it needs no intermediate document.
+This skill requires `project-knowledge`, `add-stack-context`,
+`explain-visually`, and `build-prototype`. Before the first question, confirm
+each one is installed. When one is missing, stop and report it with its
+install command, `npx skills@latest add toy-crane/skills --skill <name>`,
+using the project's package manager runner where it pins one.
 
-The interview exists to extract what lives only in the user's head. So close
-every branch you can without them.
+## Keep alignment separate from delivery
 
-## Before the first question
+Shaping settles decisions; implementation applies them. Do not change product
+source, configuration, or dependencies, even for an edit you plan to revert. A
+changed line mixes alignment with delivery and leaves unreviewed code behind.
 
-Invoke the `knowledge-layer` skill and read `GLOSSARY.md` and
-`docs/decisions/`. Follow knowledge-layer throughout the session.
+Write only to the spec folder, glossary, decision contracts, the root
+`DESIGN.md` and its read route that recording a screen decision updates, and
+vendor agent context. Run every experiment, benchmark, and preview in a scratch directory
+outside the working tree. If no experiment can answer a question, record an
+assumption and its risk. If code contradicts the user or a decision, surface the
+conflict; do not fix the code.
 
-Investigate the codebase, the documentation, and authoritative sources. When no
-source holds the answer to a technical question, make the evidence yourself with
-a spike or a benchmark.
+Check the working tree when you start and again before writing `spec.md`.
+Revert what this session changed outside the allowed paths and keep only what
+you learned. Leave uncommitted work that predates the session alone.
 
-When a decision lands the work on a framework or hosted service, check whether
-its vendor publishes official agent context: a skill, an AGENTS.md codemod,
-bundled docs. Install what is missing, in the form the vendor recommends. Vendor
-knowledge that matches the version beats training data, and it equips every later
-session, not just this one.
+## Ground decisions in project truth
 
-## Every move is a draft
+Before the first question, invoke `project-knowledge` with the problem and
+direction being shaped and the terms and choices they touch; it hands back
+the confirmed definitions of those terms, the decision contracts that apply,
+and the path of each `GLOSSARY.md` entry or `docs/decisions/<subject>.md`
+file it writes. Apply those throughout the session, and route each term that
+gets resolved and each decision that settles during shaping back through it
+the same way.
 
-Put forward a concrete candidate for the user to correct. People mark up a draft
-far more reliably than they fill a blank page. The draft takes the shape the
-question demands.
+Read root `PRODUCT.md` when it exists before settling the work unit. Treat it as
+the current app-level premise, use only the product constraints relevant to the
+selected work, and surface any mismatch that would require changing that
+premise. Do not create, edit, or copy the whole file into the work-unit spec.
+Missing `PRODUCT.md` does not block shaping.
 
-- When divergence from the user's intent is unlikely, or cheap to detect and fix,
-  the decision is yours. State it as an assumption under standing veto.
-- A branch that is expensive to get wrong becomes a question carrying your
-  recommended answer. Ask exactly one per turn, requesting one fact, value, or
-  choice with one question mark, and wait for the response.
-- An experiential question (anything judged by looking or trying: layout,
-  interaction flow, tone) becomes two or three rendered variants that differ only
-  on the governing question. The user's reaction is the answer. When the question
-  outgrows variants — a whole surface rather than one choice — invoke the
-  `build-prototype` skill.
-- A structure whose confirmation would take two or more rounds of prose (a flow,
-  its states, how concepts relate) becomes one diagram mirroring your
-  understanding back.
+Resolve what available evidence can answer before asking the user.
 
-Everything else stays prose.
+Ground any conclusion about a third-party package or tool in evidence of how it
+actually behaves — its own source, documentation, releases, and maintainer
+statements — and confirm it against this project's versions in a scratch copy
+before building on it or working around it. Record what was checked, what fell
+short, and the upstream change that would reopen the decision.
 
-State a decision with the condition that would overturn it, when only the user
-can know that condition. A condition you can check yourself is not one to state:
-go check it.
+When a decision selects a framework or hosted service, invoke
+`add-stack-context` with that one technology, the decision that selected it,
+and the project evidence behind it, so it audits only that technology rather
+than the whole stack. It owns discovery, source acceptance, installation, and
+live vendor-document routing for it, and hands back the technology's
+accounting outcome together with the paths of the skills it installed and the
+agent-instruction lines it added or changed; shaping resumes once that is in
+hand and records the outcome in the spec.
 
-Render in whatever visual medium the environment provides: an inline widget, an
-artifact page, a local HTML file the user opens. Pick the cheapest one sufficient
-for the question. Defer a question no available medium can settle, explicitly, as
-a remaining risk. When the user asks you to explain something rather than to
-confirm it, invoke the `explain-visually` skill.
+## Present one decision at a time
 
-## What you may write
+Present a concrete candidate for the user to correct, using the lightest medium
+that makes the decision judgeable.
 
-Shaping writes documents, not source. Its durable writes to the project are the
-spec folder, the glossary and decision records, and installed vendor agent
-context. Nothing else.
+- Decide an inexpensive, reversible choice when a mismatch is unlikely or easy
+  to detect; state it as an overridable assumption, never a project decision
+  contract.
+- For a branch expensive to get wrong, ask exactly one question about one fact,
+  value, or choice. Include a recommended answer and concise reason, then wait.
+- If a proposed decision depends on information only the user can know, state
+  that information and ask whether it applies. Verify any condition you can
+  check yourself.
+- For a choice judged by looking or trying, inspect the current surface as
+  evidence and show it only when the decision requires a baseline comparison.
+  Render a candidate or two or three controlled variants, verify the relevant
+  states, and wait for the user's reaction. Invoke `build-prototype` for a
+  whole-surface review or a temporary comparison for the user's specific
+  situation. Scope that decision layer independently of product screen count:
+  pass only the question and context needed to judge it, integrate
+  the chosen result into the existing prototype when present, discard the
+  comparison, and resume shaping. If no sufficient renderer is available, defer
+  the decision and record the resulting risk.
+- When a flow, state model, or relationship has multiple branches, transitions,
+  or links, render one diagram before a downstream decision. Ask at most one
+  question about its unresolved part and wait. Keep a linear structure that fits
+  in one sentence in prose.
+- When the user asks for an explanation rather than a decision, invoke
+  `explain-visually` with the question and the sources it concerns; it hands
+  back the rendered explanation, after which shaping resumes.
 
-Spikes, benchmarks, and rendered visuals are disposable. They leave the project's
-code as they found it. The decision they draw out survives; the artifact does
-not.
+A choice is settled when the user confirms it or it is made under authority the
+user explicitly delegated for that class of decision. It becomes a project
+decision contract only when future work should reuse it, its rationale prevents
+reasonable re-litigation, and it came from a real trade-off; feature-local
+choices stay in the spec.
 
-Changing the product's code is implementation, however small the edit looks, and
-it belongs to the session that builds from the spec. When a fix begs to be made
-on the spot, record it as a decision or a remaining risk instead.
+Skip review only for an already confirmed pattern, routine presentation details,
+or explicit user delegation. Record the reason and treat only agent-judged
+reasons as assumptions.
 
-## Surfaces
+## Write the product contract
 
-When work materially changes a visible or interactive surface, inspect the
-current surface before settling its design. When a runnable product or preview
-already contains the change, exercise its states before closing. Otherwise render
-the cheapest sufficient substitute.
+Stop asking questions when every implementation-relevant decision is resolved
+or explicitly deferred; do not wait for the user to declare completion.
+Translate confirmed product-change requests into required behavior. Keep cheap
+agent-chosen defaults as overridable assumptions; ask about or explicitly defer
+consequential unsettled behavior and record its possible impact as a remaining
+risk. Never record a deferred branch as a settled constraint. Interim behavior
+the product needs while it stays open is written under the deferred point,
+naming the decision that replaces it; where the contract states that behavior
+again so it can be built and tested, mark it interim there too.
 
-Keep your own verification separate from the user's judgment. Verify the states
-work. Then present the experiential decisions still open, batched into one review,
-and wait for the user's reaction. Skip that review only when the change is
-routine, the surface is already confirmed, or the user delegates it explicitly.
-Record the basis as an assumption.
+When ready for implementation, write `docs/specs/<slug>/spec.md` as the stable
+product contract, creating the kebab-case folder when needed. Include the
+user-visible outcomes, approved scope, observable acceptance criteria, settled
+constraints and rationale, assumptions, off-limits areas and why, deferred
+points, remaining risks, and setup before implementation. Record behavior and
+decisions without predicting files, functions, code structure, technical
+layers, or implementation steps. Carry only applicable app-level constraints
+from `PRODUCT.md`; keep the file as their canonical product context rather than
+duplicating its full contents.
 
-## Closing
+When this work depends on another spec folder finishing first, add a
+`Blocked by: docs/specs/<other>/` line beside the linked sources, one per
+folder, with that exact English label whatever language the spec uses. It is
+repository information that later coordination reads, so write it whether or
+not an issue tracker is set up.
 
-Stop when every material branch is resolved or explicitly deferred. Go straight
-to the summary: confirmed decisions, rationale, assumptions, off-limits areas,
-deferred points, and remaining risks.
+Always write a `## Setup before implementation` section under that exact
+English heading. List each piece of work outside the repository that
+implementation needs, such as a vendor account, an issued key, or a console or
+DNS setting, on one line: what is needed, the outcome it serves, and a done
+condition observable without the work this spec delivers, such as console
+state, a direct API call made outside the app, or a DNS lookup. Write `None.`
+when nothing is needed, and never write a secret value. Leave who does each
+item and how to implementation, and do none of it while shaping.
 
-When the session confirmed decisions bound for implementation, write that same
-content to `docs/specs/<slug>/spec.md` (kebab-case slug, folder created lazily),
-so a later session can implement from it alone. The spec holds decisions, not
-implementation instructions. Link the opportunity handoff when the user supplied
-one.
+When the repository's `AGENTS.md` or `CLAUDE.md` carries an `## Issue tracker`
+section and the user names an existing issue this work comes from, add an
+`Issue: <tracker>:<id>` line beside the linked sources in the ID form its
+convention records. Write it only from an ID the user gave; never search the
+tracker by title to find one, and never create an issue while shaping. Without
+the section, or without a known ID, write no such line.
 
-Off-limits areas belong in the spec too: what this work must not touch, and why.
-Ownership boundaries and work in flight elsewhere are invisible in the code, so
-ask rather than infer.
+Link the approved `prototype.html` when one exists and each decision contract
+this work depends on, so implementation loads them as required sources instead
+of judging them optional. Preserve a link an earlier `build-prototype` close-out
+already wrote. Say what each linked source governs here, and leave its own
+rules, thresholds, and screen compositions in that source instead of copying
+them back into a constraint the spec states; keep the links beside the
+contract's fields rather than turning them into one.
 
-If the user says the decisions are complete, take them at their word. Reopen a
-routine default only when it contradicts the confirmed intent. Cover every listed
-category, and end with remaining risks rather than a prompt for the next action.
+## Make the shaped change judgeable
+
+Close by summarizing the complete product contract and making the approved
+product change understandable and judgeable from the user's point of view. The
+user should not need to inspect the spec or ask separately what the resulting
+experience will look like.
+
+Choose the explanation and approved visual evidence that best reveal the
+intended change and its important downstream consequences. Give particular
+attention to consequences that are easy to miss when reviewing only the
+surface being changed.
+
+List the setup items from the spec in the close-out so the user can finish
+them before implementation starts.
+
+Distinguish the intended experience from implemented evidence, keep the
+close-out consistent with the product contract, and do not prompt for another
+action.
