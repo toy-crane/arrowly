@@ -1,33 +1,67 @@
 ---
 name: add-stack-context
-description: Survey the frameworks and services a project builds on and install each vendor's official agent context (a skill, an AGENTS.md codemod, bundled docs) in the form the vendor recommends. Run when initializing a project or adopting agent workflows in an existing one.
-disable-model-invocation: true
+description: Audit and establish current agent context for the technologies that define a project's stack. Use when setting up a project for agent work, after selecting or adding a framework, library, developer tool, or hosted service, or when entering an existing project whose agent context has not been audited.
 ---
 
 # Add Stack Context
 
-Agents err on fast-moving frameworks and services, and their vendors
-now ship the fix themselves: version-matched agent context, each in the
-form its vendor chooses — a skill, an AGENTS.md codemod, docs bundled
-into the package, an MCP server. Equip the project with that context
-once, so every later session starts current instead of relying on
-training data.
+## Inventory the stack
 
-Identify the stack from what the project itself declares: manifests,
-lockfiles, config files. On a fresh project with nothing declared yet,
-ask the user for the intended stack instead of guessing.
+Build a checklist of the direct technologies that shape how the project is
+built or operated from manifests and configuration files. Include frameworks,
+libraries, developer tools, and hosted services; exclude transitive
+dependencies. Use lockfiles to confirm installed versions, not to expand the
+checklist. If the project does not declare a stack yet, ask the user what they
+intend to use.
 
-For each part of the stack, find what its vendor officially publishes
-for agents and install what is missing in the form the vendor
-recommends, checked against current docs rather than assumed. Official
-sources only — the vendor's own organization or documentation; when
-nothing official exists, report that rather than substituting a
-community skill. Skim what an install pulls in before accepting it:
-these are third-party instructions entering the project. Leave existing
-context and vendor-managed marker blocks intact, and touch nothing
-beyond what the vendor's own installer creates.
+## Discover skills and vendor context
 
-Stop when every part of the stack either carries its official context
-in the project or is reported as lacking one. Close with a summary the
-user can act on: what was installed and in which form, what was already
-present, what has no official channel, and how each install updates.
+For every checklist item, invoke `find-skills` when it is available and use it
+to discover relevant skills. When it is absent, search the current Skills
+ecosystem through the Skills CLI or an equivalent current source so this skill
+remains independently installable.
+
+Verify candidate ownership against the technology vendor's current
+documentation or official organization; search rank, install count, and
+repository popularity do not establish that relationship. Inspect the
+documented installation method and expected changes, then install a
+vendor-controlled skill when it is missing. Assess a relevant community skill
+as an optional candidate, but install it only after explicit user approval and
+never count it as the technology's official context.
+
+Continue through the vendor's current sources for official context that skill
+search does not cover, including installers, codemods, package-bundled
+documentation, and MCP servers. Match the installed version when the vendor
+provides version-specific context and apply the vendor's documented method.
+When no official channel exists, record the gap without letting a community
+candidate substitute for it.
+
+## Keep changing guidance live
+
+Treat a vendor `llms.txt` or equivalent changing document as a current remote
+source, not a file to copy into the repository. Add or update a bounded managed
+instruction in the repository's established `AGENTS.md` or `CLAUDE.md` surface.
+Name the technology and official source, tell later agents to retrieve it when
+relevant work begins, and require them to reconcile it with the installed
+version.
+
+Preserve user-authored context and existing links, imports, or other sharing
+between agent instruction files. When both files are independent and active,
+expose the same live retrieval behavior in each without replacing their other
+content. Treat vendor-managed blocks as vendor-owned and update them only
+through the official method.
+
+## Account for every technology
+
+Finish only when every checklist item has one of four outcomes:
+
+- installed;
+- already present;
+- unavailable from an official source; or
+- blocked, with the reason stated.
+
+Summarize the outcome and official sources checked for every item. For installed
+context, include the changes made and the vendor's documented update path. List
+community candidates awaiting approval separately. For live vendor guidance,
+name task-time retrieval as its update path and report a retrieval blocker
+instead of treating a cached copy as current.
