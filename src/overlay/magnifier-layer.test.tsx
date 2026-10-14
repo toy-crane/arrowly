@@ -16,7 +16,7 @@ vi.mock("../shared/ipc", () => ({
 describe("MagnifierLayer", () => {
   beforeEach(() => {
     installCanvasMock();
-    mocks.capture.mockReset().mockResolvedValue(new ArrayBuffer(1600 * 800 * 4));
+    mocks.capture.mockReset().mockResolvedValue(new ArrayBuffer(1200 * 800 * 4));
     mocks.stop.mockReset().mockResolvedValue(undefined);
     Object.defineProperty(window, "innerWidth", { configurable: true, value: 1920 });
     Object.defineProperty(window, "innerHeight", { configurable: true, value: 1080 });
@@ -40,32 +40,32 @@ describe("MagnifierLayer", () => {
     );
 
     await waitFor(() => expect(mocks.capture).toHaveBeenCalledWith({
-      x: 760,
+      x: 810,
       y: 440,
-      width: 400,
+      width: 300,
       height: 200,
-      outputWidth: 1600,
+      outputWidth: 1200,
       outputHeight: 800,
     }));
     const canvas = screen.getByRole("img", { name: "Magnifier lens" }).querySelector("canvas")!;
     const context = canvas.getContext("2d")!;
-    expect(canvas.width).toBe(1600);
+    expect(canvas.width).toBe(1200);
     expect(canvas.height).toBe(800);
     expect(context.putImageData).toHaveBeenCalledWith(expect.any(ImageData), 0, 0);
     expect(drawMarks).toHaveBeenCalledWith(context, {
-      x: 760,
+      x: 810,
       y: 440,
-      width: 400,
+      width: 300,
       height: 200,
     });
 
     fireEvent.pointerMove(window, { clientX: 700, clientY: 450 });
     await waitFor(() => expect(mocks.capture).toHaveBeenLastCalledWith({
-      x: 500,
+      x: 550,
       y: 350,
-      width: 400,
+      width: 300,
       height: 200,
-      outputWidth: 1600,
+      outputWidth: 1200,
       outputHeight: 800,
     }));
 
@@ -81,7 +81,7 @@ describe("MagnifierLayer", () => {
     const canvas = screen.getByRole("img", { name: "Magnifier lens" }).querySelector("canvas")!;
     const context = canvas.getContext("2d")!;
     expect(mocks.capture).not.toHaveBeenCalled();
-    expect(context.fillRect).toHaveBeenCalledWith(0, 0, 800, 400);
+    expect(context.fillRect).toHaveBeenCalledWith(0, 0, 600, 400);
     expect(drawMarks).toHaveBeenCalled();
   });
 

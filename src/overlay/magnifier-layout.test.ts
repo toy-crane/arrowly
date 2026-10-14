@@ -2,10 +2,10 @@ import { describe, expect, it } from "vitest";
 import { placeMagnifier } from "./magnifier-layout";
 
 describe("magnifier layout", () => {
-  it("uses the default 800x400 lens over a 400x200 source on a 1080-high screen", () => {
+  it("uses the default 600x400 lens over a 300x200 source on a 1080-high screen", () => {
     expect(placeMagnifier({ width: 1920, height: 1080 }, { x: 600, y: 700 })).toEqual({
-      lens: { x: 626, y: 174, width: 800, height: 400 },
-      source: { x: 400, y: 600, width: 400, height: 200 },
+      lens: { x: 626, y: 174, width: 600, height: 400 },
+      source: { x: 450, y: 600, width: 300, height: 200 },
       zoom: 2,
     });
   });
@@ -13,9 +13,9 @@ describe("magnifier layout", () => {
   it("shrinks the lens and source together on a shorter screen", () => {
     const layout = placeMagnifier({ width: 1440, height: 900 }, { x: 700, y: 450 });
 
-    expect(layout.lens.width).toBe(658);
+    expect(layout.lens.width).toBe(493);
     expect(layout.lens.height).toBe(329);
-    expect(layout.source.width).toBe(329);
+    expect(layout.source.width).toBe(246.5);
     expect(layout.source.height).toBe(164.5);
   });
 
