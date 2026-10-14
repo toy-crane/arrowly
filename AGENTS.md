@@ -72,9 +72,15 @@ src-tauri/src/
 - Tauri API는 학습 기억이 아니라 공식 `https://tauri.app/llms-full.txt`를 fetch해 v2 기준으로 확인한 뒤 작성한다.
 - 창별 플러그인 권한은 `src-tauri/capabilities/default.json`에서 관리한다.
 
+## Mac App Store
+
+- 판매 채널과 심사 게이트는 `docs/decisions/paid-distribution.md`를 따른다.
+- App Store 빌드·서명·샌드박스·심사 제출을 다루는 작업을 시작할 때 학습 기억이나 저장된 사본 대신 공식 App Review Guidelines(`https://developer.apple.com/app-store/review/guidelines/`)와 `https://tauri.app/llms-full.txt`의 App Store 배포 절을 fetch해 현재 요구를 확인하고, 이 저장소의 Tauri 버전과 맞춘다.
+- `.agents/skills/`의 `asc-*`, `apple-appstore-reviewer`, `app-store-screenshots`는 제3자 커뮤니티 스킬이다. Apple 공식 문서와 다르면 공식 문서를 따른다.
+
 ## Polar
 
-- 유료 배포의 결제와 설치 파일 전달은 Polar(polar.sh)가 맡는다.
+- Polar(polar.sh)는 App Store 심사 게이트가 실패할 때의 직판 결제·설치 파일 전달 경로다.
 - Polar 상품·파일 전달·라이선스 키·API·MCP를 다루는 작업을 시작할 때 학습 기억이나 저장된 사본 대신 공식 `https://polar.sh/docs/llms.txt`를 fetch해 현재 문서를 확인한다. API 경로는 날짜형 API 버전과 함께 확인하고, 이 저장소가 이미 쓰는 버전이 있으면 그 버전과 맞춘다.
 
 ## 검증
