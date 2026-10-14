@@ -20,6 +20,10 @@ const WHEEL_ZOOM_PER_PIXEL = 0.0025;
 const PINCH_ZOOM_PER_PIXEL = 0.01;
 const LINE_HEIGHT_PX = 16;
 
+function currentViewport() {
+  return { width: window.innerWidth, height: window.innerHeight };
+}
+
 function zoomAfterWheel(zoom: number, event: WheelEvent): number {
   const unit =
     event.deltaMode === WheelEvent.DOM_DELTA_LINE
@@ -47,6 +51,7 @@ export function MagnifierLayer({ board, drawMarks, onCaptureError }: Props) {
   const initialPointer = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
   const [pointer, setPointer] = useState(initialPointer);
   const [zoom, setZoom] = useState(DEFAULT_MAGNIFIER_ZOOM);
+  const [viewport, setViewport] = useState(currentViewport);
   const zoomRef = useRef(DEFAULT_MAGNIFIER_ZOOM);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const pointerRef = useRef(initialPointer);
@@ -56,11 +61,7 @@ export function MagnifierLayer({ board, drawMarks, onCaptureError }: Props) {
   const captureInFlightRef = useRef(false);
   const failedRef = useRef(false);
   const tickRef = useRef<() => void>(() => undefined);
-  const layout = placeMagnifier(
-    { width: window.innerWidth, height: window.innerHeight },
-    pointer,
-    zoom,
-  );
+  const layout = placeMagnifier(viewport, pointer, zoom);
   const pixelRatio = Math.max(1, window.devicePixelRatio || 1);
   const outputWidth = Math.round(layout.lens.width * pixelRatio);
   const outputHeight = Math.round(layout.lens.height * pixelRatio);
@@ -86,7 +87,7 @@ export function MagnifierLayer({ board, drawMarks, onCaptureError }: Props) {
     const tick = () => {
       if (!mounted || failedRef.current) return;
       const { lens, source, zoom } = placeMagnifier(
-        { width: window.innerWidth, height: window.innerHeight },
+        currentViewport(),
         pointerRef.current,
         zoomRef.current,
       );
@@ -143,8 +144,11 @@ export function MagnifierLayer({ board, drawMarks, onCaptureError }: Props) {
       zoomRef.current = next;
       setZoom(next);
     };
+    // 해상도가 바뀌면 커서를 움직이지 않아도 렌즈와 캔버스 크기를 새 화면에 맞춘다.
+    const resize = () => setViewport(currentViewport());
     window.addEventListener("pointermove", follow);
     window.addEventListener("wheel", changeZoom, { passive: false });
+    window.addEventListener("resize", resize);
     tick();
     const interval = window.setInterval(tick, CAPTURE_INTERVAL_MS);
     return () => {
@@ -152,6 +156,7 @@ export function MagnifierLayer({ board, drawMarks, onCaptureError }: Props) {
       window.clearInterval(interval);
       window.removeEventListener("pointermove", follow);
       window.removeEventListener("wheel", changeZoom);
+      window.removeEventListener("resize", resize);
       document.body.style.cursor = previousCursor;
       tickRef.current = () => undefined;
       captureInFlightRef.current = false;
