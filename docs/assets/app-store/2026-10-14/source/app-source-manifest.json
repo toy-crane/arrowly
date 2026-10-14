@@ -1,0 +1,41 @@
+{
+  "repository": "toy-crane/arrowly",
+  "files": [
+    "overlay/marker.tsx",
+    "overlay/tool-inspector.tsx",
+    "overlay/color-swatch-strip.tsx",
+    "overlay/freehand-tool-live-stroke-icon.tsx",
+    "overlay/live-text-size-icon.tsx",
+    "overlay/tools.ts",
+    "overlay/magnifier-layer.tsx",
+    "overlay/magnifier-layout.ts",
+    "shared/constants.ts",
+    "shared/i18n.tsx",
+    "shared/drawing/index.ts",
+    "shared/drawing/strokes.ts",
+    "shared/drawing/types.ts",
+    "shared/drawing/smoothing.ts"
+  ],
+  "unchangedUiCopies": true,
+  "adapters": [
+    "shared/settings.ts: in-memory scene position",
+    "shared/ipc/index.ts: magnifier demo background pixels"
+  ],
+  "gitRevision": "a76b3fa4f646f553cd56acb578423764d4797fe2",
+  "sha256": {
+    "overlay/marker.tsx": "9917decf2d3005bac176d4300a0e3b9c8417925e9d17d9cbfcad82bb57450c00",
+    "overlay/tool-inspector.tsx": "522601a95f4e9fa7b21caf2ee9ea5ed3d169d2df1fedff009b863ed51947bdb9",
+    "overlay/color-swatch-strip.tsx": "7ac3838bce8e3913c27e2b7cff7220da6385b59678d2c5acf3e28091590b6f06",
+    "overlay/freehand-tool-live-stroke-icon.tsx": "bc67bb5d0e5b4d67df064447bf096655d58474e3161033fbefc9cf10002d0b4c",
+    "overlay/live-text-size-icon.tsx": "73cab943afe7714e160fad3270cf21804ba896f011f3d53b8ce13512032d9bce",
+    "overlay/tools.ts": "9d21abcfc669921fa2879e55c046313bfd6b74bce3e3874ea770fe30139e855b",
+    "overlay/magnifier-layer.tsx": "afa25eb527d015d8b2cef07e85931011f92b3aaba9924531bbafe54850c7046c",
+    "overlay/magnifier-layout.ts": "2ea6463dd5eb42481e3f92fbf0697cc03cfee7e5e3a5feb3d5fdeb3c75cae35c",
+    "shared/constants.ts": "8a0f1fe9ca5771cecb81e7dd70e7c6e661ff3d7e9c42d9c557cf624a2eaa5cb8",
+    "shared/i18n.tsx": "8ebd5ec40e4ff868454ecb6b8df478ca85ff6466eb21064e3f4c6a006748255c",
+    "shared/drawing/index.ts": "4cfb0427f5ba045628d50ccc89b7abdd0f68f8c91df99cfe890dfa31c37ef638",
+    "shared/drawing/strokes.ts": "3cd3d63f1f840f398967db41a4a644fdc69958b04f2fe708572289c092c6607d",
+    "shared/drawing/types.ts": "5530fcffb2ec84c3d4093e6842bcf3bcab1d07947eb888f98be747bf2d865984",
+    "shared/drawing/smoothing.ts": "cccbac42f66cf7ef67f78471d6b12175d6427e87280770c59cc6f92c0898c30c"
+  }
+}
