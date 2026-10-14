@@ -1,10 +1,41 @@
-# Arrowly 릴리스 가이드 (macOS DMG)
+# Arrowly 릴리스 가이드 (macOS)
 
-v1 배포는 **DMG 직접 배포**로 확정했다. 투명 웹뷰가 macOS 비공개 API에 의존하고 현재 앱이 비샌드박스 구조라 App Store에는 배포하지 않는다.
-자동 업데이트 없음 — 새 버전은 재다운로드.
+판매 경로와 심사 게이트는 `docs/decisions/paid-distribution.md`를 따른다. 빌드는 두 가지다.
+
+- **Mac App Store 빌드**: 판매용. 번들 ID `com.oddcorp.arrowly`, App Sandbox, Apple Distribution 서명 `.pkg`.
+- **Developer ID DMG 빌드**: 번들 ID `com.toycrane.arrowly`. App Store 판매를 시작하면 공개 게시하지 않고 내부 검증과 게이트 실패 대비용으로만 쓴다.
+
+자동 업데이트 없음 — DMG 사용자는 새 버전을 다시 받는다. App Store 사용자는 App Store가 업데이트한다.
 서명·공증이 왜 필요하고 어떻게 구성돼 있는지는 `SIGNING.md` 참조.
 
-## 자동 릴리스 (권장) — 태그 push
+## Mac App Store 빌드
+
+`scripts/appstore.sh`가 빌드·서명·검사·업로드를 맡는다. 앱 버전은 `src-tauri/tauri.appstore.conf.json`의 `version`, 빌드 번호는 실행 시각(`YYYYMMDDHHmm`)이다.
+
+사전 준비(이 Mac 키체인과 계정, 최초 1회):
+
+- 키체인 서명 신원 `Apple Distribution: ODD Inc. (STRPJDK4MR)`, `3rd Party Mac Developer Installer: ODD Inc. (STRPJDK4MR)`
+- 설치된 프로비저닝 프로필 `Arrowly Mac App Store` (Mac App Store Connect, `com.oddcorp.arrowly`)
+- App Store Connect API 키 파일 `~/.appstoreconnect/private_keys/AuthKey_<KEY_ID>.p8` (App Manager 권한)
+
+```bash
+# 샌드박스 동작 확인: Apple Development로 서명한 샌드박스 앱을 로컬에서 실행
+bash scripts/appstore.sh sandbox-run
+
+# 판매용 .pkg 생성 → src-tauri/target/appstore/Arrowly.pkg
+bash scripts/appstore.sh package
+
+# 업로드 사전 검사와 업로드 (심사 제출은 App Store Connect에서 사람이 한다)
+export ASC_KEY_ID=<KEY_ID> ASC_ISSUER_ID=<ISSUER_ID>
+bash scripts/appstore.sh validate
+bash scripts/appstore.sh upload
+```
+
+- Apple Distribution으로 서명한 앱은 로컬에서 실행되지 않는다. 동작 확인은 `sandbox-run`이나 TestFlight로 한다.
+- 업로드 뒤 Apple 서버 처리 중 비공개 API 사용(ITMS-90338) 같은 문제가 발견되면 메일로 온다.
+- 웹뷰가 샌드박스에서 뜨려면 `com.apple.security.network.client` entitlement가 필요하다. 앱은 네트워크를 쓰지 않는다.
+
+## Developer ID DMG 빌드 — 태그 push
 
 버전 태그를 push하면 GitHub Actions(`.github/workflows/release.yml`)가 macOS 러너에서
 **Developer ID 서명·공증된** universal DMG를 빌드하고, draft Release에 첨부하며, 릴리스 노트를
@@ -92,7 +123,7 @@ xcrun stapler validate src-tauri/target/universal-apple-darwin/release/bundle/dm
 
 ## 5. 배포
 
-- DMG를 GitHub Releases 등에 업로드. 파일명 규칙: `Arrowly_<버전>_universal.dmg`
+- DMG 파일명 규칙: `Arrowly_<버전>_universal.dmg`. App Store 판매를 시작한 뒤에는 공개 GitHub Release에 설치 파일을 두지 않는다(`docs/decisions/paid-distribution.md`).
 - 버전 올리기: `src-tauri/tauri.conf.json`의 `version` (+ `package.json` 동기화)
 - 업데이트 안내는 수동(v1). 자동 업데이터는 비목표.
 
