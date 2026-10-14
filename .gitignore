@@ -18,3 +18,6 @@ coverage
 !.vscode/extensions.json
 .idea
 .DS_Store
+
+# App Store provisioning profile (copied from the local keychain profile store)
+src-tauri/appstore/embedded.provisionprofile

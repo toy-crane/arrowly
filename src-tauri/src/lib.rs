@@ -1,6 +1,8 @@
 mod events;
 mod hotkey;
 mod i18n;
+mod login_item;
+mod login_item_policy;
 mod magnifier;
 mod overlay;
 mod shortcut_policy;
@@ -10,17 +12,12 @@ mod store;
 mod tray;
 
 use tauri::Manager;
-use tauri_plugin_autostart::MacosLauncher;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(shortcuts::init())
         .plugin(tauri_plugin_store::Builder::new().build())
-        .plugin(tauri_plugin_autostart::init(
-            MacosLauncher::LaunchAgent,
-            None,
-        ))
         .plugin(tauri_nspanel::init())
         .manage(state::SharedState::default())
         .manage(magnifier::MagnifierState::default())

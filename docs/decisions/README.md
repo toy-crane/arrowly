@@ -7,3 +7,4 @@
 - [tool-interaction-model](tool-interaction-model.md) — Read when 그리기 도구, 마크 표적화, 이동·삭제 또는 텍스트 교정 상호작용을 바꿀 때.
 - [shortcut-policy](shortcut-policy.md) — Read when 단축키의 전역·로컬 범위, 재설정 가능 여부, 기본값 또는 검증 규칙을 바꿀 때.
 - [pointer-ping-contrast](pointer-ping-contrast.md) — Read when 포인터 핑의 색, 가장자리 또는 임의 배경 대비 방식을 바꿀 때.
+- [paid-distribution](paid-distribution.md) — Read when 판매·결제 방식, 설치 파일 배포 경로, 앱의 구매 확인 또는 저장소·릴리스 공개 범위를 바꿀 때.
