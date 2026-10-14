@@ -7,6 +7,60 @@
       "skillPath": "skills/add-stack-context/SKILL.md",
       "computedHash": "88c68ca915cb3ab9193fdb462a21d6902e178d1ae0311bb46e3019ca3f80fc0f"
     },
+    "app-store-screenshots": {
+      "source": "parthjadhav/app-store-screenshots",
+      "sourceType": "github",
+      "skillPath": "skills/app-store-screenshots/SKILL.md",
+      "computedHash": "39324682726af037b002213d3432caea66ef9c052d9d57b25f0bb15d922296f8"
+    },
+    "apple-appstore-reviewer": {
+      "source": "github/awesome-copilot",
+      "sourceType": "github",
+      "skillPath": "skills/apple-appstore-reviewer/SKILL.md",
+      "computedHash": "51a510267e56656f0120930c7ac180494e6e955602e3c5904e8eef0aad5de3dc"
+    },
+    "asc-app-create-ui": {
+      "source": "rorkai/app-store-connect-cli-skills",
+      "sourceType": "github",
+      "skillPath": "skills/asc-app-create-ui/SKILL.md",
+      "computedHash": "de1c1ab06cee0310a4eb7f4e3b5b79cb182fe856ff892b1902a310a40af94da1"
+    },
+    "asc-cli-usage": {
+      "source": "rorkai/app-store-connect-cli-skills",
+      "sourceType": "github",
+      "skillPath": "skills/asc-cli-usage/SKILL.md",
+      "computedHash": "eb415568da92363644941b54df7ca88bf5d89df565d58e030d48ac0f501506d9"
+    },
+    "asc-id-resolver": {
+      "source": "rorkai/app-store-connect-cli-skills",
+      "sourceType": "github",
+      "skillPath": "skills/asc-id-resolver/SKILL.md",
+      "computedHash": "e47511a6ddbfae0cfd8faaffc97e9968afef549fc1cc40ba628f20d06a6c7965"
+    },
+    "asc-metadata-sync": {
+      "source": "rorkai/app-store-connect-cli-skills",
+      "sourceType": "github",
+      "skillPath": "skills/asc-metadata-sync/SKILL.md",
+      "computedHash": "fffb5deb78704736e87fb4039004dcae564ad33205efa3889485fd7b1ae3853c"
+    },
+    "asc-release-flow": {
+      "source": "rorkai/app-store-connect-cli-skills",
+      "sourceType": "github",
+      "skillPath": "skills/asc-release-flow/SKILL.md",
+      "computedHash": "95ca94d431a9930f26c4efe157c449312eaf77f5b214661a2000629609974e14"
+    },
+    "asc-signing-setup": {
+      "source": "rorkai/app-store-connect-cli-skills",
+      "sourceType": "github",
+      "skillPath": "skills/asc-signing-setup/SKILL.md",
+      "computedHash": "4a5beb44ae3089a892f9a8845e217e28c6ba9e1de5eaf79c46f105b58bc04fb2"
+    },
+    "asc-submission-health": {
+      "source": "rorkai/app-store-connect-cli-skills",
+      "sourceType": "github",
+      "skillPath": "skills/asc-submission-health/SKILL.md",
+      "computedHash": "875be4bf1ad0db880588a48537ddfc70df7e072c7c030af38b0060f943ce8589"
+    },
     "build-prototype": {
       "source": "toy-crane/skills",
       "sourceType": "github",
