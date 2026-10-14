@@ -137,7 +137,7 @@ vi.mock("./marker", () => ({
 
 describe("OverlayApp", () => {
   const commands: string[] = [];
-  let magnifierAccessResult: "ready" | "denied" | "restartRequired" = "ready";
+  let magnifierAccessResult: "ready" | "requested" | "restartRequired" = "ready";
   let magnifierAccessError: string | null = null;
   let magnifierCaptureError: string | null = null;
 
@@ -342,8 +342,8 @@ describe("OverlayApp", () => {
     expect(screen.getByTestId("canvas")).toHaveAttribute("data-tool", "triangle");
   });
 
-  it("keeps the current tool and offers System Settings when capture permission is denied", async () => {
-    magnifierAccessResult = "denied";
+  it("leaves the first permission request to macOS without its own notice", async () => {
+    magnifierAccessResult = "requested";
     render(<OverlayApp />);
     await act(async () => {
       await emit("mode-changed", { drawing: true, board: false });
@@ -352,18 +352,11 @@ describe("OverlayApp", () => {
     fireEvent.click(screen.getByRole("button", { name: "marker-triangle" }));
     fireEvent.click(screen.getByRole("button", { name: "marker-magnifier" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("Screen recording access is required");
+    await waitFor(() => expect(commands).toContain("request_magnifier_access"));
+    await act(async () => {});
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(screen.getByTestId("canvas")).toHaveAttribute("data-tool", "triangle");
     expect(screen.queryByRole("img", { name: "Magnifier lens" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Restart Arrowly" })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Open System Settings" }));
-    expect(commands).toContain("open_screen_recording_settings");
-
-    await act(async () => {
-      await emit("mode-changed", { drawing: false, board: false });
-      await emit("mode-changed", { drawing: true, board: false });
-    });
-    expect(screen.getByTestId("canvas")).toHaveAttribute("data-tool", "triangle");
   });
 
   it("offers a restart first and System Settings second when access is not yet reflected", async () => {

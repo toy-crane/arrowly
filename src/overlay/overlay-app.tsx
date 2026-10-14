@@ -94,8 +94,9 @@ export function OverlayApp() {
     try {
       const result = await requestMagnifierAccess();
       if (request !== magnifierRequestRef.current || !drawingRef.current) return;
-      if (result === "denied") {
-        setMagnifierNotice("permission");
+      // 첫 요청에서는 macOS 권한 창이 안내를 맡으므로 같은 내용의 안내를 겹쳐 띄우지 않는다.
+      if (result === "requested") {
+        setMagnifierNotice(null);
         return;
       }
       if (result === "restartRequired") {

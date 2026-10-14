@@ -25,7 +25,8 @@ const CAPTURE_FAILED: &str = "error:screen_capture_failed";
 #[serde(rename_all = "camelCase")]
 pub enum MagnifierAccessResult {
     Ready,
-    Denied,
+    /// macOS 권한 요청을 방금 띄웠고 권한은 아직 반영되지 않았다. 안내는 macOS 창이 맡는다.
+    Requested,
     RestartRequired,
 }
 
@@ -43,7 +44,7 @@ fn classify_access(
     } else if requested {
         MagnifierAccessResult::RestartRequired
     } else {
-        MagnifierAccessResult::Denied
+        MagnifierAccessResult::Requested
     }
 }
 
@@ -419,7 +420,7 @@ mod tests {
     }
 
     #[test]
-    fn access_contract_distinguishes_ready_denied_and_restart_required() {
+    fn access_contract_distinguishes_ready_requested_and_restart_required() {
         assert_eq!(
             classify_access(true, false, false),
             MagnifierAccessResult::Ready
@@ -430,7 +431,7 @@ mod tests {
         );
         assert_eq!(
             classify_access(false, false, false),
-            MagnifierAccessResult::Denied
+            MagnifierAccessResult::Requested
         );
         assert_eq!(
             classify_access(false, true, false),
@@ -439,6 +440,10 @@ mod tests {
         assert_eq!(
             serde_json::to_value(MagnifierAccessResult::RestartRequired).unwrap(),
             serde_json::json!("restartRequired")
+        );
+        assert_eq!(
+            serde_json::to_value(MagnifierAccessResult::Requested).unwrap(),
+            serde_json::json!("requested")
         );
     }
 
