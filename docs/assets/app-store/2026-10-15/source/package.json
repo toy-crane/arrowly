@@ -1,0 +1,17 @@
+{
+  "name": "arrowly-store-assets",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 8768",
+    "build": "vite build"
+  },
+  "dependencies": {
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
+    "vite": "7.3.6",
+    "@vitejs/plugin-react": "4.7.0",
+    "typescript": "5.8.3",
+    "html-to-image": "1.11.13"
+  }
+}

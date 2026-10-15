@@ -1,0 +1,1 @@
+export type MarkerPos={xRatio:number;yRatio:number};export async function loadMarkerPos(){return new URLSearchParams(location.search).get("scene")==="marker"?{xRatio:.709,yRatio:.89}:{xRatio:.75,yRatio:.90}}export async function saveMarkerPos(p:MarkerPos){}

@@ -1,0 +1,72 @@
+[
+  {
+    "file": "en/01-hero.png",
+    "width": 2880,
+    "height": 1800,
+    "mode": "RGB",
+    "bytes": 171346
+  },
+  {
+    "file": "en/02-marker.png",
+    "width": 2880,
+    "height": 1800,
+    "mode": "RGB",
+    "bytes": 197519
+  },
+  {
+    "file": "en/03-shapes.png",
+    "width": 2880,
+    "height": 1800,
+    "mode": "RGB",
+    "bytes": 173439
+  },
+  {
+    "file": "en/04-blackboard.png",
+    "width": 2880,
+    "height": 1800,
+    "mode": "RGB",
+    "bytes": 126169
+  },
+  {
+    "file": "en/05-magnifier.png",
+    "width": 2880,
+    "height": 1800,
+    "mode": "RGB",
+    "bytes": 233400
+  },
+  {
+    "file": "ko/01-hero.png",
+    "width": 2880,
+    "height": 1800,
+    "mode": "RGB",
+    "bytes": 166088
+  },
+  {
+    "file": "ko/02-marker.png",
+    "width": 2880,
+    "height": 1800,
+    "mode": "RGB",
+    "bytes": 186722
+  },
+  {
+    "file": "ko/03-shapes.png",
+    "width": 2880,
+    "height": 1800,
+    "mode": "RGB",
+    "bytes": 148634
+  },
+  {
+    "file": "ko/04-blackboard.png",
+    "width": 2880,
+    "height": 1800,
+    "mode": "RGB",
+    "bytes": 120802
+  },
+  {
+    "file": "ko/05-magnifier.png",
+    "width": 2880,
+    "height": 1800,
+    "mode": "RGB",
+    "bytes": 225374
+  }
+]
