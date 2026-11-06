@@ -726,6 +726,25 @@ describe("DrawingCanvas", () => {
       ]);
     });
 
+    it("keeps palette scrolling away from other window wheel handlers such as the magnifier", () => {
+      // 확대 도구 렌즈는 window 버블 단계 wheel 리스너로 배율을 바꾼다.
+      const otherWheelHandler = vi.fn();
+      window.addEventListener("wheel", otherWheelHandler);
+      try {
+        render(<DrawingCanvas {...baseProps} tool="magnifier" onToolChange={vi.fn()} />);
+
+        fireEvent.keyDown(window, { code: "KeyC" });
+        fireEvent.wheel(window, { deltaY: 45 });
+        expect(otherWheelHandler).not.toHaveBeenCalled();
+        fireEvent.keyUp(window, { code: "KeyC" });
+
+        fireEvent.wheel(window, { deltaY: 45 });
+        expect(otherWheelHandler).toHaveBeenCalledOnce();
+      } finally {
+        window.removeEventListener("wheel", otherWheelHandler);
+      }
+    });
+
     it("ignores scrolling while the quick palette is closed", () => {
       const onPreview = vi.fn();
       render(

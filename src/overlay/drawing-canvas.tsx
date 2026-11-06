@@ -1243,9 +1243,12 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       scrubQuickColor(point);
     };
 
+    // 캡처 단계에서 받아 팔레트가 열린 동안의 스크롤을 독점한다.
+    // 확대 렌즈 배율처럼 같은 window의 다른 wheel 동작이 함께 바뀌지 않게 한다.
     const onWindowWheel = (e: WheelEvent) => {
       if (!quickColorPaletteRef.current) return;
       e.preventDefault();
+      e.stopPropagation();
       scrollQuickColor(Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY);
     };
 
@@ -1268,7 +1271,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("keyup", onKeyUp);
     window.addEventListener("pointermove", onWindowPointerMove);
-    window.addEventListener("wheel", onWindowWheel, { passive: false });
+    window.addEventListener("wheel", onWindowWheel, { capture: true, passive: false });
     window.addEventListener("blur", resetLostInteractionState);
     document.addEventListener("visibilitychange", onVisibilityChange);
     live.addEventListener("pointerdown", onPointerDown);
@@ -1297,7 +1300,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
       window.removeEventListener("pointermove", onWindowPointerMove);
-      window.removeEventListener("wheel", onWindowWheel);
+      window.removeEventListener("wheel", onWindowWheel, { capture: true });
       window.removeEventListener("blur", resetLostInteractionState);
       document.removeEventListener("visibilitychange", onVisibilityChange);
       live.removeEventListener("pointerdown", onPointerDown);
