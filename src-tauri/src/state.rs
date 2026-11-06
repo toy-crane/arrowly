@@ -8,6 +8,7 @@ pub enum BlackboardAction {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EscapeAction {
+    CancelQuickColor,
     FinishTextEditing,
     ExitDrawing,
 }
@@ -33,6 +34,8 @@ pub struct AppState {
     pub text_accel: String,
     /// 웹뷰가 텍스트 편집 세션을 열어 첫 Esc를 편집 종료에 써야 하는지 여부.
     pub text_editing: bool,
+    /// 웹뷰가 빠른 색 팔레트를 열어 첫 Esc를 색 선택 취소에 써야 하는지 여부.
+    pub quick_color_selecting: bool,
 }
 
 impl Default for AppState {
@@ -48,6 +51,7 @@ impl Default for AppState {
             clear_accel: crate::shortcut_policy::DEFAULT_CLEAR.into(),
             text_accel: crate::shortcut_policy::DEFAULT_TEXT.into(),
             text_editing: false,
+            quick_color_selecting: false,
         }
     }
 }
@@ -73,9 +77,13 @@ impl AppState {
         }
     }
 
-    /// 첫 Esc는 편집만 끝내고 상태를 즉시 내린다. 다음 Esc는 그리기 종료로 진행한다.
+    /// 첫 Esc는 색 선택 취소나 편집 종료만 하고 상태를 즉시 내린다.
+    /// 다음 Esc는 그리기 종료로 진행한다.
     pub fn escape_action(&mut self) -> EscapeAction {
-        if self.text_editing {
+        if self.quick_color_selecting {
+            self.quick_color_selecting = false;
+            EscapeAction::CancelQuickColor
+        } else if self.text_editing {
             self.text_editing = false;
             EscapeAction::FinishTextEditing
         } else {
@@ -102,6 +110,7 @@ mod tests {
         assert_eq!(state.clear_accel, "Alt+Backspace");
         assert_eq!(state.text_accel, "KeyT");
         assert!(!state.text_editing);
+        assert!(!state.quick_color_selecting);
     }
 
     #[test]
@@ -134,6 +143,19 @@ mod tests {
         };
         assert_eq!(state.escape_action(), EscapeAction::FinishTextEditing);
         assert!(!state.text_editing);
+        assert_eq!(state.escape_action(), EscapeAction::ExitDrawing);
+    }
+
+    #[test]
+    fn escape_cancels_quick_color_selection_without_leaving_drawing() {
+        let mut state = AppState {
+            drawing: true,
+            quick_color_selecting: true,
+            ..Default::default()
+        };
+        assert_eq!(state.escape_action(), EscapeAction::CancelQuickColor);
+        assert!(!state.quick_color_selecting);
+        assert!(state.drawing);
         assert_eq!(state.escape_action(), EscapeAction::ExitDrawing);
     }
 }

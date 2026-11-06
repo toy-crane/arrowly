@@ -28,6 +28,7 @@ pub fn run() {
             shortcuts::resume_shortcuts,
             overlay::toggle_board,
             overlay::set_text_editing,
+            overlay::set_quick_color_selecting,
             magnifier::request_magnifier_access,
             magnifier::capture_magnifier_frame,
             magnifier::stop_magnifier_capture,

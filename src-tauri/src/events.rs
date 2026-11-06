@@ -9,3 +9,4 @@ pub const MARKER_HIDDEN_CHANGED: &str = "marker-hidden-changed";
 pub const SHORTCUTS_CHANGED: &str = "shortcuts-changed";
 pub const ENTER_TEXT_MODE: &str = "enter-text-mode";
 pub const FINISH_TEXT_EDITING: &str = "finish-text-editing";
+pub const CANCEL_QUICK_COLOR: &str = "cancel-quick-color";

@@ -7,6 +7,7 @@ import {
   onMarkerHiddenChanged,
   onModeChanged,
   onFinishTextEditing,
+  onCancelQuickColor,
   onShortcutsChanged,
 } from "./index";
 
@@ -22,6 +23,7 @@ describe("ipc events", () => {
     const shortcuts = vi.fn();
     const clear = vi.fn();
     const finishTextEditing = vi.fn();
+    const cancelQuickColor = vi.fn();
     const unlisteners = await Promise.all([
       onModeChanged(mode),
       onBoardChanged(board),
@@ -29,6 +31,7 @@ describe("ipc events", () => {
       onShortcutsChanged(shortcuts),
       onClearAll(clear),
       onFinishTextEditing(finishTextEditing),
+      onCancelQuickColor(cancelQuickColor),
     ]);
 
     await emit("mode-changed", { drawing: true, board: false });
@@ -37,6 +40,7 @@ describe("ipc events", () => {
     await emit("shortcuts-changed", { board: "Control+Cmd+KeyB", clear: "Alt+KeyC" });
     await emit("clear-all");
     await emit("finish-text-editing");
+    await emit("cancel-quick-color");
 
     expect(mode).toHaveBeenCalledWith({ drawing: true, board: false });
     expect(board).toHaveBeenCalledWith({ on: true });
@@ -44,6 +48,7 @@ describe("ipc events", () => {
     expect(shortcuts).toHaveBeenCalledWith({ board: "Control+Cmd+KeyB", clear: "Alt+KeyC" });
     expect(clear).toHaveBeenCalledWith();
     expect(finishTextEditing).toHaveBeenCalledWith();
+    expect(cancelQuickColor).toHaveBeenCalledWith();
 
     for (const unlisten of unlisteners) unlisten();
     await emit("clear-all");

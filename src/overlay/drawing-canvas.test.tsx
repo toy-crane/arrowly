@@ -626,7 +626,125 @@ describe("DrawingCanvas", () => {
       fireEvent.keyUp(window, { code: "KeyC" });
     });
 
-    it("cancels an aimed quick color when C is released without a click", () => {
+    it("previews the color under the scrubbed column and commits it when C is released", () => {
+      const onColorPick = vi.fn();
+      const onPreview = vi.fn();
+      render(
+        <DrawingCanvas
+          {...baseProps}
+          tool="freehand"
+          onToolChange={vi.fn()}
+          onColorPick={onColorPick}
+          onQuickColorPreviewChange={onPreview}
+        />,
+      );
+
+      fireEvent.pointerMove(window, { clientX: 400, clientY: 300, pointerId: 1 });
+      fireEvent.keyDown(window, { code: "KeyC" });
+      const palette = screen.getByRole("group", { name: "Quick color palette" });
+      // 현재 색(핑크) 견본이 포인터 바로 위에 온다: 셀 간격 46px
+      expect(palette).toHaveStyle({ left: "278px" });
+      expect(onPreview).toHaveBeenLastCalledWith("#FF2D95");
+
+      fireEvent.pointerMove(window, { clientX: 446, clientY: 380, pointerId: 1 });
+      expect(onPreview).toHaveBeenLastCalledWith("#2ED573");
+      fireEvent.pointerMove(window, { clientX: 492, clientY: 120, pointerId: 1 });
+      expect(onPreview).toHaveBeenLastCalledWith("#00AEEF");
+      expect(
+        within(palette).getByRole("button", { name: "Color blue" }),
+      ).toHaveAttribute("data-aimed", "true");
+      expect(onColorPick).not.toHaveBeenCalled();
+
+      fireEvent.keyUp(window, { code: "KeyC" });
+
+      expect(onColorPick).toHaveBeenCalledWith("#00AEEF");
+      expect(onPreview).toHaveBeenLastCalledWith(null);
+      expect(screen.queryByRole("group", { name: "Quick color palette" })).not.toBeInTheDocument();
+    });
+
+    it("steps the preview one swatch per scroll and stops at the last color", () => {
+      const onColorPick = vi.fn();
+      const onPreview = vi.fn();
+      render(
+        <DrawingCanvas
+          {...baseProps}
+          tool="freehand"
+          onToolChange={vi.fn()}
+          onColorPick={onColorPick}
+          onQuickColorPreviewChange={onPreview}
+        />,
+      );
+
+      fireEvent.pointerMove(window, { clientX: 400, clientY: 300, pointerId: 1 });
+      fireEvent.keyDown(window, { code: "KeyC" });
+      fireEvent.wheel(window, { deltaY: 20 });
+      expect(onPreview).toHaveBeenLastCalledWith("#FF2D95");
+      fireEvent.wheel(window, { deltaY: 25 });
+      expect(onPreview).toHaveBeenLastCalledWith("#2ED573");
+      fireEvent.wheel(window, { deltaX: 400, deltaY: 10 });
+      expect(onPreview).toHaveBeenLastCalledWith("#00AEEF");
+      fireEvent.wheel(window, { deltaY: -45 });
+      expect(onPreview).toHaveBeenLastCalledWith("#2ED573");
+      // 이후 포인터가 다른 열로 넘어가면 그 열의 색이 다시 미리보기가 된다
+      fireEvent.pointerMove(window, { clientX: 354, clientY: 300, pointerId: 1 });
+      expect(onPreview).toHaveBeenLastCalledWith("#FF7A00");
+      fireEvent.keyUp(window, { code: "KeyC" });
+
+      expect(onColorPick).toHaveBeenCalledWith("#FF7A00");
+    });
+
+    it("restores the original color and keeps drawing when Escape cancels the quick palette", async () => {
+      const onColorPick = vi.fn();
+      const onPreview = vi.fn();
+      const commands: { cmd: string; args: unknown }[] = [];
+      mockIPC((cmd, args) => void commands.push({ cmd, args }), { shouldMockEvents: true });
+      render(
+        <DrawingCanvas
+          {...baseProps}
+          tool="freehand"
+          onToolChange={vi.fn()}
+          onColorPick={onColorPick}
+          onQuickColorPreviewChange={onPreview}
+        />,
+      );
+
+      fireEvent.pointerMove(window, { clientX: 400, clientY: 300, pointerId: 1 });
+      fireEvent.keyDown(window, { code: "KeyC" });
+      fireEvent.pointerMove(window, { clientX: 492, clientY: 300, pointerId: 1 });
+      expect(onPreview).toHaveBeenLastCalledWith("#00AEEF");
+      await act(async () => {
+        await emit("cancel-quick-color");
+      });
+
+      expect(screen.queryByRole("group", { name: "Quick color palette" })).not.toBeInTheDocument();
+      expect(onPreview).toHaveBeenLastCalledWith(null);
+      fireEvent.keyUp(window, { code: "KeyC" });
+      expect(onColorPick).not.toHaveBeenCalled();
+      expect(commands.filter((c) => c.cmd === "set_quick_color_selecting")).toEqual([
+        { cmd: "set_quick_color_selecting", args: { selecting: true } },
+        { cmd: "set_quick_color_selecting", args: { selecting: false } },
+      ]);
+    });
+
+    it("ignores scrolling while the quick palette is closed", () => {
+      const onPreview = vi.fn();
+      render(
+        <DrawingCanvas
+          {...baseProps}
+          tool="freehand"
+          onToolChange={vi.fn()}
+          onQuickColorPreviewChange={onPreview}
+        />,
+      );
+
+      const event = new WheelEvent("wheel", { deltaY: 120, cancelable: true });
+      window.dispatchEvent(event);
+
+      expect(onPreview).not.toHaveBeenCalled();
+      expect(event.defaultPrevented).toBe(false);
+    });
+
+    it("keeps the current color when C is released before leaving the starting column", () => {
       const onColorPick = vi.fn();
       render(
         <DrawingCanvas
@@ -637,13 +755,43 @@ describe("DrawingCanvas", () => {
         />,
       );
 
+      fireEvent.pointerMove(window, { clientX: 400, clientY: 300, pointerId: 1 });
       fireEvent.keyDown(window, { code: "KeyC" });
-      const palette = screen.getByRole("group", { name: "Quick color palette" });
-      fireEvent.pointerEnter(within(palette).getByRole("button", { name: "Color blue" }));
+      fireEvent.pointerMove(window, { clientX: 410, clientY: 200, pointerId: 1 });
       fireEvent.keyUp(window, { code: "KeyC" });
 
       expect(onColorPick).not.toHaveBeenCalled();
-      expect(screen.queryByRole("group", { name: "Quick color palette" })).not.toBeInTheDocument();
+    });
+
+    it("reaches every color by column even when the palette is pushed in from a screen edge", () => {
+      const onColorPick = vi.fn();
+      const onPreview = vi.fn();
+      render(
+        <DrawingCanvas
+          {...baseProps}
+          color="#00AEEF"
+          tool="freehand"
+          onToolChange={vi.fn()}
+          onColorPick={onColorPick}
+          onQuickColorPreviewChange={onPreview}
+        />,
+      );
+
+      fireEvent.pointerMove(window, { clientX: 20, clientY: 300, pointerId: 1 });
+      fireEvent.keyDown(window, { code: "KeyC" });
+      expect(screen.getByRole("group", { name: "Quick color palette" })).toHaveStyle({
+        left: "6px",
+      });
+      // 포인터는 옐로우 열 위에 있지만 열을 벗어나기 전에는 블루를 유지한다
+      fireEvent.pointerMove(window, { clientX: 25, clientY: 300, pointerId: 1 });
+      expect(onPreview).toHaveBeenLastCalledWith("#00AEEF");
+      fireEvent.pointerMove(window, { clientX: 82, clientY: 300, pointerId: 1 });
+      expect(onPreview).toHaveBeenLastCalledWith("#FF7A00");
+      fireEvent.pointerMove(window, { clientX: 2, clientY: 300, pointerId: 1 });
+      expect(onPreview).toHaveBeenLastCalledWith("#FFD400");
+      fireEvent.keyUp(window, { code: "KeyC" });
+
+      expect(onColorPick).toHaveBeenCalledWith("#FFD400");
     });
 
     it("cancels the quick palette when drawing mode ends", async () => {

@@ -14,6 +14,11 @@ export function setTextEditing(editing: boolean): Promise<void> {
   return invoke("set_text_editing", { editing });
 }
 
+/** 빠른 색 팔레트와 Rust 전역 Esc의 1차 동작(색 선택 취소)을 동기화한다 (overlay.rs). */
+export function setQuickColorSelecting(selecting: boolean): Promise<void> {
+  return invoke("set_quick_color_selecting", { selecting });
+}
+
 /** 레코딩·온보딩 체험 동안 상시 전역 키 해제 (shortcuts.rs) */
 export function suspendShortcuts(): Promise<void> {
   return invoke("suspend_shortcuts");

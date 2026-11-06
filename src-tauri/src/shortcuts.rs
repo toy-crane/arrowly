@@ -54,6 +54,9 @@ pub fn init() -> TauriPlugin<Wry> {
                     } else {
                         let action = app.state::<SharedState>().lock().unwrap().escape_action();
                         match action {
+                            EscapeAction::CancelQuickColor => {
+                                let _ = app.emit(crate::events::CANCEL_QUICK_COLOR, ());
+                            }
                             EscapeAction::FinishTextEditing => {
                                 let _ = app.emit(crate::events::FINISH_TEXT_EDITING, ());
                             }
