@@ -171,6 +171,7 @@ pub fn set_drawing(app: &AppHandle, drawing: bool) {
         s.drawing = drawing;
         if !drawing {
             s.text_editing = false;
+            s.quick_color_selecting = false;
         }
         s.board
     };
@@ -231,6 +232,20 @@ pub fn set_text_editing(state: tauri::State<'_, SharedState>, editing: bool) -> 
         return Err("error:not_drawing".into());
     }
     s.text_editing = editing;
+    Ok(())
+}
+
+/// 웹뷰 빠른 색 팔레트와 Rust 전역 Esc 상태를 동기화한다.
+#[tauri::command]
+pub fn set_quick_color_selecting(
+    state: tauri::State<'_, SharedState>,
+    selecting: bool,
+) -> Result<(), String> {
+    let mut s = state.lock().unwrap();
+    if selecting && !s.drawing {
+        return Err("error:not_drawing".into());
+    }
+    s.quick_color_selecting = selecting;
     Ok(())
 }
 
@@ -343,12 +358,16 @@ mod tests {
     use tauri::webview::InvokeRequest;
 
     fn request(editing: bool) -> InvokeRequest {
+        ipc_request("set_text_editing", serde_json::json!({ "editing": editing }))
+    }
+
+    fn ipc_request(cmd: &str, body: serde_json::Value) -> InvokeRequest {
         InvokeRequest {
-            cmd: "set_text_editing".into(),
+            cmd: cmd.into(),
             callback: tauri::ipc::CallbackFn(0),
             error: tauri::ipc::CallbackFn(1),
             url: "tauri://localhost".parse().unwrap(),
-            body: tauri::ipc::InvokeBody::Json(serde_json::json!({ "editing": editing })),
+            body: tauri::ipc::InvokeBody::Json(body),
             headers: Default::default(),
             invoke_key: tauri::test::INVOKE_KEY.to_string(),
         }
@@ -371,5 +390,27 @@ mod tests {
         assert!(app.state::<SharedState>().lock().unwrap().text_editing);
         tauri::test::assert_ipc_response(&webview, request(false), Ok(()));
         assert!(!app.state::<SharedState>().lock().unwrap().text_editing);
+    }
+
+    #[test]
+    fn quick_color_ipc_requires_drawing_and_updates_shared_state() {
+        let app = tauri::test::mock_builder()
+            .manage(SharedState::default())
+            .invoke_handler(tauri::generate_handler![set_quick_color_selecting])
+            .build(tauri::test::mock_context(tauri::test::noop_assets()))
+            .unwrap();
+        let webview = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
+            .build()
+            .unwrap();
+        let selecting = |on: bool| {
+            ipc_request("set_quick_color_selecting", serde_json::json!({ "selecting": on }))
+        };
+
+        tauri::test::assert_ipc_response(&webview, selecting(true), Err("error:not_drawing"));
+        app.state::<SharedState>().lock().unwrap().drawing = true;
+        tauri::test::assert_ipc_response(&webview, selecting(true), Ok(()));
+        assert!(app.state::<SharedState>().lock().unwrap().quick_color_selecting);
+        tauri::test::assert_ipc_response(&webview, selecting(false), Ok(()));
+        assert!(!app.state::<SharedState>().lock().unwrap().quick_color_selecting);
     }
 }

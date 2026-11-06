@@ -54,6 +54,9 @@ export function OverlayApp() {
   const [drawingTool, setDrawingTool] = useState<DrawingInspectorTool>("freehand");
   const [editingTextSizeKey, setEditingTextSizeKey] = useState<TextSizeKey | null>(null);
   const [quickColorPaletteOpen, setQuickColorPaletteOpen] = useState(false);
+  // 빠른 색 팔레트에서 문지르는 동안의 미리보기. 확정 전에는 저장하지 않는다.
+  const [quickColorPreview, setQuickColorPreview] = useState<Color | null>(null);
+  const shownColor = quickColorPreview ?? color;
   const [magnifierNotice, setMagnifierNotice] = useState<
     "permission" | "capture" | "restart" | "build" | null
   >(null);
@@ -196,8 +199,11 @@ export function OverlayApp() {
       resetCursor();
       return;
     }
-    applyPenCursor(color, strokeWidthPx(widthKey, Math.min(window.innerWidth, window.innerHeight)));
-  }, [drawing, tool, color, widthKey]);
+    applyPenCursor(
+      shownColor,
+      strokeWidthPx(widthKey, Math.min(window.innerWidth, window.innerHeight)),
+    );
+  }, [drawing, tool, shownColor, widthKey]);
 
   const changeWidthBy = (delta: -1 | 1) => {
     setWidthKey((current) => {
@@ -238,6 +244,7 @@ export function OverlayApp() {
           void saveColor(c);
         }}
         onQuickColorPaletteOpenChange={setQuickColorPaletteOpen}
+        onQuickColorPreviewChange={setQuickColorPreview}
         onPointerPing={(point) => pingLayerRef.current?.pingAt(point)}
         onEditingTextSizeChange={setEditingTextSizeKey}
         onNewTextSizeCommit={(size) => {
@@ -257,7 +264,7 @@ export function OverlayApp() {
       )}
       {drawing && !markerHidden && (
         <Marker
-          color={color}
+          color={shownColor}
           widthKey={widthKey}
           textSizeKey={editingTextSizeKey ?? textSizeKey}
           board={board}

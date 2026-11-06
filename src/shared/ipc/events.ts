@@ -46,3 +46,8 @@ export function onEnterTextMode(handler: () => void): Promise<UnlistenFn> {
 export function onFinishTextEditing(handler: () => void): Promise<UnlistenFn> {
   return listen("finish-text-editing", () => handler());
 }
+
+/** 빠른 색 팔레트가 열린 동안의 첫 전역 Esc — 색 선택만 취소하고 그리기 모드는 유지한다. */
+export function onCancelQuickColor(handler: () => void): Promise<UnlistenFn> {
+  return listen("cancel-quick-color", () => handler());
+}

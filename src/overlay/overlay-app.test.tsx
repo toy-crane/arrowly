@@ -50,6 +50,7 @@ vi.mock("./drawing-canvas", () => ({
       onTextSizeStep,
       onColorPick,
       onQuickColorPaletteOpenChange,
+      onQuickColorPreviewChange,
       onPointerPing,
     }: {
       clearAccel: string;
@@ -61,6 +62,7 @@ vi.mock("./drawing-canvas", () => ({
       onTextSizeStep: (delta: -1 | 1) => void;
       onColorPick: (color: "#FFD400") => void;
       onQuickColorPaletteOpenChange: (open: boolean) => void;
+      onQuickColorPreviewChange: (color: "#FF2D95" | null) => void;
       onPointerPing: (point: { x: number; y: number }) => void;
     }, ref) {
       useImperativeHandle(ref, () => ({
@@ -86,6 +88,8 @@ vi.mock("./drawing-canvas", () => ({
           <button onClick={() => onTextSizeStep(-1)}>text-step</button>
           <button onClick={() => onColorPick("#FFD400")}>color-key</button>
           <button onClick={() => onQuickColorPaletteOpenChange(true)}>quick-palette</button>
+          <button onClick={() => onQuickColorPreviewChange("#FF2D95")}>preview-pink</button>
+          <button onClick={() => onQuickColorPreviewChange(null)}>preview-end</button>
           <button onClick={() => onPointerPing({ x: 80, y: 90 })}>pointer-ping</button>
           {clearAccel}
         </div>
@@ -230,6 +234,24 @@ describe("OverlayApp", () => {
       await emit("mode-changed", { drawing: false, board: false });
     });
     expect(mocks.resetCursor.mock.calls.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("shows the quick color preview on the dot cursor and marker without saving it", async () => {
+    render(<OverlayApp />);
+    await waitFor(() => expect(screen.getByTestId("canvas")).toBeInTheDocument());
+    await act(async () => {
+      await emit("mode-changed", { drawing: true, board: false });
+    });
+    await waitFor(() => expect(mocks.applyPenCursor).toHaveBeenLastCalledWith("#2ED573", 3.2));
+
+    fireEvent.click(screen.getByRole("button", { name: "preview-pink" }));
+    expect(mocks.applyPenCursor).toHaveBeenLastCalledWith("#FF2D95", 3.2);
+    expect(screen.getByTestId("marker")).toHaveTextContent("#FF2D95:thin");
+    expect(mocks.saveColor).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: "preview-end" }));
+    expect(mocks.applyPenCursor).toHaveBeenLastCalledWith("#2ED573", 3.2);
+    expect(screen.getByTestId("marker")).toHaveTextContent("#2ED573:thin");
   });
 
   it("switches to the I-beam cursor in text mode and resets it when drawing ends", async () => {

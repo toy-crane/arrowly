@@ -8,6 +8,7 @@ import {
 } from "react";
 import {
   Color,
+  COLORS,
   stepTextSize,
   strokeWidthPx,
   TextSizeKey,
@@ -28,9 +29,11 @@ import {
   translateMark,
 } from "../shared/drawing";
 import {
+  onCancelQuickColor,
   onClearAll,
   onFinishTextEditing,
   onModeChanged,
+  setQuickColorSelecting,
   setTextEditing,
 } from "../shared/ipc";
 import { matchesAccelerator } from "../shared/shortcuts";
@@ -48,7 +51,11 @@ import {
   RING_DELAY_MS,
   STILL_RADIUS_PX,
 } from "./stroke-correction";
-import { QuickColorPalette } from "./quick-color-palette";
+import {
+  calculateQuickColorPalettePlacement,
+  QuickColorPalette,
+  quickColorColumnAt,
+} from "./quick-color-palette";
 import { TextEditor } from "./text-editor";
 import { type MagnifierRect } from "./magnifier-layout";
 import {
@@ -88,6 +95,8 @@ type Props = {
   onTextSizeStep?: (delta: -1 | 1) => void;
   onColorPick?: (color: Color) => void;
   onQuickColorPaletteOpenChange?: (open: boolean) => void;
+  /** 빠른 색 팔레트가 열린 동안의 미리보기 색. 닫히면 null. */
+  onQuickColorPreviewChange?: (color: Color | null) => void;
   onPointerPing?: (point: Point) => void;
   onEditingTextSizeChange?: (size: TextSizeKey | null) => void;
   onNewTextSizeCommit?: (size: TextSizeKey) => void;
@@ -120,8 +129,22 @@ type TextEditorSession =
 
 type QuickColorPaletteState = {
   anchor: Point;
-  aimedColor: Color | null;
+  /** 팔레트를 연 순간의 잉크 색. 취소하면 이 색을 유지한다. */
+  originalColor: Color;
+  previewColor: Color;
+  paletteLeft: number;
+  /** 마지막으로 포인터가 있던 견본 열. 열이 바뀔 때만 미리보기를 옮긴다. */
+  pointerColumn: number;
+  /** 한 칸에 못 미친 스크롤 누적량. */
+  scrollRemainder: number;
 };
+
+// 휠·두 손가락 스크롤에서 견본 한 칸을 넘기는 누적량(px).
+const QUICK_COLOR_SCROLL_STEP = 40;
+
+function asPaletteColor(color: string): Color {
+  return (COLORS as readonly string[]).includes(color) ? (color as Color) : COLORS[0];
+}
 
 /** 편집 요소가 포커스면 오버레이 단축키는 전부 타이핑으로 흡수된다 (우선순위 확정). */
 function isEditableTarget(e: KeyboardEvent): boolean {
@@ -146,6 +169,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
     onTextSizeStep,
     onColorPick,
     onQuickColorPaletteOpenChange,
+    onQuickColorPreviewChange,
     onPointerPing,
     onEditingTextSizeChange,
     onNewTextSizeCommit,
@@ -174,6 +198,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
   onColorPickRef.current = onColorPick;
   const onQuickColorPaletteOpenChangeRef = useRef(onQuickColorPaletteOpenChange);
   onQuickColorPaletteOpenChangeRef.current = onQuickColorPaletteOpenChange;
+  const onQuickColorPreviewChangeRef = useRef(onQuickColorPreviewChange);
+  onQuickColorPreviewChangeRef.current = onQuickColorPreviewChange;
   const onPointerPingRef = useRef(onPointerPing);
   onPointerPingRef.current = onPointerPing;
   const onEditingTextSizeChangeRef = useRef(onEditingTextSizeChange);
@@ -198,11 +224,70 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
   const lastPointerRef = useRef<Point>({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
 
   const updateQuickColorPalette = (next: QuickColorPaletteState | null) => {
-    const wasOpen = quickColorPaletteRef.current !== null;
+    const previous = quickColorPaletteRef.current;
+    const wasOpen = previous !== null;
     const isOpen = next !== null;
     quickColorPaletteRef.current = next;
     setQuickColorPalette(next);
-    if (wasOpen !== isOpen) onQuickColorPaletteOpenChangeRef.current?.(isOpen);
+    if (wasOpen !== isOpen) {
+      onQuickColorPaletteOpenChangeRef.current?.(isOpen);
+      // 통과 모드 전환과 경합하면 Rust가 거부한다. 그 경우 Esc는 그리기 종료로 남는다.
+      void setQuickColorSelecting(isOpen).catch(() => undefined);
+    }
+    const previousPreview = previous?.previewColor ?? null;
+    const nextPreview = next?.previewColor ?? null;
+    if (previousPreview !== nextPreview) onQuickColorPreviewChangeRef.current?.(nextPreview);
+  };
+
+  const openQuickColorPalette = (anchor: Point) => {
+    const originalColor = asPaletteColor(toolRef.current.color);
+    const { left } = calculateQuickColorPalettePlacement(
+      anchor,
+      window.innerWidth,
+      window.innerHeight,
+      COLORS.indexOf(originalColor),
+    );
+    updateQuickColorPalette({
+      anchor,
+      originalColor,
+      previewColor: originalColor,
+      paletteLeft: left,
+      pointerColumn: quickColorColumnAt(anchor.x, left),
+      scrollRemainder: 0,
+    });
+  };
+
+  /** 아래·오른쪽 스크롤은 블루 방향으로 한 칸씩 옮기고, 끝 색에서 멈춘다. */
+  const scrollQuickColor = (delta: number) => {
+    const current = quickColorPaletteRef.current;
+    if (!current) return;
+    let remainder = current.scrollRemainder + delta;
+    let index = COLORS.indexOf(current.previewColor);
+    while (Math.abs(remainder) >= QUICK_COLOR_SCROLL_STEP) {
+      const direction = Math.sign(remainder);
+      index = Math.min(Math.max(index + direction, 0), COLORS.length - 1);
+      remainder -= direction * QUICK_COLOR_SCROLL_STEP;
+    }
+    updateQuickColorPalette({
+      ...current,
+      previewColor: COLORS[index],
+      scrollRemainder: remainder,
+    });
+  };
+
+  /** 포인터가 다른 견본 열로 넘어가면 그 열의 색을 미리본다. 세로 이동은 무시한다. */
+  const scrubQuickColor = (point: Point) => {
+    const current = quickColorPaletteRef.current;
+    if (!current) return;
+    const column = quickColorColumnAt(point.x, current.paletteLeft);
+    if (column === current.pointerColumn) return;
+    updateQuickColorPalette({ ...current, pointerColumn: column, previewColor: COLORS[column] });
+  };
+
+  const commitQuickColor = (selected: Color) => {
+    const current = quickColorPaletteRef.current;
+    updateQuickColorPalette(null);
+    if (current && selected !== current.originalColor) onColorPickRef.current?.(selected);
   };
 
   const renderBaseRef = useRef<() => void>(() => undefined);
@@ -1072,7 +1157,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
           return;
         }
         e.preventDefault();
-        updateQuickColorPalette({ anchor: lastPointerRef.current, aimedColor: null });
+        openQuickColorPalette(lastPointerRef.current);
         return;
       }
       const sizeDelta =
@@ -1132,7 +1217,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
     const onKeyUp = (e: KeyboardEvent) => {
       if (e.code === "KeyC" && quickColorPaletteRef.current) {
         e.preventDefault();
-        updateQuickColorPalette(null);
+        commitQuickColor(quickColorPaletteRef.current.previewColor);
         return;
       }
       if (e.key === "Meta" || e.key === "Alt") {
@@ -1149,6 +1234,19 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
         renderLive();
         return;
       }
+    };
+
+    // 팔레트 위를 지나는 포인터도 놓치지 않도록 창 단위로 추적한다.
+    const onWindowPointerMove = (e: PointerEvent) => {
+      const point = toPoint(e);
+      lastPointerRef.current = point;
+      scrubQuickColor(point);
+    };
+
+    const onWindowWheel = (e: WheelEvent) => {
+      if (!quickColorPaletteRef.current) return;
+      e.preventDefault();
+      scrollQuickColor(Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY);
     };
 
     const resetLostInteractionState = () => {
@@ -1169,6 +1267,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
     window.addEventListener("resize", setupBacking);
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("keyup", onKeyUp);
+    window.addEventListener("pointermove", onWindowPointerMove);
+    window.addEventListener("wheel", onWindowWheel, { passive: false });
     window.addEventListener("blur", resetLostInteractionState);
     document.addEventListener("visibilitychange", onVisibilityChange);
     live.addEventListener("pointerdown", onPointerDown);
@@ -1190,11 +1290,14 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
     });
     const unlistenClear = onClearAll(clearAll);
     const unlistenFinishText = onFinishTextEditing(() => finishSession(true));
+    const unlistenCancelQuickColor = onCancelQuickColor(() => updateQuickColorPalette(null));
 
     return () => {
       window.removeEventListener("resize", setupBacking);
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
+      window.removeEventListener("pointermove", onWindowPointerMove);
+      window.removeEventListener("wheel", onWindowWheel);
       window.removeEventListener("blur", resetLostInteractionState);
       document.removeEventListener("visibilitychange", onVisibilityChange);
       live.removeEventListener("pointerdown", onPointerDown);
@@ -1204,6 +1307,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       unlistenMode.then((f) => f());
       unlistenClear.then((f) => f());
       unlistenFinishText.then((f) => f());
+      unlistenCancelQuickColor.then((f) => f());
       if (rafId) cancelAnimationFrame(rafId);
       clearRevealTimer();
       stopHold();
@@ -1245,16 +1349,9 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       {quickColorPalette && (
         <QuickColorPalette
           anchor={quickColorPalette.anchor}
-          color={color}
-          aimedColor={quickColorPalette.aimedColor}
-          onAimChange={(aimedColor) => {
-            const current = quickColorPaletteRef.current;
-            if (current) updateQuickColorPalette({ ...current, aimedColor });
-          }}
-          onSelect={(selected) => {
-            updateQuickColorPalette(null);
-            onColorPickRef.current?.(selected);
-          }}
+          color={quickColorPalette.originalColor}
+          previewColor={quickColorPalette.previewColor}
+          onSelect={commitQuickColor}
         />
       )}
     </>

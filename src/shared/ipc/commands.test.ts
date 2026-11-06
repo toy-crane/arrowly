@@ -7,6 +7,7 @@ import {
   requestMagnifierAccess,
   restartArrowly,
   resumeShortcuts,
+  setQuickColorSelecting,
   setTextEditing,
   suspendShortcuts,
   toggleBoard,
@@ -25,11 +26,13 @@ describe("ipc commands", () => {
   it("maps wrappers to Rust command names", async () => {
     await toggleBoard();
     await setTextEditing(true);
+    await setQuickColorSelecting(true);
     await suspendShortcuts();
     await resumeShortcuts();
     expect(calls).toEqual([
       { cmd: "toggle_board", args: {} },
       { cmd: "set_text_editing", args: { editing: true } },
+      { cmd: "set_quick_color_selecting", args: { selecting: true } },
       { cmd: "suspend_shortcuts", args: {} },
       { cmd: "resume_shortcuts", args: {} },
     ]);

@@ -15,12 +15,11 @@ const COLOR_NAME_KEYS: Record<Color, Key> = {
 type Props = {
   color: string;
   aimedColor?: Color | null;
-  onAimChange?: (color: Color) => void;
   onSelect?: (color: Color) => void;
 };
 
 /** 마커 속성창과 빠른 색 팔레트가 공유하는 단일 색 선택 행. */
-export function ColorSwatchStrip({ color, aimedColor, onAimChange, onSelect }: Props) {
+export function ColorSwatchStrip({ color, aimedColor, onSelect }: Props) {
   return (
     <div style={strip}>
       {COLORS.map((swatch) => {
@@ -31,6 +30,7 @@ export function ColorSwatchStrip({ color, aimedColor, onAimChange, onSelect }: P
             type="button"
             aria-label={label}
             aria-pressed={swatch === color}
+            data-aimed={swatch === aimedColor ? "true" : undefined}
             title={label}
             style={{
               ...choice,
@@ -38,7 +38,6 @@ export function ColorSwatchStrip({ color, aimedColor, onAimChange, onSelect }: P
               ...(swatch === color ? activeCell : undefined),
               ...(swatch === aimedColor ? aimedCell : undefined),
             }}
-            onPointerEnter={() => onAimChange?.(swatch)}
             onClick={onSelect ? () => onSelect(swatch) : undefined}
           >
             <span
