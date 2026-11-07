@@ -1095,6 +1095,47 @@ describe("DrawingCanvas", () => {
       expect(baseCtx.moveTo).toHaveBeenLastCalledWith(70, 60);
     });
 
+    it("duplicates a pen mark with Command-Option drag, keeps the original and undoes only the copy", () => {
+      const { container } = render(<Harness />);
+      const [baseCtx, liveCtx] = contexts;
+      const live = container.querySelectorAll("canvas")[1];
+
+      fireEvent.pointerDown(live, { button: 0, clientX: 20, clientY: 30, pointerId: 1 });
+      fireEvent.pointerMove(live, { clientX: 80, clientY: 70, pointerId: 1 });
+      fireEvent.pointerUp(live, { clientX: 80, clientY: 70, pointerId: 1 });
+
+      fireEvent.keyDown(window, { key: "Meta", code: "MetaLeft", metaKey: true });
+      fireEvent.keyDown(window, { key: "Alt", code: "AltLeft", metaKey: true, altKey: true });
+      expect(live.style.cursor).toBe("copy");
+
+      const keys = { metaKey: true, altKey: true };
+      fireEvent.pointerDown(live, { button: 0, clientX: 20, clientY: 30, pointerId: 2, ...keys });
+      vi.mocked(baseCtx.moveTo).mockClear();
+      vi.mocked(liveCtx.moveTo).mockClear();
+      fireEvent.pointerMove(live, { clientX: 60, clientY: 50, pointerId: 2, ...keys });
+      expect(liveCtx.moveTo).toHaveBeenLastCalledWith(60, 50);
+      expect(live.style.cursor).toBe("copy");
+      expect(baseCtx.moveTo).not.toHaveBeenCalled(); // 원본은 제자리에 그대로 있다
+
+      fireEvent.pointerUp(live, { clientX: 70, clientY: 60, pointerId: 2, ...keys });
+      expect(vi.mocked(baseCtx.moveTo).mock.calls).toEqual([
+        [20, 30],
+        [70, 60],
+      ]);
+      fireEvent.keyUp(window, { key: "Alt", code: "AltLeft", metaKey: true, altKey: false });
+      fireEvent.keyUp(window, { key: "Meta", code: "MetaLeft", metaKey: false });
+
+      vi.mocked(baseCtx.moveTo).mockClear();
+      fireEvent.keyDown(window, { key: "z", code: "KeyZ", metaKey: true });
+      expect(vi.mocked(baseCtx.moveTo).mock.calls).toEqual([[20, 30]]);
+      vi.mocked(baseCtx.moveTo).mockClear();
+      fireEvent.keyDown(window, { key: "z", code: "KeyZ", metaKey: true, shiftKey: true });
+      expect(vi.mocked(baseCtx.moveTo).mock.calls).toEqual([
+        [20, 30],
+        [70, 60],
+      ]);
+    });
+
     it("moves a geometric mark through the same Command-drag path", () => {
       const { container } = render(
         <DrawingCanvas {...baseProps} tool="rect" onToolChange={vi.fn()} />,
