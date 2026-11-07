@@ -24,14 +24,16 @@ vi.mock("./mini-canvas", () => ({
     correctionStep,
     onFirstStroke,
     onMoved,
+    onDuplicated,
     onDeleted,
     onRestored,
     onCleared,
   }: {
     phase: "draw" | "correct" | "finish";
-    correctionStep: "move" | "delete" | "undo" | "complete";
+    correctionStep: "move" | "duplicate" | "delete" | "undo" | "complete";
     onFirstStroke: () => void;
     onMoved: () => void;
+    onDuplicated: () => void;
     onDeleted: () => void;
     onRestored: () => void;
     onCleared: () => void;
@@ -39,6 +41,9 @@ vi.mock("./mini-canvas", () => ({
     <div>
       {phase === "draw" && <button onClick={onFirstStroke}>draw canvas</button>}
       {phase === "correct" && correctionStep === "move" && <button onClick={onMoved}>move mark</button>}
+      {phase === "correct" && correctionStep === "duplicate" && (
+        <button onClick={onDuplicated}>duplicate mark</button>
+      )}
       {phase === "correct" && correctionStep === "delete" && (
         <button onClick={onDeleted}>delete mark</button>
       )}
@@ -82,11 +87,25 @@ describe("OnboardingApp", () => {
     expect(firstNext).toBeEnabled();
     await user.click(firstNext);
 
-    expect(screen.getByRole("heading", { name: "Fix the mark you just drew" })).toBeInTheDocument();
-    expect(screen.getByText("Move a mark")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Work with the mark you just drew" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Move the mark, duplicate it, delete one, then bring it back."),
+    ).toBeInTheDocument();
+    const taskLabels = ["Move a mark", "Duplicate a mark", "Delete one mark", "Undo"];
+    const tasks = taskLabels.map((label) => screen.getByText(label));
+    for (let index = 1; index < tasks.length; index += 1) {
+      expect(
+        tasks[index - 1].compareDocumentPosition(tasks[index]) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+    }
+    expect(tasks[1].textContent).toBe("⌘⌥ dragDuplicate a mark");
     const correctionNext = screen.getByRole("button", { name: "Next" });
     expect(correctionNext).toBeDisabled();
     await user.click(screen.getByRole("button", { name: "move mark" }));
+    await user.click(screen.getByRole("button", { name: "duplicate mark" }));
+    expect(correctionNext).toBeDisabled();
     await user.click(screen.getByRole("button", { name: "delete mark" }));
     await user.click(screen.getByRole("button", { name: "restore mark" }));
     expect(correctionNext).toBeEnabled();

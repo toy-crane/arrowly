@@ -11,7 +11,7 @@ import {
 import { matchesAccelerator } from "../shared/shortcuts";
 
 export type OnboardingPhase = "draw" | "correct" | "finish";
-export type CorrectionStep = "move" | "delete" | "undo" | "complete";
+export type CorrectionStep = "move" | "duplicate" | "delete" | "undo" | "complete";
 
 type Props = {
   phase: OnboardingPhase;
@@ -20,6 +20,7 @@ type Props = {
   emptyLabel?: string;
   onFirstStroke: () => void;
   onMoved: () => void;
+  onDuplicated: () => void;
   onDeleted: () => void;
   onRestored: () => void;
   onCleared: () => void;
@@ -33,13 +34,20 @@ type MoveGesture = {
   to: Point;
 };
 
+type DuplicateGesture = {
+  kind: "duplicate";
+  index: number;
+  mark: Mark;
+  from: Point;
+};
+
 type DeleteGesture = {
   kind: "delete";
   index: number;
   from: Point;
 };
 
-type Gesture = MoveGesture | DeleteGesture;
+type Gesture = MoveGesture | DuplicateGesture | DeleteGesture;
 
 const MOVE_THRESHOLD_PX = 4;
 
@@ -51,6 +59,7 @@ export function MiniCanvas({
   emptyLabel,
   onFirstStroke,
   onMoved,
+  onDuplicated,
   onDeleted,
   onRestored,
   onCleared,
@@ -63,13 +72,27 @@ export function MiniCanvas({
   const phaseRef = useRef(phase);
   const correctionStepRef = useRef(correctionStep);
   const clearAccelRef = useRef(clearAccel);
-  const callbacksRef = useRef({ onFirstStroke, onMoved, onDeleted, onRestored, onCleared });
+  const callbacksRef = useRef({
+    onFirstStroke,
+    onMoved,
+    onDuplicated,
+    onDeleted,
+    onRestored,
+    onCleared,
+  });
   const [empty, setEmpty] = useState(false);
 
   phaseRef.current = phase;
   correctionStepRef.current = correctionStep;
   clearAccelRef.current = clearAccel;
-  callbacksRef.current = { onFirstStroke, onMoved, onDeleted, onRestored, onCleared };
+  callbacksRef.current = {
+    onFirstStroke,
+    onMoved,
+    onDuplicated,
+    onDeleted,
+    onRestored,
+    onCleared,
+  };
 
   useEffect(() => {
     const wrap = wrapRef.current!;
@@ -79,12 +102,14 @@ export function MiniCanvas({
     const dims = { w: 0, h: 0 };
     let gesture: Gesture | null = null;
     let preview: { index: number; mark: Mark } | null = null;
+    let copyPreview: Mark | null = null;
 
     const render = () => {
       ctx.clearRect(0, 0, dims.w, dims.h);
       store.marks.forEach((mark, index) => {
         drawMark(ctx, preview?.index === index ? preview.mark : mark);
       });
+      if (copyPreview) drawMark(ctx, copyPreview);
       if (store.live) drawMark(ctx, store.live);
     };
 
@@ -131,6 +156,9 @@ export function MiniCanvas({
       if (correctionStepRef.current === "move" && event.metaKey && !event.altKey) {
         gesture = { kind: "move", index: hit.index, mark: hit.mark, from: point, to: point };
         capture(event);
+      } else if (correctionStepRef.current === "duplicate" && event.metaKey && event.altKey) {
+        gesture = { kind: "duplicate", index: hit.index, mark: hit.mark, from: point };
+        capture(event);
       } else if (correctionStepRef.current === "delete" && event.altKey && !event.metaKey) {
         gesture = { kind: "delete", index: hit.index, from: point };
         capture(event);
@@ -141,6 +169,12 @@ export function MiniCanvas({
       if (store.live) {
         const coalesced = event.getCoalescedEvents?.() ?? [event];
         store.extendLive(coalesced.map(toPoint));
+        render();
+        return;
+      }
+      if (gesture?.kind === "duplicate") {
+        const to = toPoint(event);
+        copyPreview = translateMark(gesture.mark, to.x - gesture.from.x, to.y - gesture.from.y);
         render();
         return;
       }
@@ -179,6 +213,14 @@ export function MiniCanvas({
         if (moved && store.replace(gesture.index, translateMark(gesture.mark, dx, dy))) {
           callbacksRef.current.onMoved();
         }
+      } else if (gesture.kind === "duplicate") {
+        const dx = point.x - gesture.from.x;
+        const dy = point.y - gesture.from.y;
+        copyPreview = null;
+        if (Math.hypot(dx, dy) >= MOVE_THRESHOLD_PX) {
+          store.push(translateMark(gesture.mark, dx, dy));
+          callbacksRef.current.onDuplicated();
+        }
       } else if (
         Math.hypot(point.x - gesture.from.x, point.y - gesture.from.y) < MOVE_THRESHOLD_PX &&
         store.remove(gesture.index)
@@ -193,6 +235,7 @@ export function MiniCanvas({
       store.cancelLive();
       gesture = null;
       preview = null;
+      copyPreview = null;
       render();
     };
 
@@ -243,7 +286,14 @@ export function MiniCanvas({
     };
   }, []);
 
-  const cursor = phase === "draw" ? "crosshair" : correctionStep === "move" ? "move" : "default";
+  const cursor =
+    phase === "draw"
+      ? "crosshair"
+      : correctionStep === "move"
+        ? "move"
+        : correctionStep === "duplicate"
+          ? "copy"
+          : "default";
 
   return (
     <div

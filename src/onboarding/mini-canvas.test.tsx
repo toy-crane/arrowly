@@ -23,15 +23,18 @@ describe("MiniCanvas", () => {
     });
   });
 
-  it("keeps one mark while the learner moves, deletes and restores it in order", () => {
+  it("lets the learner move, duplicate, delete one and restore a mark in order", () => {
+    const contexts = installCanvasMock();
     const onFirstStroke = vi.fn();
     const onMoved = vi.fn();
+    const onDuplicated = vi.fn();
     const onDeleted = vi.fn();
     const onRestored = vi.fn();
     const props = {
       clearAccel: "Control+KeyK",
       onFirstStroke,
       onMoved,
+      onDuplicated,
       onDeleted,
       onRestored,
       onCleared: vi.fn(),
@@ -73,15 +76,37 @@ describe("MiniCanvas", () => {
     fireEvent.pointerUp(canvas, { clientX: 50, clientY: 60, pointerId: 3, metaKey: true });
     expect(onMoved).toHaveBeenCalledOnce();
 
+    rerender(<MiniCanvas {...props} phase="correct" correctionStep="duplicate" />);
+    expect(canvas.style.cursor).toBe("copy");
+    const both = { metaKey: true, altKey: true };
+    fireEvent.pointerDown(canvas, { button: 0, clientX: 50, clientY: 60, pointerId: 5, metaKey: true });
+    fireEvent.pointerMove(canvas, { clientX: 80, clientY: 90, pointerId: 5, metaKey: true });
+    fireEvent.pointerUp(canvas, { clientX: 80, clientY: 90, pointerId: 5, metaKey: true });
+    fireEvent.pointerDown(canvas, { button: 0, clientX: 50, clientY: 60, pointerId: 6, ...both });
+    fireEvent.pointerUp(canvas, { clientX: 51, clientY: 60, pointerId: 6, ...both });
+    expect(onDuplicated).not.toHaveBeenCalled();
+
+    fireEvent.pointerDown(canvas, { button: 0, clientX: 50, clientY: 60, pointerId: 7, ...both });
+    const moveTo = vi.mocked(contexts[0].moveTo);
+    moveTo.mockClear();
+    fireEvent.pointerMove(canvas, { clientX: 80, clientY: 90, pointerId: 7, ...both });
+    fireEvent.pointerUp(canvas, { clientX: 80, clientY: 90, pointerId: 7, ...both });
+    expect(onDuplicated).toHaveBeenCalledOnce();
+    const lastRender = moveTo.mock.calls.slice(-2);
+    expect(lastRender).toEqual([
+      [30, 30], // 원본은 제자리
+      [60, 60], // 복제본
+    ]);
+
     rerender(<MiniCanvas {...props} phase="correct" correctionStep="delete" />);
     fireEvent.pointerDown(canvas, {
       button: 0,
-      clientX: 50,
-      clientY: 60,
+      clientX: 80,
+      clientY: 90,
       pointerId: 4,
       altKey: true,
     });
-    fireEvent.pointerUp(canvas, { clientX: 50, clientY: 60, pointerId: 4, altKey: true });
+    fireEvent.pointerUp(canvas, { clientX: 80, clientY: 90, pointerId: 4, altKey: true });
     expect(onDeleted).toHaveBeenCalledOnce();
 
     rerender(<MiniCanvas {...props} phase="correct" correctionStep="undo" />);
@@ -97,6 +122,7 @@ describe("MiniCanvas", () => {
       clearAccel: "Control+KeyK",
       onFirstStroke: vi.fn(),
       onMoved: vi.fn(),
+      onDuplicated: vi.fn(),
       onDeleted: vi.fn(),
       onRestored: vi.fn(),
       onCleared,

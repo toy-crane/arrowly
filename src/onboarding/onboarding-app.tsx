@@ -69,12 +69,18 @@ export function OnboardingApp() {
             />
             <Task
               index={2}
+              state={taskState(correctionStep, "duplicate")}
+              keys={<><Kbd>⌘</Kbd><Kbd>⌥</Kbd> {t("onboarding.correct.drag")}</>}
+              label={t("onboarding.correct.duplicate")}
+            />
+            <Task
+              index={3}
               state={taskState(correctionStep, "delete")}
               keys={<><Kbd>⌥</Kbd> {t("onboarding.correct.click")}</>}
               label={t("onboarding.correct.delete")}
             />
             <Task
-              index={3}
+              index={4}
               state={taskState(correctionStep, "undo")}
               keys={<><Kbd>⌘</Kbd><Kbd>Z</Kbd></>}
               label={t("onboarding.correct.undo")}
@@ -111,7 +117,8 @@ export function OnboardingApp() {
         clearAccel={clearAccel}
         emptyLabel={cleared ? t("onboarding.finish.cleared") : undefined}
         onFirstStroke={() => setDrew(true)}
-        onMoved={() => setCorrectionStep("delete")}
+        onMoved={() => setCorrectionStep("duplicate")}
+        onDuplicated={() => setCorrectionStep("delete")}
         onDeleted={() => setCorrectionStep("undo")}
         onRestored={() => setCorrectionStep("complete")}
         onCleared={() => setCleared(true)}
@@ -150,7 +157,7 @@ export function OnboardingApp() {
 }
 
 function taskState(current: CorrectionStep, task: Exclude<CorrectionStep, "complete">): TaskState {
-  const order: CorrectionStep[] = ["move", "delete", "undo", "complete"];
+  const order: CorrectionStep[] = ["move", "duplicate", "delete", "undo", "complete"];
   const currentIndex = order.indexOf(current);
   const taskIndex = order.indexOf(task);
   return taskIndex < currentIndex ? "done" : taskIndex === currentIndex ? "active" : "pending";
@@ -241,7 +248,7 @@ const sub: CSSProperties = { margin: "0 0 12px", fontSize: 13.5, color: "var(--m
 
 const taskStrip: CSSProperties = {
   display: "grid",
-  gridTemplateColumns: "repeat(3, 1fr)",
+  gridTemplateColumns: "repeat(4, 1fr)",
   gap: 7,
   marginBottom: 10,
 };
@@ -280,7 +287,13 @@ const taskIndexDone: CSSProperties = {
   color: "#1c1e24",
 };
 const taskCopy: CSSProperties = { display: "block" };
-const taskKeys: CSSProperties = { display: "block", color: "inherit", fontSize: 11, fontWeight: 650 };
+const taskKeys: CSSProperties = {
+  display: "block",
+  color: "inherit",
+  fontSize: 11,
+  fontWeight: 650,
+  whiteSpace: "nowrap",
+};
 
 const exitActions: CSSProperties = {
   display: "grid",
