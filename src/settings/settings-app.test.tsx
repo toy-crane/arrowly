@@ -42,4 +42,18 @@ describe("SettingsApp", () => {
       expect(colorRow.innerHTML).not.toContain(hex);
     }
   });
+
+  it("lists mark duplication as Command-Option drag right below moving a mark", () => {
+    render(<SettingsApp />);
+    const fixedSection = screen
+      .getByRole("heading", { name: "Fixed controls" })
+      .closest("section")!;
+    const labels = Array.from(fixedSection.querySelectorAll("div > span:first-child")).map(
+      (label) => label.textContent,
+    );
+    expect(labels.indexOf("Duplicate a mark")).toBe(labels.indexOf("Move a mark") + 1);
+
+    const duplicateRow = within(fixedSection).getByText("Duplicate a mark").closest("div")!;
+    expect(duplicateRow.textContent).toBe("Duplicate a mark⌘⌥drag");
+  });
 });

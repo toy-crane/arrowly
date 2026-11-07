@@ -5,6 +5,7 @@ import { ShortcutEditor } from "../shared/shortcuts";
 // 재설정 불가 — OS 표준·예약 키와 제스처라 참고용으로만 보여준다.
 const FIXED_ROWS: { label: string; keys: string[]; gesture?: string }[] = [
   { label: t("settings.moveMark"), keys: ["⌘"], gesture: t("settings.drag") },
+  { label: t("settings.duplicateMark"), keys: ["⌘", "⌥"], gesture: t("settings.drag") },
   { label: t("settings.deleteOne"), keys: ["⌥"], gesture: t("settings.click") },
   { label: t("settings.undo"), keys: ["⌘", "Z"] },
   { label: t("settings.redo"), keys: ["⇧", "⌘", "Z"] },
