@@ -43,6 +43,7 @@ import {
   type MarkAction,
   type MarkInteractionEvent,
   type MarkInteractionState,
+  type ModifierKeys,
   transitionMarkInteraction,
 } from "./mark-interaction";
 import {
@@ -66,12 +67,15 @@ import {
 } from "./tools";
 
 const ACTION_FOCUS_SCRIM = "rgba(7, 10, 18, 0.38)";
+const MOVE_FOCUS_COLORS = {
+  path: "rgba(255, 255, 255, 0.68)",
+  strong: "rgba(255, 255, 255, 0.94)",
+  frame: "rgba(255, 255, 255, 0.78)",
+};
+// 복제 후보는 이동 후보와 같은 표시를 쓴다.
 const ACTION_FOCUS_COLORS: Record<MarkAction, { path: string; strong: string; frame: string }> = {
-  move: {
-    path: "rgba(255, 255, 255, 0.68)",
-    strong: "rgba(255, 255, 255, 0.94)",
-    frame: "rgba(255, 255, 255, 0.78)",
-  },
+  move: MOVE_FOCUS_COLORS,
+  duplicate: MOVE_FOCUS_COLORS,
   delete: {
     path: "rgba(255, 92, 92, 0.72)",
     strong: "rgba(255, 76, 76, 0.96)",
@@ -82,6 +86,14 @@ const ACTION_FOCUS_COLORS: Record<MarkAction, { path: string; strong: string; fr
 function isModifierKey(key: string): boolean {
   return key === "Meta" || key === "Shift" || key === "Alt" || key === "Control";
 }
+
+const modifierKeysOf = (e: KeyboardEvent | PointerEvent): ModifierKeys => ({
+  meta: e.metaKey,
+  alt: e.altKey,
+});
+
+const gestureCursor = (action: MarkAction) =>
+  action === "move" ? "grabbing" : action === "duplicate" ? "copy" : "pointer";
 
 type Props = {
   color: string;
@@ -583,12 +595,13 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
           liveCtx.fillRect(0, 0, window.innerWidth, window.innerHeight);
           liveCtx.restore();
           store.marks.forEach((mark, index) => {
-            if (index !== targetIndex) {
+            // 복제 중에는 원본도 제자리에 남은 후보로 보인다.
+            if (index !== targetIndex || action === "duplicate") {
               drawActionCandidate(liveCtx, mark, action, index === hoveredMarkIndex);
             }
           });
         }
-        drawActionCandidate(liveCtx, movingMark, "move", true);
+        drawActionCandidate(liveCtx, movingMark, action ?? "move", true);
         return;
       }
       if (geometricPreview) {
@@ -696,8 +709,38 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
           : -1;
       const action = interactionAction();
       live.style.cursor =
-        hoveredMarkIndex < 0 ? "default" : action === "move" ? "grab" : "pointer";
+        action === "duplicate"
+          ? "copy"
+          : hoveredMarkIndex < 0
+            ? "default"
+            : action === "move"
+              ? "grab"
+              : "pointer";
       return hoveredMarkIndex !== previous;
+    };
+
+    /** 끄는 동안 이동은 원본을 옮겨 보이고, 복제는 원본을 남긴 채 사본을 따라오게 한다. */
+    const syncDragPreview = () => {
+      if (
+        interaction.phase !== "gesture" ||
+        interaction.action === "delete" ||
+        interaction.targetIndex === null ||
+        !interaction.moving ||
+        !movingOriginal
+      ) {
+        return;
+      }
+      const hiddenIndex = interaction.action === "move" ? interaction.targetIndex : -1;
+      if (hiddenIndex !== movingMarkIndex) {
+        movingMarkIndex = hiddenIndex;
+        renderBase();
+      }
+      movingMark = translateMark(
+        movingOriginal,
+        interaction.current.x - interaction.origin.x,
+        interaction.current.y - interaction.origin.y,
+      );
+      scheduleLive();
     };
 
     const updateGeometricPreview = (point: Point) => {
@@ -831,10 +874,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       }
       const p = toPoint(e);
       if ((e.metaKey || e.altKey) && interaction.phase === "idle") {
-        applyInteractionEvent({
-          type: "modifier-down",
-          action: e.metaKey ? "move" : "delete",
-        });
+        applyInteractionEvent({ type: "modifiers", keys: modifierKeysOf(e) });
       }
       if (interaction.phase === "discovery") {
         e.preventDefault();
@@ -850,12 +890,13 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
         activePointerId = e.pointerId;
         live.setPointerCapture(e.pointerId);
         hoveredMarkIndex = hit?.index ?? -1;
-        if (hit) {
-          if (interactionAction() === "move") {
+        const action = interactionAction();
+        if (hit && action) {
+          if (action !== "delete") {
             movingOriginal = hit.mark;
             movingMark = hit.mark;
           }
-          live.style.cursor = interactionAction() === "move" ? "grabbing" : "pointer";
+          live.style.cursor = gestureCursor(action);
         }
         renderLive();
         return;
@@ -926,25 +967,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       if (interaction.phase === "gesture") {
         const point = toPoint(e);
         applyInteractionEvent({ type: "pointer-move", pointerId: e.pointerId, point });
-        if (
-          interaction.phase === "gesture" &&
-          interaction.action === "move" &&
-          interaction.targetIndex !== null &&
-          movingOriginal
-        ) {
-          if (interaction.moving && movingMarkIndex < 0) {
-            movingMarkIndex = interaction.targetIndex;
-            renderBase();
-          }
-          if (interaction.moving) {
-            movingMark = translateMark(
-              movingOriginal,
-              point.x - interaction.origin.x,
-              point.y - interaction.origin.y,
-            );
-          }
-          scheduleLive();
-        }
+        syncDragPreview();
         return;
       }
       if (geometricGesture) {
@@ -1004,6 +1027,9 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
             result.outcome.index,
             translateMark(original, result.outcome.dx, result.outcome.dy),
           );
+          renderBase();
+        } else if (result.outcome?.kind === "duplicate" && original) {
+          store.push(translateMark(original, result.outcome.dx, result.outcome.dy));
           renderBase();
         } else if (result.outcome?.kind === "delete") {
           store.remove(result.outcome.index);
@@ -1118,20 +1144,31 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
       renderLive();
     };
 
+    /** 수식키 조합이 바뀌면 탐색·제스처 상태와 커서·미리보기를 함께 맞춘다. */
+    const applyModifierKeys = (keys: ModifierKeys) => {
+      const before = interaction;
+      applyInteractionEvent({ type: "modifiers", keys });
+      if (interaction === before) return;
+      if (interaction.phase === "gesture") {
+        live.style.cursor = gestureCursor(interaction.action);
+        syncDragPreview();
+      } else {
+        refreshInteractionHover();
+      }
+      scheduleReveal();
+      renderLive();
+    };
+
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Meta" || e.key === "Alt") {
         if (
           isEditableTarget(e) ||
           editingRef.current ||
-          activePointerId !== null
+          (activePointerId !== null && interaction.phase !== "gesture")
         ) {
           return;
         }
-        applyInteractionEvent({
-          type: "modifier-down",
-          action: e.key === "Meta" ? "move" : "delete",
-        });
-        scheduleReveal();
+        applyModifierKeys(modifierKeysOf(e));
         return;
       }
       if (!isModifierKey(e.key)) {
@@ -1221,17 +1258,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
         return;
       }
       if (e.key === "Meta" || e.key === "Alt") {
-        clearRevealTimer();
-        applyInteractionEvent({
-          type: "modifier-up",
-          action: e.key === "Meta" ? "move" : "delete",
-        });
-        if (interaction.phase === "gesture") {
-          live.style.cursor = interaction.action === "move" ? "grabbing" : "pointer";
-        } else {
-          refreshInteractionHover();
-        }
-        renderLive();
+        applyModifierKeys(modifierKeysOf(e));
         return;
       }
     };

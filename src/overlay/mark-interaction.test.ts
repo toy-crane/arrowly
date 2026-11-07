@@ -10,8 +10,8 @@ describe("mark interaction policy", () => {
     expect(DISCOVERY_REVEAL_DELAY_MS).toBe(200);
 
     const pending = transitionMarkInteraction(initialMarkInteraction, {
-      type: "modifier-down",
-      action: "move",
+      type: "modifiers",
+      keys: { meta: true, alt: false },
     }).state;
     expect(pending).toMatchObject({ phase: "discovery", action: "move", visible: false });
 
@@ -22,14 +22,14 @@ describe("mark interaction policy", () => {
     expect(suppressed).toMatchObject({ phase: "suppressed", action: "move" });
     expect(transitionMarkInteraction(suppressed, { type: "reveal" }).state).toBe(suppressed);
     expect(
-      transitionMarkInteraction(suppressed, { type: "modifier-up", action: "move" }).state,
+      transitionMarkInteraction(suppressed, { type: "modifiers", keys: { meta: false, alt: false } }).state,
     ).toBe(initialMarkInteraction);
   });
 
   it("commits only a move beyond 4px and lets an active gesture outlive Command", () => {
     const pending = transitionMarkInteraction(initialMarkInteraction, {
-      type: "modifier-down",
-      action: "move",
+      type: "modifiers",
+      keys: { meta: true, alt: false },
     }).state;
     const pressed = transitionMarkInteraction(pending, {
       type: "pointer-down",
@@ -58,8 +58,8 @@ describe("mark interaction policy", () => {
       point: { x: 15, y: 20 },
     }).state;
     const releasedCommand = transitionMarkInteraction(moving, {
-      type: "modifier-up",
-      action: "move",
+      type: "modifiers",
+      keys: { meta: false, alt: false },
     }).state;
     const completed = transitionMarkInteraction(releasedCommand, {
       type: "pointer-up",
@@ -73,8 +73,8 @@ describe("mark interaction policy", () => {
 
   it("deletes only when Option pointer-up is on the pressed target", () => {
     const pending = transitionMarkInteraction(initialMarkInteraction, {
-      type: "modifier-down",
-      action: "delete",
+      type: "modifiers",
+      keys: { meta: false, alt: true },
     }).state;
     const pressed = transitionMarkInteraction(pending, {
       type: "pointer-down",
@@ -93,8 +93,8 @@ describe("mark interaction policy", () => {
     ).toBeUndefined();
 
     const releasedOption = transitionMarkInteraction(pressed, {
-      type: "modifier-up",
-      action: "delete",
+      type: "modifiers",
+      keys: { meta: false, alt: false },
     }).state;
     const completed = transitionMarkInteraction(releasedOption, {
       type: "pointer-up",
@@ -143,7 +143,96 @@ describe("mark interaction policy", () => {
     expect(completed.outcome).toEqual({ kind: "delete", index: 1 });
     expect(completed.state).toEqual(latched);
     expect(
+      transitionMarkInteraction(latched, { type: "modifiers", keys: { meta: true, alt: true } })
+        .state,
+    ).toBe(latched);
+    expect(
       transitionMarkInteraction(completed.state, { type: "unlatch-delete" }).state,
     ).toBe(initialMarkInteraction);
+  });
+
+  it("enters duplicate discovery when Command and Option are held together in either order", () => {
+    const keys = (meta: boolean, alt: boolean) => ({ type: "modifiers" as const, keys: { meta, alt } });
+    const commandFirst = transitionMarkInteraction(
+      transitionMarkInteraction(initialMarkInteraction, keys(true, false)).state,
+      keys(true, true),
+    ).state;
+    expect(commandFirst).toMatchObject({ phase: "discovery", action: "duplicate" });
+
+    const optionFirst = transitionMarkInteraction(
+      transitionMarkInteraction(initialMarkInteraction, keys(false, true)).state,
+      keys(true, true),
+    ).state;
+    expect(optionFirst).toMatchObject({ phase: "discovery", action: "duplicate" });
+
+    expect(transitionMarkInteraction(commandFirst, keys(true, false)).state).toMatchObject({
+      phase: "discovery",
+      action: "move",
+    });
+  });
+
+  it("pauses instead of revealing deletion when Command is released first from duplicate discovery", () => {
+    const keys = (meta: boolean, alt: boolean) => ({ type: "modifiers" as const, keys: { meta, alt } });
+    const duplicate = transitionMarkInteraction(initialMarkInteraction, keys(true, true)).state;
+    const paused = transitionMarkInteraction(duplicate, keys(false, true)).state;
+    expect(paused).toMatchObject({ phase: "suppressed" });
+    expect(transitionMarkInteraction(paused, { type: "reveal" }).state).toBe(paused);
+    expect(
+      transitionMarkInteraction(paused, {
+        type: "pointer-down",
+        pointerId: 1,
+        point: { x: 1, y: 1 },
+        targetIndex: 0,
+      }).state,
+    ).toBe(paused);
+
+    const released = transitionMarkInteraction(paused, keys(false, false)).state;
+    expect(released).toBe(initialMarkInteraction);
+    expect(transitionMarkInteraction(released, keys(false, true)).state).toMatchObject({
+      phase: "discovery",
+      action: "delete",
+    });
+  });
+
+  it("commits a duplicate only after a drag and decides move or duplicate by Option at release", () => {
+    const keys = (meta: boolean, alt: boolean) => ({ type: "modifiers" as const, keys: { meta, alt } });
+    const duplicate = transitionMarkInteraction(initialMarkInteraction, keys(true, true)).state;
+    const pressed = transitionMarkInteraction(duplicate, {
+      type: "pointer-down",
+      pointerId: 1,
+      point: { x: 10, y: 10 },
+      targetIndex: 0,
+    }).state;
+    const release = (state: typeof pressed, x: number, y: number) =>
+      transitionMarkInteraction(state, {
+        type: "pointer-up",
+        pointerId: 1,
+        point: { x, y },
+        targetIndex: null,
+      });
+
+    expect(release(pressed, 12, 10).outcome).toBeUndefined();
+
+    const dragging = transitionMarkInteraction(pressed, {
+      type: "pointer-move",
+      pointerId: 1,
+      point: { x: 40, y: 30 },
+    }).state;
+    expect(dragging).toMatchObject({ phase: "gesture", action: "duplicate", moving: true });
+    const duplicated = release(dragging, 50, 40);
+    expect(duplicated.outcome).toEqual({ kind: "duplicate", index: 0, dx: 40, dy: 30 });
+    expect(duplicated.state).toMatchObject({ phase: "discovery", action: "duplicate" });
+
+    const optionReleased = transitionMarkInteraction(dragging, keys(true, false)).state;
+    expect(optionReleased).toMatchObject({ phase: "gesture", action: "move" });
+    expect(release(optionReleased, 50, 40).outcome).toEqual({ kind: "move", index: 0, dx: 40, dy: 30 });
+
+    const optionAgain = transitionMarkInteraction(optionReleased, keys(true, true)).state;
+    expect(release(optionAgain, 50, 40).outcome).toMatchObject({ kind: "duplicate" });
+
+    const commandReleased = transitionMarkInteraction(dragging, keys(false, true)).state;
+    const afterCommandRelease = release(commandReleased, 50, 40);
+    expect(afterCommandRelease.outcome).toMatchObject({ kind: "duplicate" });
+    expect(afterCommandRelease.state).toMatchObject({ phase: "suppressed" });
   });
 });

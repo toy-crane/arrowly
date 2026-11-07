@@ -3,8 +3,34 @@ import type { Point } from "../shared/drawing";
 export const DISCOVERY_REVEAL_DELAY_MS = 200;
 export const MOVE_GESTURE_THRESHOLD_PX = 4;
 
-export type MarkAction = "move" | "delete";
+export type MarkAction = "move" | "duplicate" | "delete";
 type InteractionSource = "modifier" | "latched";
+
+/** 지금 눌려 있는 상호작용 수식키. 키 이벤트마다 전체 스냅숏을 받는다. */
+export type ModifierKeys = { meta: boolean; alt: boolean };
+
+const NO_KEYS: ModifierKeys = { meta: false, alt: false };
+/** 누른 순서와 무관하게 지금 눌린 키 조합이 탐색 동작을 정한다. */
+const actionForKeys = (keys: ModifierKeys): MarkAction | null =>
+  keys.meta && keys.alt ? "duplicate" : keys.meta ? "move" : keys.alt ? "delete" : null;
+const anyKeyHeld = (keys: ModifierKeys) => keys.meta || keys.alt;
+
+/**
+ * 키 조합이 바뀐 뒤의 탐색 상태. 복제를 하다 `⌘`만 먼저 떼서 `⌥`만 남으면
+ * 삭제 탐색으로 넘어가지 않고 모든 키를 뗄 때까지 멈춘다.
+ */
+const discoveryForKeys = (
+  previous: MarkAction,
+  keys: ModifierKeys,
+  visible: boolean,
+): MarkInteractionState => {
+  const action = actionForKeys(keys);
+  if (!action) return initialMarkInteraction;
+  if (previous !== "delete" && action === "delete") {
+    return { phase: "suppressed", action: previous, keys };
+  }
+  return { phase: "discovery", action, source: "modifier", visible, keys };
+};
 
 export type MarkInteractionState =
   | { phase: "idle" }
@@ -13,9 +39,9 @@ export type MarkInteractionState =
       action: MarkAction;
       source: InteractionSource;
       visible: boolean;
-      modifierHeld: boolean;
+      keys: ModifierKeys;
     }
-  | { phase: "suppressed"; action: MarkAction }
+  | { phase: "suppressed"; action: MarkAction; keys: ModifierKeys }
   | {
       phase: "gesture";
       action: MarkAction;
@@ -26,14 +52,13 @@ export type MarkInteractionState =
       current: Point;
       moving: boolean;
       fieldVisible: boolean;
-      modifierHeld: boolean;
+      keys: ModifierKeys;
     };
 
 export const initialMarkInteraction: MarkInteractionState = { phase: "idle" };
 
 export type MarkInteractionEvent =
-  | { type: "modifier-down"; action: MarkAction }
-  | { type: "modifier-up"; action: MarkAction }
+  | { type: "modifiers"; keys: ModifierKeys }
   | { type: "shortcut-chord" }
   | { type: "reveal" }
   | { type: "latch-delete" }
@@ -60,6 +85,7 @@ export type MarkInteractionEvent =
 
 export type MarkInteractionOutcome =
   | { kind: "move"; index: number; dx: number; dy: number }
+  | { kind: "duplicate"; index: number; dx: number; dy: number }
   | { kind: "delete"; index: number };
 
 export type MarkInteractionTransition = {
@@ -81,17 +107,10 @@ const discoveryAfterGesture = (
       action: "delete",
       source: "latched",
       visible: true,
-      modifierHeld: false,
+      keys: NO_KEYS,
     };
   }
-  if (!state.modifierHeld) return initialMarkInteraction;
-  return {
-    phase: "discovery",
-    action: state.action,
-    source: "modifier",
-    visible: state.fieldVisible,
-    modifierHeld: true,
-  };
+  return discoveryForKeys(state.action, state.keys, state.fieldVisible);
 };
 
 export function transitionMarkInteraction(
@@ -100,33 +119,26 @@ export function transitionMarkInteraction(
 ): MarkInteractionTransition {
   if (event.type === "reset") return { state: initialMarkInteraction };
 
-  if (event.type === "modifier-down") {
-    if (state.phase !== "idle") return { state };
-    return {
-      state: {
-        phase: "discovery",
-        action: event.action,
-        source: "modifier",
-        visible: false,
-        modifierHeld: true,
-      },
-    };
-  }
-
-  if (event.type === "modifier-up") {
-    if (
-      ((state.phase === "discovery" && state.source === "modifier") ||
-        state.phase === "suppressed") &&
-      state.action === event.action
-    ) {
-      return { state: initialMarkInteraction };
+  if (event.type === "modifiers") {
+    const { keys } = event;
+    if (state.phase === "idle") {
+      const action = actionForKeys(keys);
+      if (!action) return { state };
+      return {
+        state: { phase: "discovery", action, source: "modifier", visible: false, keys },
+      };
     }
-    if (
-      state.phase === "gesture" &&
-      state.source === "modifier" &&
-      state.action === event.action
-    ) {
-      return { state: { ...state, modifierHeld: false } };
+    if (state.phase === "discovery" && state.source === "modifier") {
+      return { state: discoveryForKeys(state.action, keys, state.visible) };
+    }
+    if (state.phase === "suppressed") {
+      if (!anyKeyHeld(keys)) return { state: initialMarkInteraction };
+      return { state: { ...state, keys } };
+    }
+    if (state.phase === "gesture" && state.source === "modifier") {
+      // 끄는 도중 `⌥`를 바꾸면 이동과 복제가 오간다. 삭제 클릭은 그대로 둔다.
+      const action = state.action === "delete" ? "delete" : keys.alt ? "duplicate" : "move";
+      return { state: { ...state, action, keys } };
     }
     return { state };
   }
@@ -138,7 +150,7 @@ export function transitionMarkInteraction(
         action: "delete",
         source: "latched",
         visible: true,
-        modifierHeld: false,
+        keys: NO_KEYS,
       },
     };
   }
@@ -155,7 +167,7 @@ export function transitionMarkInteraction(
 
   if (event.type === "shortcut-chord") {
     if (state.phase === "discovery" && state.source === "modifier") {
-      return { state: { phase: "suppressed", action: state.action } };
+      return { state: { phase: "suppressed", action: state.action, keys: state.keys } };
     }
     return { state };
   }
@@ -180,7 +192,7 @@ export function transitionMarkInteraction(
         current: event.point,
         moving: false,
         fieldVisible: state.visible,
-        modifierHeld: state.modifierHeld,
+        keys: state.keys,
       },
     };
   }
@@ -193,7 +205,7 @@ export function transitionMarkInteraction(
         current: event.point,
         moving:
           state.moving ||
-          (state.action === "move" &&
+          (state.action !== "delete" &&
             distanceFromOrigin(state, event.point) > MOVE_GESTURE_THRESHOLD_PX),
       },
     };
@@ -208,7 +220,7 @@ export function transitionMarkInteraction(
     if (state.phase !== "gesture" || state.pointerId !== event.pointerId) return { state };
     const nextState = discoveryAfterGesture(state);
     if (
-      state.action === "move" &&
+      state.action !== "delete" &&
       state.targetIndex !== null &&
       (state.moving ||
         distanceFromOrigin(state, event.point) > MOVE_GESTURE_THRESHOLD_PX)
@@ -216,7 +228,7 @@ export function transitionMarkInteraction(
       return {
         state: nextState,
         outcome: {
-          kind: "move",
+          kind: state.action,
           index: state.targetIndex,
           dx: event.point.x - state.origin.x,
           dy: event.point.y - state.origin.y,
