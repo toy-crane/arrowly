@@ -413,6 +413,8 @@ describe("OverlayApp", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "marker-magnifier" }));
     await waitFor(() => expect(screen.getByTestId("canvas")).toHaveAttribute("data-tool", "magnifier"));
+    // 휠 리스너는 렌즈 effect가 붙인다. 느린 CI에서는 렌더 직후 아직 붙지 않았을 수 있다.
+    await waitFor(() => expect(document.body.style.cursor).toBe("none"));
     act(() => {
       fireEvent.wheel(window, { deltaY: -200 });
     });
