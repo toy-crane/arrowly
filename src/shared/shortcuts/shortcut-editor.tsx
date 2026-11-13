@@ -16,6 +16,7 @@ import {
   type ControlId,
   type Controls,
   controlSymbols,
+  isToolSizeAccelerator,
   type ModifierName,
   updateControls,
 } from "./controls";
@@ -85,6 +86,10 @@ function localValidationError(
   // text는 전역 미등록 로컬 키라 수식키 없는 단독 키를 허용한다.
   if (parts.length < 2 && id !== "text") return t("shortcut.error.modifierRequired");
   if (UNDO_ACCELS.has(accel)) return t("shortcut.error.undo");
+  // 오버레이는 크기 조절 키를 먼저 처리하고, 전역 키는 반대로 크기 조절을 가로챈다.
+  if (isToolSizeAccelerator(accel, controls)) {
+    return t("shortcut.error.toolSize");
+  }
   if (Object.entries(shortcuts).some(([other, value]) => other !== id && value === accel)) {
     return t("shortcut.error.duplicate");
   }

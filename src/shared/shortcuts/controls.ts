@@ -23,7 +23,8 @@ export type ControlError =
   | "gestureConflict"
   | "duplicateNeedsMove"
   | "colorCharacter"
-  | "colorTaken";
+  | "colorTaken"
+  | "sizeTaken";
 
 export type ControlUpdate = { ok: true; controls: Controls } | { ok: false; error: ControlError };
 
@@ -66,7 +67,10 @@ export function anyGestureModifierHeld(e: ModifierEvent, controls: Controls): bo
 }
 
 /** 도구 크기 조절 키면 +1/−1, 아니면 0. Shift는 지정되지 않았으면 무시한다. */
-export function sizeStepOf(e: KeyboardEvent, controls: Controls): -1 | 0 | 1 {
+export function sizeStepOf(
+  e: ModifierEvent & Pick<KeyboardEvent, "code">,
+  controls: Controls,
+): -1 | 0 | 1 {
   const direction =
     e.code === "Equal" || e.code === "NumpadAdd"
       ? 1
@@ -80,6 +84,20 @@ export function sizeStepOf(e: KeyboardEvent, controls: Controls): -1 | 0 | 1 {
       : isHeld(e, name) === controls.size.includes(name),
   );
   return matches ? direction : 0;
+}
+
+/** accelerator 문자열("Alt+Minus")을 누르면 도구 크기 조절이 먼저 가로채는가. */
+export function isToolSizeAccelerator(accel: string, controls: Controls): boolean {
+  const parts = accel.split("+");
+  const mods = new Set(parts.slice(0, -1));
+  const event = {
+    code: parts[parts.length - 1],
+    ctrlKey: mods.has("Control"),
+    altKey: mods.has("Alt"),
+    shiftKey: mods.has("Shift"),
+    metaKey: mods.has("Cmd"),
+  };
+  return sizeStepOf(event, controls) !== 0;
 }
 
 /** 빠른 색 팔레트 키를 수식키 없이 눌렀는가. */
@@ -127,7 +145,7 @@ export function updateControls(
   controls: Controls,
   id: ControlId,
   value: ModifierName[] | string,
-  shortcuts: { text: string } = { text: "" },
+  shortcuts: { text: string } & Record<string, string> = { text: "" },
 ): ControlUpdate {
   if (id === "color") {
     const code = String(value);
@@ -138,7 +156,12 @@ export function updateControls(
   const held = ordered(value as ModifierName[]);
   if (id === "size") {
     if (held.length === 0) return { ok: false, error: "singleModifier" };
-    return { ok: true, controls: { ...controls, size: held } };
+    const next = { ...controls, size: held };
+    // 오버레이는 크기 조절 키를 단축키보다 먼저 처리하므로 같은 ± 조합을 쓰는 단축키가 죽는다.
+    if (Object.values(shortcuts).some((accel) => isToolSizeAccelerator(accel, next))) {
+      return { ok: false, error: "sizeTaken" };
+    }
+    return { ok: true, controls: next };
   }
   if (id === "duplicate") {
     if (held.includes("Control")) return { ok: false, error: "controlNotAllowed" };

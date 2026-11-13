@@ -8,6 +8,7 @@ export {
   isGestureModifier,
   isGestureModifierKey,
   isModifierName,
+  isToolSizeAccelerator,
   modifierSymbol,
   roleKeysOf,
   sizeStepOf,

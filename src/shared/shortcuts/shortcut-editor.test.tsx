@@ -352,4 +352,29 @@ describe("ShortcutEditor", () => {
     expect(within(row("Duplicate a mark")).queryByRole("button", { name: "Default" })).not.toBeInTheDocument();
     expect(within(row("Move a mark")).getByRole("button", { name: "Default" })).toBeInTheDocument();
   });
+
+  it("keeps tool size and shortcuts from claiming the same plus or minus combination", async () => {
+    settings.loadShortcuts.mockResolvedValue({ ...defaults, clear: "Alt+Minus" });
+    const user = userEvent.setup();
+    render(<ShortcutEditor />);
+    await waitFor(() => expect(field("Clear all marks")).toHaveTextContent("⌥−"));
+
+    await user.click(field("Adjust tool size"));
+    pressModifiers("Alt");
+    expect(
+      await within(row("Adjust tool size")).findByText(
+        "Another shortcut already uses this modifier with + or −. Choose another modifier.",
+      ),
+    ).toBeInTheDocument();
+    expect(settings.saveControls).not.toHaveBeenCalled();
+
+    await user.click(field("Clear all marks"));
+    fireEvent.keyDown(window, { code: "Equal", metaKey: true });
+    expect(
+      await within(row("Clear all marks")).findByText(
+        "Adjust tool size already uses this combination. Try another combination.",
+      ),
+    ).toBeInTheDocument();
+    expect(settings.saveShortcuts).not.toHaveBeenCalled();
+  });
 });

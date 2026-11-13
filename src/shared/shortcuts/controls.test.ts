@@ -4,6 +4,7 @@ import {
   controlSymbols,
   DEFAULT_CONTROLS,
   isGestureModifierKey,
+  isToolSizeAccelerator,
   roleKeysOf,
   sizeStepOf,
   updateControls,
@@ -136,6 +137,26 @@ describe("tool size modifier", () => {
     expect(sizeStepOf(key("Minus", { metaKey: true, shiftKey: true }), shifted.controls)).toBe(-1);
     expect(sizeStepOf(key("Minus", { metaKey: true }), shifted.controls)).toBe(0);
     expect(controlSymbols(shifted.controls, "size")).toEqual(["⇧", "⌘", "±"]);
+  });
+
+  it("rejects a size modifier whose plus or minus is already a shortcut", () => {
+    const shortcuts = { toggle: "Alt+Tab", board: "Shift+Alt+Tab", clear: "Alt+Minus", text: "KeyT" };
+    expect(updateControls(DEFAULT_CONTROLS, "size", ["Alt"], shortcuts)).toEqual({
+      ok: false,
+      error: "sizeTaken",
+    });
+    // Shift는 크기 조절에서 무시되므로 ⇧⌥= 단축키도 ⌥ 크기 조절과 겹친다
+    expect(
+      updateControls(DEFAULT_CONTROLS, "size", ["Alt"], { ...shortcuts, clear: "Shift+Alt+Equal" }),
+    ).toEqual({ ok: false, error: "sizeTaken" });
+    expect(updateControls(DEFAULT_CONTROLS, "size", ["Control"], shortcuts).ok).toBe(true);
+  });
+
+  it("tells whether a shortcut would be taken over by tool size", () => {
+    expect(isToolSizeAccelerator("Cmd+Minus", DEFAULT_CONTROLS)).toBe(true);
+    expect(isToolSizeAccelerator("Shift+Cmd+Equal", DEFAULT_CONTROLS)).toBe(true);
+    expect(isToolSizeAccelerator("Alt+Minus", DEFAULT_CONTROLS)).toBe(false);
+    expect(isToolSizeAccelerator("Cmd+KeyM", DEFAULT_CONTROLS)).toBe(false);
   });
 
   it("requires at least one modifier", () => {
