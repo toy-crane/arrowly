@@ -8,52 +8,24 @@ vi.mock("../shared/shortcuts", async (importOriginal) => {
 });
 
 describe("SettingsApp", () => {
-  it("separates customizable shortcuts from fixed gestures without editable controls", () => {
+  it("keeps only exit and undo controls fixed, shown without editable fields", () => {
     render(<SettingsApp />);
     expect(screen.getByRole("heading", { name: "Shortcuts & gestures" })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Customizable shortcuts" })).toBeInTheDocument();
     expect(screen.getByText("shortcut editor")).toBeInTheDocument();
 
-    const fixedHeading = screen.getByRole("heading", { name: "Fixed controls" });
-    const fixedSection = fixedHeading.closest("section")!;
-    expect(within(fixedSection).getByText("Move a mark")).toBeInTheDocument();
-    expect(within(fixedSection).getByText("Delete one mark")).toBeInTheDocument();
-    expect(screen.getByText("Undo")).toBeInTheDocument();
-    expect(screen.getByText("Redo")).toBeInTheDocument();
-    expect(screen.queryByText("Delete marks continuously")).not.toBeInTheDocument();
-    expect(screen.getByText("Adjust tool size")).toBeInTheDocument();
-    expect(screen.getByText("Finish drawing")).toBeInTheDocument();
-    expect(within(fixedSection).queryByRole("button")).not.toBeInTheDocument();
-    expect(screen.queryByText("Fixed")).not.toBeInTheDocument();
+    const fixed = screen.getByRole("group", { name: "Fixed" });
+    const rows = Array.from(fixed.querySelectorAll("[data-row]")).map((row) => row.textContent);
+    expect(rows).toEqual(["Undo⌘Z", "Redo⇧⌘Z", "Finish drawingEsc"]);
+    expect(within(fixed).queryByRole("button")).not.toBeInTheDocument();
+    expect(within(fixed).queryByText("Move a mark")).not.toBeInTheDocument();
+    expect(within(fixed).queryByText("Choose color")).not.toBeInTheDocument();
+    expect(within(fixed).queryByText("Adjust tool size")).not.toBeInTheDocument();
   });
 
-  it("lists cursor color picking as a fixed C gesture without color-specific shortcuts", () => {
-    render(<SettingsApp />);
-    const fixedSection = screen
-      .getByRole("heading", { name: "Fixed controls" })
-      .closest("section")!;
-    const colorRow = within(fixedSection).getByText("Choose color").closest("div")!;
-    expect(within(colorRow).getByText("C")).toBeInTheDocument();
-    expect(within(colorRow).queryByText("⌘")).not.toBeInTheDocument();
-    expect(within(colorRow).queryByText("1–5")).not.toBeInTheDocument();
-    // 잉크 5색 견본을 크롬에 두지 않는다 — 시각 언어 계약.
-    const inkColors = ["#FFD400", "#FF7A00", "#FF2D95", "#2ED573", "#00AEEF"];
-    for (const hex of inkColors) {
-      expect(colorRow.innerHTML).not.toContain(hex);
+  it("keeps ink color swatches out of the settings chrome", () => {
+    const { container } = render(<SettingsApp />);
+    for (const hex of ["#FFD400", "#FF7A00", "#FF2D95", "#2ED573", "#00AEEF"]) {
+      expect(container.innerHTML).not.toContain(hex);
     }
-  });
-
-  it("lists mark duplication as Command-Option drag right below moving a mark", () => {
-    render(<SettingsApp />);
-    const fixedSection = screen
-      .getByRole("heading", { name: "Fixed controls" })
-      .closest("section")!;
-    const labels = Array.from(fixedSection.querySelectorAll("div > span:first-child")).map(
-      (label) => label.textContent,
-    );
-    expect(labels.indexOf("Duplicate a mark")).toBe(labels.indexOf("Move a mark") + 1);
-
-    const duplicateRow = within(fixedSection).getByText("Duplicate a mark").closest("div")!;
-    expect(duplicateRow.textContent).toBe("Duplicate a mark⌘⌥drag");
   });
 });

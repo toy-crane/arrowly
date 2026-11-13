@@ -4,6 +4,7 @@ import { mockIPC } from "@tauri-apps/api/mocks";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi, Mock } from "vitest";
 import { installCanvasMock } from "../../test/canvas";
+import { DEFAULT_CONTROLS } from "../shared/shortcuts";
 import { DrawingCanvas, type DrawingCanvasHandle } from "./drawing-canvas";
 import type { DrawingTool } from "./tools";
 
@@ -1134,6 +1135,78 @@ describe("DrawingCanvas", () => {
         [20, 30],
         [70, 60],
       ]);
+    });
+
+    it("duplicates with a configured Command-Shift drag and no longer with Command-Option", () => {
+      const controls = { ...DEFAULT_CONTROLS, duplicate: "Shift" as const };
+      const { container } = render(
+        <DrawingCanvas {...baseProps} controls={controls} tool="freehand" onToolChange={vi.fn()} />,
+      );
+      const [baseCtx] = contexts;
+      const live = container.querySelectorAll("canvas")[1];
+      fireEvent.pointerDown(live, { button: 0, clientX: 20, clientY: 30, pointerId: 1 });
+      fireEvent.pointerMove(live, { clientX: 80, clientY: 70, pointerId: 1 });
+      fireEvent.pointerUp(live, { clientX: 80, clientY: 70, pointerId: 1 });
+
+      // ⌘⌥는 이제 이동이다
+      fireEvent.keyDown(window, { key: "Meta", code: "MetaLeft", metaKey: true });
+      fireEvent.keyDown(window, { key: "Alt", code: "AltLeft", metaKey: true, altKey: true });
+      expect(live.style.cursor).not.toBe("copy");
+      fireEvent.keyUp(window, { key: "Alt", code: "AltLeft", metaKey: true });
+      fireEvent.keyUp(window, { key: "Meta", code: "MetaLeft" });
+
+      fireEvent.keyDown(window, { key: "Meta", code: "MetaLeft", metaKey: true });
+      fireEvent.keyDown(window, { key: "Shift", code: "ShiftLeft", metaKey: true, shiftKey: true });
+      expect(live.style.cursor).toBe("copy");
+      const keys = { metaKey: true, shiftKey: true };
+      fireEvent.pointerDown(live, { button: 0, clientX: 20, clientY: 30, pointerId: 2, ...keys });
+      fireEvent.pointerMove(live, { clientX: 60, clientY: 50, pointerId: 2, ...keys });
+      vi.mocked(baseCtx.moveTo).mockClear();
+      fireEvent.pointerUp(live, { clientX: 70, clientY: 60, pointerId: 2, ...keys });
+      expect(vi.mocked(baseCtx.moveTo).mock.calls).toEqual([
+        [20, 30],
+        [70, 60],
+      ]);
+
+      // ⌘만 떼고 ⇧만 남으면 어떤 탐색도 아니고 클릭은 마크를 지우지 않는다
+      fireEvent.keyUp(window, { key: "Meta", code: "MetaLeft", shiftKey: true });
+      expect(live.style.cursor).toBe("default");
+      vi.mocked(baseCtx.moveTo).mockClear();
+      fireEvent.pointerDown(live, { button: 0, clientX: 20, clientY: 30, pointerId: 3, shiftKey: true });
+      fireEvent.pointerUp(live, { clientX: 20, clientY: 30, pointerId: 3, shiftKey: true });
+      fireEvent.keyUp(window, { key: "Shift", code: "ShiftLeft" });
+      fireEvent.keyDown(window, { key: "z", code: "KeyZ", metaKey: true });
+      // ⇧ 클릭은 아무것도 그리거나 지우지 않았으므로 되돌리면 복제본만 사라진다
+      expect(vi.mocked(baseCtx.moveTo).mock.calls).toEqual([[20, 30]]);
+    });
+
+    it("follows configured tool size and quick color palette keys", () => {
+      const onWidthStep = vi.fn();
+      const onOpenChange = vi.fn();
+      const controls = { ...DEFAULT_CONTROLS, size: ["Alt" as const], color: "KeyQ" };
+      render(
+        <DrawingCanvas
+          {...baseProps}
+          controls={controls}
+          tool="freehand"
+          onToolChange={vi.fn()}
+          onWidthStep={onWidthStep}
+          onQuickColorPaletteOpenChange={onOpenChange}
+        />,
+      );
+      fireEvent.keyDown(window, { code: "Equal", metaKey: true });
+      expect(onWidthStep).not.toHaveBeenCalled();
+      fireEvent.keyDown(window, { code: "Equal", altKey: true });
+      expect(onWidthStep).toHaveBeenCalledWith(1);
+
+      fireEvent.keyDown(window, { code: "KeyC" });
+      expect(screen.queryByRole("group", { name: "Quick color palette" })).not.toBeInTheDocument();
+      fireEvent.keyUp(window, { code: "KeyC" });
+      fireEvent.keyDown(window, { code: "KeyQ" });
+      expect(screen.getByRole("group", { name: "Quick color palette" })).toBeInTheDocument();
+      fireEvent.keyUp(window, { code: "KeyQ" });
+      expect(screen.queryByRole("group", { name: "Quick color palette" })).not.toBeInTheDocument();
+      expect(onOpenChange.mock.calls).toEqual([[true], [false]]);
     });
 
     it("moves a geometric mark through the same Command-drag path", () => {

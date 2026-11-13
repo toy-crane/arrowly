@@ -1,6 +1,7 @@
 import { fireEvent, render } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { installCanvasMock, installResizeObserver } from "../../test/canvas";
+import { DEFAULT_CONTROLS } from "../shared/shortcuts";
 import { MiniCanvas } from "./mini-canvas";
 
 describe("MiniCanvas", () => {
@@ -151,5 +152,49 @@ describe("MiniCanvas", () => {
     expect(getByText("The screen is clear")).toBeInTheDocument();
     fireEvent.keyDown(window, { code: "KeyK", ctrlKey: true });
     expect(onCleared).toHaveBeenCalledOnce();
+  });
+
+  it("practices duplication and deletion with the configured keys", () => {
+    installCanvasMock();
+    const onDuplicated = vi.fn();
+    const onDeleted = vi.fn();
+    const props = {
+      clearAccel: "Control+KeyK",
+      controls: { ...DEFAULT_CONTROLS, duplicate: "Shift" as const, delete: "Shift" as const },
+      onFirstStroke: vi.fn(),
+      onMoved: vi.fn(),
+      onDuplicated,
+      onDeleted,
+      onRestored: vi.fn(),
+      onCleared: vi.fn(),
+    };
+    const { container, rerender } = render(
+      <MiniCanvas {...props} phase="draw" correctionStep="move" />,
+    );
+    const canvas = container.querySelector("canvas")!;
+    fireEvent.pointerDown(canvas, { button: 0, clientX: 20, clientY: 30, pointerId: 1 });
+    fireEvent.pointerMove(canvas, { clientX: 30, clientY: 40, pointerId: 1 });
+    fireEvent.pointerUp(canvas, { clientX: 40, clientY: 50, pointerId: 1 });
+
+    rerender(<MiniCanvas {...props} phase="correct" correctionStep="duplicate" />);
+    const old = { metaKey: true, altKey: true };
+    fireEvent.pointerDown(canvas, { button: 0, clientX: 30, clientY: 40, pointerId: 2, ...old });
+    fireEvent.pointerMove(canvas, { clientX: 80, clientY: 90, pointerId: 2, ...old });
+    fireEvent.pointerUp(canvas, { clientX: 80, clientY: 90, pointerId: 2, ...old });
+    expect(onDuplicated).not.toHaveBeenCalled();
+
+    const configured = { metaKey: true, shiftKey: true };
+    fireEvent.pointerDown(canvas, { button: 0, clientX: 30, clientY: 40, pointerId: 3, ...configured });
+    fireEvent.pointerMove(canvas, { clientX: 80, clientY: 90, pointerId: 3, ...configured });
+    fireEvent.pointerUp(canvas, { clientX: 80, clientY: 90, pointerId: 3, ...configured });
+    expect(onDuplicated).toHaveBeenCalledOnce();
+
+    rerender(<MiniCanvas {...props} phase="correct" correctionStep="delete" />);
+    fireEvent.pointerDown(canvas, { button: 0, clientX: 80, clientY: 90, pointerId: 4, altKey: true });
+    fireEvent.pointerUp(canvas, { clientX: 80, clientY: 90, pointerId: 4, altKey: true });
+    expect(onDeleted).not.toHaveBeenCalled();
+    fireEvent.pointerDown(canvas, { button: 0, clientX: 80, clientY: 90, pointerId: 5, shiftKey: true });
+    fireEvent.pointerUp(canvas, { clientX: 80, clientY: 90, pointerId: 5, shiftKey: true });
+    expect(onDeleted).toHaveBeenCalledOnce();
   });
 });

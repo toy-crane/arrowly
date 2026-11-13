@@ -153,7 +153,7 @@ pub fn apply_shortcuts(
     let new_toggle = parse_valid(&toggle)?;
     let new_board = parse_valid(&board)?;
     let new_clear = parse_valid(&clear)?;
-    let new_text = parse_valid_local(&text)?;
+    let new_text = parse_valid_local(&text, &crate::store::read_color_key(&app))?;
     let parsed = [new_toggle, new_board, new_clear, new_text];
     let has_duplicate = parsed
         .iter()
@@ -260,7 +260,7 @@ mod tests {
 
     #[tauri::command]
     fn validate_local_shortcut_command(accelerator: String) -> Result<(), String> {
-        parse_valid_local(&accelerator).map(|_| ())
+        parse_valid_local(&accelerator, crate::shortcut_policy::DEFAULT_COLOR_PALETTE).map(|_| ())
     }
 
     fn ipc_request_for(cmd: &str, accelerator: &str) -> InvokeRequest {

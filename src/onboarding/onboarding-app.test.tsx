@@ -6,6 +6,7 @@ import { OnboardingApp } from "./onboarding-app";
 
 const mocks = vi.hoisted(() => ({
   loadShortcuts: vi.fn(),
+  loadControls: vi.fn(),
   saveOnboardingDone: vi.fn(),
 }));
 
@@ -14,6 +15,7 @@ vi.mock("../shared/settings", async (importOriginal) => {
   return {
     ...actual,
     loadShortcuts: mocks.loadShortcuts,
+    loadControls: mocks.loadControls,
     saveOnboardingDone: mocks.saveOnboardingDone,
   };
 });
@@ -65,6 +67,10 @@ describe("OnboardingApp", () => {
       board: "Shift+Alt+Tab",
       clear: "Alt+Backspace",
       text: "KeyT",
+    });
+    mocks.loadControls.mockReset().mockImplementation(async () => {
+      const actual = await vi.importActual<typeof import("../shared/settings")>("../shared/settings");
+      return actual.DEFAULT_CONTROLS;
     });
     mocks.saveOnboardingDone.mockReset().mockResolvedValue(undefined);
     mockWindows("onboarding");
@@ -122,5 +128,18 @@ describe("OnboardingApp", () => {
     await waitFor(() => expect(commands.some((cmd) => cmd.includes("close"))).toBe(true));
     expect(screen.queryByText("shortcut editor")).not.toBeInTheDocument();
     expect(screen.queryByText("Toggle blackboard")).not.toBeInTheDocument();
+  });
+
+  it("shows the configured mark gesture keys on the correction cards", async () => {
+    const actual = await vi.importActual<typeof import("../shared/settings")>("../shared/settings");
+    mocks.loadControls.mockResolvedValue({ ...actual.DEFAULT_CONTROLS, move: "Shift", delete: "Cmd" });
+    const user = userEvent.setup();
+    render(<OnboardingApp />);
+    await user.click(screen.getByRole("button", { name: "draw canvas" }));
+    await user.click(screen.getByRole("button", { name: "Next" }));
+    await waitFor(() => expect(screen.getByText("Move a mark").textContent).toBe("⇧ dragMove a mark"));
+    expect(screen.getByText("Duplicate a mark").textContent).toBe("⇧⌥ dragDuplicate a mark");
+    expect(screen.getByText("Delete one mark").textContent).toBe("⌘ clickDelete one mark");
+    expect(screen.getByText("Undo").textContent).toBe("⌘ZUndo");
   });
 });

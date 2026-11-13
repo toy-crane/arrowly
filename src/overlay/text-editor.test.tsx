@@ -3,6 +3,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { installCanvasMock } from "../../test/canvas";
 import { stepTextSize, type TextSizeKey } from "../shared/constants";
+import { DEFAULT_CONTROLS } from "../shared/shortcuts";
 import { fontString } from "../shared/drawing";
 import { TextEditor } from "./text-editor";
 
@@ -122,6 +123,14 @@ describe("TextEditor", () => {
     fireEvent.keyDown(input, { code: "Minus", metaKey: true });
     expect(onStepSize).toHaveBeenLastCalledWith(-1);
     expect(input.style.font).toContain("44px");
+  });
+
+  it("steps text size with the configured tool size modifier", () => {
+    const { input, onStepSize } = renderEditor({ controls: { ...DEFAULT_CONTROLS, size: ["Alt"] } });
+    fireEvent.keyDown(input, { code: "Equal", metaKey: true });
+    expect(onStepSize).not.toHaveBeenCalled();
+    fireEvent.keyDown(input, { code: "Equal", altKey: true });
+    expect(onStepSize).toHaveBeenLastCalledWith(1);
   });
 
   it("reports outside pointerdown but ignores the input and marker", () => {

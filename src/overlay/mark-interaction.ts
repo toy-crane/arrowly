@@ -1,4 +1,5 @@
 import type { Point } from "../shared/drawing";
+import type { RoleKeys } from "../shared/shortcuts";
 
 export const DISCOVERY_REVEAL_DELAY_MS = 200;
 export const MOVE_GESTURE_THRESHOLD_PX = 4;
@@ -6,17 +7,20 @@ export const MOVE_GESTURE_THRESHOLD_PX = 4;
 export type MarkAction = "move" | "duplicate" | "delete";
 type InteractionSource = "modifier" | "latched";
 
-/** 지금 눌려 있는 상호작용 수식키. 키 이벤트마다 전체 스냅숏을 받는다. */
-export type ModifierKeys = { meta: boolean; alt: boolean };
+/**
+ * 지금 눌려 있는 상호작용 수식키를 옮기기·복제 추가·지우기 역할로 본 스냅숏.
+ * 키 이벤트마다 전체 스냅숏을 받는다. 같은 물리 키가 두 역할을 함께 가질 수 있다.
+ */
+export type ModifierKeys = RoleKeys;
 
-const NO_KEYS: ModifierKeys = { meta: false, alt: false };
+const NO_KEYS: ModifierKeys = { move: false, extra: false, del: false };
 /** 누른 순서와 무관하게 지금 눌린 키 조합이 탐색 동작을 정한다. */
 const actionForKeys = (keys: ModifierKeys): MarkAction | null =>
-  keys.meta && keys.alt ? "duplicate" : keys.meta ? "move" : keys.alt ? "delete" : null;
-const anyKeyHeld = (keys: ModifierKeys) => keys.meta || keys.alt;
+  keys.move && keys.extra ? "duplicate" : keys.move ? "move" : keys.del ? "delete" : null;
+const anyKeyHeld = (keys: ModifierKeys) => keys.move || keys.extra || keys.del;
 
 /**
- * 키 조합이 바뀐 뒤의 탐색 상태. 복제를 하다 `⌘`만 먼저 떼서 `⌥`만 남으면
+ * 키 조합이 바뀐 뒤의 탐색 상태. 복제를 하다 옮기기 키만 먼저 떼서 지우기 키만 남으면
  * 삭제 탐색으로 넘어가지 않고 모든 키를 뗄 때까지 멈춘다.
  */
 const discoveryForKeys = (
@@ -136,8 +140,8 @@ export function transitionMarkInteraction(
       return { state: { ...state, keys } };
     }
     if (state.phase === "gesture" && state.source === "modifier") {
-      // 끄는 도중 `⌥`를 바꾸면 이동과 복제가 오간다. 삭제 클릭은 그대로 둔다.
-      const action = state.action === "delete" ? "delete" : keys.alt ? "duplicate" : "move";
+      // 끄는 도중 복제 추가 키를 바꾸면 이동과 복제가 오간다. 삭제 클릭은 그대로 둔다.
+      const action = state.action === "delete" ? "delete" : keys.extra ? "duplicate" : "move";
       return { state: { ...state, action, keys } };
     }
     return { state };

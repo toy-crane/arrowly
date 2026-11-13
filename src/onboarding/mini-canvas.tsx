@@ -8,7 +8,7 @@ import {
   StrokeStore,
   translateMark,
 } from "../shared/drawing";
-import { matchesAccelerator } from "../shared/shortcuts";
+import { type Controls, DEFAULT_CONTROLS, matchesAccelerator, roleKeysOf } from "../shared/shortcuts";
 
 export type OnboardingPhase = "draw" | "correct" | "finish";
 export type CorrectionStep = "move" | "duplicate" | "delete" | "undo" | "complete";
@@ -17,6 +17,8 @@ type Props = {
   phase: OnboardingPhase;
   correctionStep: CorrectionStep;
   clearAccel: string;
+  /** 실습 판정에 쓰는 마크 제스처 키. 없으면 기본값. */
+  controls?: Controls;
   emptyLabel?: string;
   onFirstStroke: () => void;
   onMoved: () => void;
@@ -56,6 +58,7 @@ export function MiniCanvas({
   phase,
   correctionStep,
   clearAccel,
+  controls = DEFAULT_CONTROLS,
   emptyLabel,
   onFirstStroke,
   onMoved,
@@ -85,6 +88,8 @@ export function MiniCanvas({
   phaseRef.current = phase;
   correctionStepRef.current = correctionStep;
   clearAccelRef.current = clearAccel;
+  const controlsRef = useRef(controls);
+  controlsRef.current = controls;
   callbacksRef.current = {
     onFirstStroke,
     onMoved,
@@ -153,13 +158,14 @@ export function MiniCanvas({
       const hit = findMarkAt(store.marks, point);
       if (!hit) return;
 
-      if (correctionStepRef.current === "move" && event.metaKey && !event.altKey) {
+      const keys = roleKeysOf(event, controlsRef.current);
+      if (correctionStepRef.current === "move" && keys.move && !keys.extra) {
         gesture = { kind: "move", index: hit.index, mark: hit.mark, from: point, to: point };
         capture(event);
-      } else if (correctionStepRef.current === "duplicate" && event.metaKey && event.altKey) {
+      } else if (correctionStepRef.current === "duplicate" && keys.move && keys.extra) {
         gesture = { kind: "duplicate", index: hit.index, mark: hit.mark, from: point };
         capture(event);
-      } else if (correctionStepRef.current === "delete" && event.altKey && !event.metaKey) {
+      } else if (correctionStepRef.current === "delete" && keys.del && !keys.move) {
         gesture = { kind: "delete", index: hit.index, from: point };
         capture(event);
       }
