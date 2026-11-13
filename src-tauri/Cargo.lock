@@ -68,7 +68,7 @@ dependencies = [
 
 [[package]]
 name = "arrowly"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "core-graphics",
  "objc2-foundation",
