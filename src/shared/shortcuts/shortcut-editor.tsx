@@ -107,6 +107,8 @@ const DEFAULT_RECORDING: Record<ControlId, (c: Controls) => ModifierName[] | str
 function isChanged(id: RowId, shortcuts: Shortcuts, controls: Controls): boolean {
   if (isShortcutRow(id)) return shortcuts[id] !== DEFAULT_SHORTCUTS[id];
   if (id === "size") return controls.size.join("+") !== DEFAULT_CONTROLS.size.join("+");
+  // 옮기기 키가 기본 복제 추가 키를 쓰는 동안에는 복제 행만 되돌릴 수 없다.
+  if (id === "duplicate" && controls.move === DEFAULT_CONTROLS.duplicate) return false;
   return controls[id] !== DEFAULT_CONTROLS[id];
 }
 

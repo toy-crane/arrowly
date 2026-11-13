@@ -339,4 +339,17 @@ describe("ShortcutEditor", () => {
     await waitFor(() => expect(settings.loadShortcuts).toHaveBeenCalled());
     await waitFor(() => expect(settings.loadControls).toHaveBeenCalled());
   });
+
+  it("offers no duplicate reset when the move key already uses the default add-on key", async () => {
+    settings.loadControls.mockResolvedValue({
+      ...DEFAULT_CONTROLS,
+      move: "Alt",
+      duplicate: "Shift",
+      delete: "Cmd",
+    });
+    render(<ShortcutEditor />);
+    await waitFor(() => expect(field("Duplicate a mark")).toHaveTextContent("⌥⇧"));
+    expect(within(row("Duplicate a mark")).queryByRole("button", { name: "Default" })).not.toBeInTheDocument();
+    expect(within(row("Move a mark")).getByRole("button", { name: "Default" })).toBeInTheDocument();
+  });
 });
