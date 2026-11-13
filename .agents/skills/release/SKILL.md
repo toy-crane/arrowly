@@ -6,8 +6,8 @@ disable-model-invocation: true
 
 # Arrowly 릴리스
 
-버전을 올리고 태그를 push해 CI 릴리스 빌드를 발동한다. 산출물은 draft Release + 서명·공증된 universal DMG
-(배경: `docs/RELEASE.md`).
+버전을 올리고 태그를 push해 CI 릴리스 빌드를 발동한다. 산출물은 설치 파일 없이 변경 내역만 담은 draft Release다. CI는 Developer ID 서명·공증 빌드를
+러너 안에서만 검증하고 업로드하지 않는다. App Store 출시는 별도다(배경: `docs/RELEASE.md`).
 
 인자(`$ARGUMENTS`, 선택): `patch` | `minor` | `major` 또는 명시 버전(예: `0.3.0`).
 
@@ -28,9 +28,9 @@ disable-model-invocation: true
 
 ## 3. 버전 동기화 — 세 곳을 반드시 함께
 
-새 버전으로 다음 세 파일을 갱신한다 (하나라도 어긋나면 DMG 파일명·번들 메타데이터가 태그와 어긋난다):
+새 버전으로 다음 세 파일을 갱신한다 (하나라도 어긋나면 번들 메타데이터가 태그와 어긋난다):
 
-1. `src-tauri/tauri.conf.json` — `"version"` (DMG 파일명 `Arrowly_<version>_universal.dmg`의 출처)
+1. `src-tauri/tauri.conf.json` — `"version"` (Developer ID 번들 버전)
 2. `package.json` — `"version"`
 3. `src-tauri/Cargo.toml` — `version` (갱신 후 `Cargo.lock`의 arrowly 항목도 함께 바뀌면 포함)
 
@@ -51,7 +51,7 @@ disable-model-invocation: true
 
 - push 직후 Actions의 release 워크플로 실행 링크를 안내한다
   (https://github.com/toy-crane/arrowly/actions/workflows/release.yml).
-- 빌드(~10–20분) 완료 후 Releases 탭에 draft가 생긴다: DMG 에셋 + 자동 생성 노트.
+- 빌드(~10–20분) 완료 후 Releases 탭에 draft가 생긴다: 자동 생성 노트만 있고 에셋은 없다.
 - **이 스킬은 draft를 자동 공개하지 않는다** — 검증·게시는 `/publish` 스킬
   (`.agents/skills/publish`)로 진행한다. 게시 실행 전 사용자 확인은 그쪽에서 받는다.
 

@@ -3,9 +3,10 @@
 판매 경로와 심사 게이트는 `docs/decisions/paid-distribution.md`를 따른다. 빌드는 두 가지다.
 
 - **Mac App Store 빌드**: 판매용. 번들 ID `com.oddcorp.arrowly`, App Sandbox, Apple Distribution 서명 `.pkg`.
-- **Developer ID DMG 빌드**: 번들 ID `com.toycrane.arrowly`. App Store 판매를 시작하면 공개 게시하지 않고 내부 검증과 게이트 실패 대비용으로만 쓴다.
+- **Developer ID DMG 빌드**: 번들 ID `com.toycrane.arrowly`. App Store 판매 중(2026-11-04~)에는 공개 게시하지 않고 내부 검증과 게이트 실패 대비용으로만 쓴다.
 
-자동 업데이트 없음 — DMG 사용자는 새 버전을 다시 받는다. App Store 사용자는 App Store가 업데이트한다.
+새 버전은 App Store용 샌드박스 빌드를 업로드하고 심사를 거쳐 출시한다. 업데이트는 App Store가 제공한다.
+공개 GitHub Release는 설치 파일 없이 변경 내역만 보여 준다. 공개 Release와 Actions 아티팩트에 `.dmg`·`.app.tar.gz`·`.pkg`를 올리지 않는다.
 서명·공증이 왜 필요하고 어떻게 구성돼 있는지는 `SIGNING.md` 참조.
 
 ## Mac App Store 빌드
@@ -35,11 +36,12 @@ bash scripts/appstore.sh upload
 - 업로드 뒤 Apple 서버 처리 중 비공개 API 사용(ITMS-90338) 같은 문제가 발견되면 메일로 온다.
 - 웹뷰가 샌드박스에서 뜨려면 `com.apple.security.network.client` entitlement가 필요하다. 앱은 네트워크를 쓰지 않는다.
 
-## Developer ID DMG 빌드 — 태그 push
+## 변경 내역 Release — 태그 push
 
-버전 태그를 push하면 GitHub Actions(`.github/workflows/release.yml`)가 macOS 러너에서
-**Developer ID 서명·공증된** universal DMG를 빌드하고, draft Release에 첨부하며, 릴리스 노트를
-GitHub 내장 자동 생성(지난 태그 이후 머지된 PR 목록)으로 채운다.
+버전 태그를 push하면 GitHub Actions(`.github/workflows/release.yml`)가 릴리스 노트를
+GitHub 내장 자동 생성(지난 태그 이후 머지된 PR 목록)으로 채운 **draft Release**를 만든다.
+에셋은 올리지 않는다. 같은 실행에서 macOS 러너가 **Developer ID 서명·공증된** universal 앱을
+빌드해 `spctl`·`stapler`로 검증하지만, 산출물은 러너 밖으로 내보내지 않는다(게이트 실패 대비 경로 점검).
 
 > Claude Code에서는 `/release` 스킬(`.claude/skills/release`)이 아래 절차 전체
 > (버전 3곳 동기화 → 커밋 → 태그 → push)를 대신한다.
@@ -58,16 +60,16 @@ git tag v0.2.0 origin/main   # 커밋을 명시 — 워크트리/브랜치 무�
 git push origin v0.2.0
 ```
 
-- Actions 탭에서 빌드가 끝나면 **Releases** 탭에 draft가 생긴다: `Arrowly_<version>_universal.dmg` 에셋 + 자동 노트.
+- Actions 탭에서 빌드가 끝나면 **Releases** 탭에 draft가 생긴다: 자동 노트만 있고 에셋은 없다.
 - 내용을 확인하고 **Publish** 버튼으로 공개한다(draft는 자동 공개되지 않는다).
-  Claude Code에서는 `/publish` 스킬이 게시 전 검증(에셋·서명·공증)과 게시를 대신한다.
-- CI가 서명·공증까지 수행하므로 다른 Mac에서도 Gatekeeper 경고 없이 열린다.
+  Claude Code에서는 `/publish` 스킬이 게시 전 확인(에셋 없음·CI 성공)과 게시를 대신한다.
+- 태그 버전(Developer ID 빌드)과 App Store 버전(`src-tauri/tauri.appstore.conf.json`)은 따로 관리한다.
 - 필요한 저장소 Actions secrets(등록 완료, 인증서 만료 2031-07): `APPLE_CERTIFICATE`(base64 .p12),
   `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`, `KEYCHAIN_PASSWORD`,
   `APPLE_ID`, `APPLE_PASSWORD`(앱 암호), `APPLE_TEAM_ID`.
   인증서를 재발급하면 아래 수동 절차로 .p12를 다시 만들어 secrets를 갱신한다.
 
-## 0. 사전 요구 (수동 서명·공증 빌드)
+## 0. 사전 요구 (수동 서명·공증 빌드 — 내부 검증·게이트 실패 대비용)
 
 - **Apple Developer Program 가입** (연 $99) — 서명·공증에 필수. 가입 전에는 3장의 무서명 빌드까지만 가능.
 - Xcode 설치, rustup 타깃 2종:
@@ -121,11 +123,10 @@ xcrun stapler validate src-tauri/target/universal-apple-darwin/release/bundle/dm
 
 다른 Mac(또는 새 사용자 계정)에서 DMG를 받아 열었을 때 Gatekeeper 경고 없이 실행되면 최종 통과.
 
-## 5. 배포
+## 5. 배포 경로
 
-- DMG 파일명 규칙: `Arrowly_<버전>_universal.dmg`. App Store 판매를 시작한 뒤에는 공개 GitHub Release에 설치 파일을 두지 않는다(`docs/decisions/paid-distribution.md`).
+- DMG 파일명 규칙: `Arrowly_<버전>_universal.dmg`. 판매 중에는 공개 GitHub Release·Actions 아티팩트 등 공개 경로에 두지 않는다(`docs/decisions/paid-distribution.md`). 게이트 실패로 Polar 직판으로 가면 Polar 파일 전달로만 배포한다.
 - 버전 올리기: `src-tauri/tauri.conf.json`의 `version` (+ `package.json` 동기화)
-- 업데이트 안내는 수동(v1). 자동 업데이터는 비목표.
 
 ## 참고
 
