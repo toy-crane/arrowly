@@ -36,14 +36,22 @@ import {
   setQuickColorSelecting,
   setTextEditing,
 } from "../shared/ipc";
-import { matchesAccelerator } from "../shared/shortcuts";
+import {
+  anyGestureModifierHeld,
+  colorKeyPressed,
+  type Controls,
+  DEFAULT_CONTROLS,
+  isGestureModifierKey,
+  matchesAccelerator,
+  roleKeysOf,
+  sizeStepOf,
+} from "../shared/shortcuts";
 import {
   DISCOVERY_REVEAL_DELAY_MS,
   initialMarkInteraction,
   type MarkAction,
   type MarkInteractionEvent,
   type MarkInteractionState,
-  type ModifierKeys,
   transitionMarkInteraction,
 } from "./mark-interaction";
 import {
@@ -87,11 +95,6 @@ function isModifierKey(key: string): boolean {
   return key === "Meta" || key === "Shift" || key === "Alt" || key === "Control";
 }
 
-const modifierKeysOf = (e: KeyboardEvent | PointerEvent): ModifierKeys => ({
-  meta: e.metaKey,
-  alt: e.altKey,
-});
-
 const gestureCursor = (action: MarkAction) =>
   action === "move" ? "grabbing" : action === "duplicate" ? "copy" : "pointer";
 
@@ -101,6 +104,8 @@ type Props = {
   textSizeKey: TextSizeKey;
   clearAccel: string;
   textAccel: string;
+  /** 마크 제스처·도구 크기·빠른 색 팔레트 키 설정. 없으면 기본값. */
+  controls?: Controls;
   tool: DrawingTool;
   onToolChange: (tool: DrawingTool) => void;
   onWidthStep?: (delta: -1 | 1) => void;
@@ -175,6 +180,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
     textSizeKey,
     clearAccel,
     textAccel,
+    controls = DEFAULT_CONTROLS,
     tool,
     onToolChange,
     onWidthStep,
@@ -198,6 +204,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
   clearAccelRef.current = clearAccel;
   const textAccelRef = useRef(textAccel);
   textAccelRef.current = textAccel;
+  const controlsRef = useRef(controls);
+  controlsRef.current = controls;
   const activeToolRef = useRef(tool);
   activeToolRef.current = tool;
   const onToolChangeRef = useRef(onToolChange);
@@ -873,8 +881,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
         return;
       }
       const p = toPoint(e);
-      if ((e.metaKey || e.altKey) && interaction.phase === "idle") {
-        applyInteractionEvent({ type: "modifiers", keys: modifierKeysOf(e) });
+      if (anyGestureModifierHeld(e, controlsRef.current) && interaction.phase === "idle") {
+        applyInteractionEvent({ type: "modifiers", keys: roleKeysOf(e, controlsRef.current) });
       }
       if (interaction.phase === "discovery") {
         e.preventDefault();
@@ -901,7 +909,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
         renderLive();
         return;
       }
-      if (e.metaKey || e.altKey || interaction.phase === "suppressed") {
+      if (anyGestureModifierHeld(e, controlsRef.current) || interaction.phase === "suppressed") {
         e.preventDefault();
         return;
       }
@@ -1145,7 +1153,8 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
     };
 
     /** 수식키 조합이 바뀌면 탐색·제스처 상태와 커서·미리보기를 함께 맞춘다. */
-    const applyModifierKeys = (keys: ModifierKeys) => {
+    const applyModifierKeys = (e: KeyboardEvent) => {
+      const keys = roleKeysOf(e, controlsRef.current);
       const before = interaction;
       applyInteractionEvent({ type: "modifiers", keys });
       if (interaction === before) return;
@@ -1160,7 +1169,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
     };
 
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Meta" || e.key === "Alt") {
+      if (isGestureModifierKey(e.key, controlsRef.current)) {
         if (
           isEditableTarget(e) ||
           editingRef.current ||
@@ -1168,7 +1177,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
         ) {
           return;
         }
-        applyModifierKeys(modifierKeysOf(e));
+        applyModifierKeys(e);
         return;
       }
       if (!isModifierKey(e.key)) {
@@ -1177,13 +1186,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
         applyInteractionEvent({ type: "shortcut-chord" });
         if (interaction !== previous) renderLive();
       }
-      if (
-        e.code === "KeyC" &&
-        !e.metaKey &&
-        !e.altKey &&
-        !e.ctrlKey &&
-        !e.shiftKey
-      ) {
+      if (colorKeyPressed(e, controlsRef.current)) {
         if (
           e.repeat ||
           quickColorPaletteRef.current ||
@@ -1197,18 +1200,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
         openQuickColorPalette(lastPointerRef.current);
         return;
       }
-      const sizeDelta =
-        e.metaKey &&
-        !e.altKey &&
-        !e.ctrlKey &&
-        (e.code === "Equal" || e.code === "NumpadAdd")
-          ? 1
-          : e.metaKey &&
-              !e.altKey &&
-              !e.ctrlKey &&
-              (e.code === "Minus" || e.code === "NumpadSubtract")
-            ? -1
-            : 0;
+      const sizeDelta = sizeStepOf(e, controlsRef.current);
       if (sizeDelta) {
         e.preventDefault();
         if (sessionRef.current) {
@@ -1252,13 +1244,13 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
     };
 
     const onKeyUp = (e: KeyboardEvent) => {
-      if (e.code === "KeyC" && quickColorPaletteRef.current) {
+      if (e.code === controlsRef.current.color && quickColorPaletteRef.current) {
         e.preventDefault();
         commitQuickColor(quickColorPaletteRef.current.previewColor);
         return;
       }
-      if (e.key === "Meta" || e.key === "Alt") {
-        applyModifierKeys(modifierKeysOf(e));
+      if (isGestureModifierKey(e.key, controlsRef.current)) {
+        applyModifierKeys(e);
         return;
       }
     };
@@ -1368,6 +1360,7 @@ export const DrawingCanvas = forwardRef<DrawingCanvasHandle, Props>(function Dra
           initialCaret={session.initialCaret}
           onValueChange={(value) => updateSession((current) => ({ ...current, value }))}
           onStepSize={(delta) => setEditingSize(stepTextSize(session.sizeKey, delta))}
+          controls={controls}
           onCommit={() => finishSessionRef.current(true)}
           onCancel={() => finishSessionRef.current(false)}
           onOutsidePointerDown={(point) => {

@@ -11,7 +11,7 @@ describe("mark interaction policy", () => {
 
     const pending = transitionMarkInteraction(initialMarkInteraction, {
       type: "modifiers",
-      keys: { meta: true, alt: false },
+      keys: { move: true, extra: false, del: false },
     }).state;
     expect(pending).toMatchObject({ phase: "discovery", action: "move", visible: false });
 
@@ -22,14 +22,14 @@ describe("mark interaction policy", () => {
     expect(suppressed).toMatchObject({ phase: "suppressed", action: "move" });
     expect(transitionMarkInteraction(suppressed, { type: "reveal" }).state).toBe(suppressed);
     expect(
-      transitionMarkInteraction(suppressed, { type: "modifiers", keys: { meta: false, alt: false } }).state,
+      transitionMarkInteraction(suppressed, { type: "modifiers", keys: { move: false, extra: false, del: false } }).state,
     ).toBe(initialMarkInteraction);
   });
 
   it("commits only a move beyond 4px and lets an active gesture outlive Command", () => {
     const pending = transitionMarkInteraction(initialMarkInteraction, {
       type: "modifiers",
-      keys: { meta: true, alt: false },
+      keys: { move: true, extra: false, del: false },
     }).state;
     const pressed = transitionMarkInteraction(pending, {
       type: "pointer-down",
@@ -59,7 +59,7 @@ describe("mark interaction policy", () => {
     }).state;
     const releasedCommand = transitionMarkInteraction(moving, {
       type: "modifiers",
-      keys: { meta: false, alt: false },
+      keys: { move: false, extra: false, del: false },
     }).state;
     const completed = transitionMarkInteraction(releasedCommand, {
       type: "pointer-up",
@@ -74,7 +74,7 @@ describe("mark interaction policy", () => {
   it("deletes only when Option pointer-up is on the pressed target", () => {
     const pending = transitionMarkInteraction(initialMarkInteraction, {
       type: "modifiers",
-      keys: { meta: false, alt: true },
+      keys: { move: false, extra: true, del: true },
     }).state;
     const pressed = transitionMarkInteraction(pending, {
       type: "pointer-down",
@@ -94,7 +94,7 @@ describe("mark interaction policy", () => {
 
     const releasedOption = transitionMarkInteraction(pressed, {
       type: "modifiers",
-      keys: { meta: false, alt: false },
+      keys: { move: false, extra: false, del: false },
     }).state;
     const completed = transitionMarkInteraction(releasedOption, {
       type: "pointer-up",
@@ -143,7 +143,7 @@ describe("mark interaction policy", () => {
     expect(completed.outcome).toEqual({ kind: "delete", index: 1 });
     expect(completed.state).toEqual(latched);
     expect(
-      transitionMarkInteraction(latched, { type: "modifiers", keys: { meta: true, alt: true } })
+      transitionMarkInteraction(latched, { type: "modifiers", keys: { move: true, extra: true, del: true } })
         .state,
     ).toBe(latched);
     expect(
@@ -152,7 +152,7 @@ describe("mark interaction policy", () => {
   });
 
   it("enters duplicate discovery when Command and Option are held together in either order", () => {
-    const keys = (meta: boolean, alt: boolean) => ({ type: "modifiers" as const, keys: { meta, alt } });
+    const keys = (meta: boolean, alt: boolean) => ({ type: "modifiers" as const, keys: { move: meta, extra: alt, del: alt } });
     const commandFirst = transitionMarkInteraction(
       transitionMarkInteraction(initialMarkInteraction, keys(true, false)).state,
       keys(true, true),
@@ -172,7 +172,7 @@ describe("mark interaction policy", () => {
   });
 
   it("pauses instead of revealing deletion when Command is released first from duplicate discovery", () => {
-    const keys = (meta: boolean, alt: boolean) => ({ type: "modifiers" as const, keys: { meta, alt } });
+    const keys = (meta: boolean, alt: boolean) => ({ type: "modifiers" as const, keys: { move: meta, extra: alt, del: alt } });
     const duplicate = transitionMarkInteraction(initialMarkInteraction, keys(true, true)).state;
     const paused = transitionMarkInteraction(duplicate, keys(false, true)).state;
     expect(paused).toMatchObject({ phase: "suppressed" });
@@ -195,7 +195,7 @@ describe("mark interaction policy", () => {
   });
 
   it("commits a duplicate only after a drag and decides move or duplicate by Option at release", () => {
-    const keys = (meta: boolean, alt: boolean) => ({ type: "modifiers" as const, keys: { meta, alt } });
+    const keys = (meta: boolean, alt: boolean) => ({ type: "modifiers" as const, keys: { move: meta, extra: alt, del: alt } });
     const duplicate = transitionMarkInteraction(initialMarkInteraction, keys(true, true)).state;
     const pressed = transitionMarkInteraction(duplicate, {
       type: "pointer-down",
@@ -234,5 +234,33 @@ describe("mark interaction policy", () => {
     const afterCommandRelease = release(commandReleased, 50, 40);
     expect(afterCommandRelease.outcome).toMatchObject({ kind: "duplicate" });
     expect(afterCommandRelease.state).toMatchObject({ phase: "suppressed" });
+  });
+  it("leaves discovery when the move key is released and only a duplicate add-on key that is not the delete key remains", () => {
+    // 복제 ⌘⇧, 지우기 ⌥ 설정
+    const keys = (move: boolean, extra: boolean, del = false) => ({
+      type: "modifiers" as const,
+      keys: { move, extra, del },
+    });
+    const duplicate = transitionMarkInteraction(initialMarkInteraction, keys(true, true)).state;
+    expect(duplicate).toMatchObject({ phase: "discovery", action: "duplicate" });
+
+    const released = transitionMarkInteraction(duplicate, keys(false, true)).state;
+    expect(released).toBe(initialMarkInteraction);
+    expect(transitionMarkInteraction(released, keys(false, true)).state).toBe(initialMarkInteraction);
+    expect(transitionMarkInteraction(released, keys(false, false, true)).state).toMatchObject({
+      phase: "discovery",
+      action: "delete",
+    });
+
+    const pressed = transitionMarkInteraction(duplicate, {
+      type: "pointer-down",
+      pointerId: 1,
+      point: { x: 0, y: 0 },
+      targetIndex: 0,
+    }).state;
+    expect(transitionMarkInteraction(pressed, keys(true, false)).state).toMatchObject({
+      phase: "gesture",
+      action: "move",
+    });
   });
 });

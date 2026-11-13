@@ -6,14 +6,23 @@ const mocks = vi.hoisted(() => {
     get: vi.fn(async (key: string) => values.get(key)),
     set: vi.fn(async (key: string, value: unknown) => void values.set(key, value)),
     save: vi.fn(async () => undefined),
+    onKeyChange: vi.fn(async (key: string, cb: (value: unknown) => void) => {
+      listeners.set(key, cb);
+      return () => listeners.delete(key);
+    }),
   };
-  return { values, store, load: vi.fn(async () => store) };
+  const listeners = new Map<string, (value: unknown) => void>();
+  return { values, store, listeners, load: vi.fn(async () => store) };
 });
 
 vi.mock("@tauri-apps/plugin-store", () => ({ load: mocks.load, Store: class {} }));
 
 import {
+  DEFAULT_CONTROLS,
   DEFAULT_SHORTCUTS,
+  loadControls,
+  onControlsChanged,
+  saveControls,
   loadMarkerPos,
   loadShortcuts,
   loadTool,
@@ -123,5 +132,50 @@ describe("settings", () => {
     await saveOnboardingDone();
     expect(mocks.values.get("onboardingDone")).toBe(true);
     expect(mocks.store.save).toHaveBeenCalledOnce();
+  });
+
+  it("loads control keys with defaults and keeps a valid stored set", async () => {
+    await expect(loadControls()).resolves.toEqual(DEFAULT_CONTROLS);
+    const stored = { move: "Shift", duplicate: "Alt", delete: "Cmd", size: ["Alt"], color: "KeyQ" };
+    mocks.values.set("controls", stored);
+    await expect(loadControls()).resolves.toEqual(stored);
+  });
+
+  it("falls back per group when stored control keys break the rules", async () => {
+    mocks.values.set("controls", {
+      move: "Alt",
+      duplicate: "Shift",
+      delete: "Alt",
+      size: ["Hyper"],
+      color: "Escape",
+    });
+    await expect(loadControls()).resolves.toEqual(DEFAULT_CONTROLS);
+    mocks.values.set("controls", { move: "Control", size: [], color: "KeyQ" });
+    await expect(loadControls()).resolves.toEqual({ ...DEFAULT_CONTROLS, color: "KeyQ" });
+    mocks.values.set("controls", "broken");
+    await expect(loadControls()).resolves.toEqual(DEFAULT_CONTROLS);
+  });
+
+  it("persists control keys and notifies other windows of changes", async () => {
+    const next = { ...DEFAULT_CONTROLS, duplicate: "Shift" as const };
+    await saveControls(next);
+    expect(mocks.values.get("controls")).toEqual(next);
+    expect(mocks.store.save).toHaveBeenCalledOnce();
+
+    const seen: unknown[] = [];
+    const unlisten = await onControlsChanged((controls) => seen.push(controls));
+    mocks.listeners.get("controls")?.(next);
+    mocks.listeners.get("controls")?.(undefined);
+    expect(seen).toEqual([next, DEFAULT_CONTROLS]);
+    unlisten();
+    expect(mocks.listeners.has("controls")).toBe(false);
+  });
+
+  it("keeps a KeyC text shortcut once the quick color palette uses another key", async () => {
+    const shortcuts = { toggle: "Alt+Tab", board: "Shift+Alt+Tab", clear: "Alt+Backspace", text: "KeyC" };
+    mocks.values.set("shortcuts", shortcuts);
+    mocks.values.set("controls", { ...DEFAULT_CONTROLS, color: "KeyQ" });
+    await expect(loadShortcuts()).resolves.toEqual(shortcuts);
+    expect(mocks.store.set).not.toHaveBeenCalled();
   });
 });

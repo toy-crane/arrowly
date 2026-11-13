@@ -23,8 +23,12 @@ import {
 } from "../shared/ipc";
 import { t } from "../shared/i18n";
 import {
+  type Controls,
+  DEFAULT_CONTROLS,
   DEFAULT_SHORTCUTS,
+  loadControls,
   loadShortcuts,
+  onControlsChanged,
   loadTool,
   saveColor,
   saveTextSize,
@@ -50,6 +54,7 @@ export function OverlayApp() {
   const [textSizeKey, setTextSizeKey] = useState<TextSizeKey>(DEFAULT_TEXT_SIZE);
   const [clearAccel, setClearAccel] = useState(DEFAULT_SHORTCUTS.clear);
   const [textAccel, setTextAccel] = useState(DEFAULT_SHORTCUTS.text);
+  const [controls, setControls] = useState<Controls>(DEFAULT_CONTROLS);
   const [tool, setTool] = useState<DrawingTool>("freehand");
   const [drawingTool, setDrawingTool] = useState<DrawingInspectorTool>("freehand");
   const [editingTextSizeKey, setEditingTextSizeKey] = useState<TextSizeKey | null>(null);
@@ -135,6 +140,9 @@ export function OverlayApp() {
       setClearAccel(s.clear);
       setTextAccel(s.text);
     });
+    loadControls().then(setControls);
+    // 설정 창에서 바꾼 조작 키는 열린 오버레이에 바로 적용된다.
+    const unControls = onControlsChanged(setControls);
     loadTool().then(({ color, width, textSize }) => {
       setColor(color);
       setWidthKey(width);
@@ -181,6 +189,7 @@ export function OverlayApp() {
       unBoard.then((f) => f());
       unMarker.then((f) => f());
       unShortcuts.then((f) => f());
+      unControls.then((f) => f());
       unEnterText.then((f) => f());
     };
   }, []);
@@ -231,6 +240,7 @@ export function OverlayApp() {
         textSizeKey={textSizeKey}
         clearAccel={clearAccel}
         textAccel={textAccel}
+        controls={controls}
         tool={tool}
         onToolChange={(next) => {
           magnifierRequestRef.current += 1;

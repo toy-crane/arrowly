@@ -7,6 +7,9 @@ import { OverlayApp } from "./overlay-app";
 
 const mocks = vi.hoisted(() => ({
   loadShortcuts: vi.fn(),
+  loadControls: vi.fn(),
+  onControlsChanged: vi.fn(),
+  controlsListener: null as null | ((controls: unknown) => void),
   loadTool: vi.fn(),
   saveColor: vi.fn(),
   saveTextSize: vi.fn(),
@@ -27,6 +30,8 @@ vi.mock("../shared/settings", async (importOriginal) => {
   return {
     ...actual,
     loadShortcuts: mocks.loadShortcuts,
+    loadControls: mocks.loadControls,
+    onControlsChanged: mocks.onControlsChanged,
     loadTool: mocks.loadTool,
     saveColor: mocks.saveColor,
     saveTextSize: mocks.saveTextSize,
@@ -43,6 +48,7 @@ vi.mock("./drawing-canvas", () => ({
   DrawingCanvas: forwardRef(function MockDrawingCanvas({
       clearAccel,
       textAccel,
+      controls,
       tool,
       textSizeKey,
       onToolChange,
@@ -55,6 +61,7 @@ vi.mock("./drawing-canvas", () => ({
     }: {
       clearAccel: string;
       textAccel: string;
+      controls?: { color: string };
       tool: string;
       textSizeKey: string;
       onToolChange: (tool: "freehand" | "text" | "delete" | "magnifier") => void;
@@ -80,6 +87,7 @@ vi.mock("./drawing-canvas", () => ({
           data-testid="canvas"
           data-tool={tool}
           data-textaccel={textAccel}
+          data-colorkey={controls?.color}
           data-textsize={textSizeKey}
         >
           <button onClick={() => onToolChange(tool === "text" ? "freehand" : "text")}>text-toggle</button>
@@ -139,6 +147,28 @@ vi.mock("./marker", () => ({
   ),
 }));
 
+describe("OverlayApp controls", () => {
+  it("loads control keys and applies changes from the settings window immediately", async () => {
+    mockIPC(() => undefined);
+    mocks.loadShortcuts.mockResolvedValue({ toggle: "Alt+Tab", board: "Shift+Alt+Tab", clear: "Alt+Backspace", text: "KeyT" });
+    mocks.loadTool.mockResolvedValue({ color: "#2ED573", width: "thin", textSize: "small" });
+    const actual = await vi.importActual<typeof import("../shared/settings")>("../shared/settings");
+    mocks.loadControls.mockResolvedValue({ ...actual.DEFAULT_CONTROLS, color: "KeyQ" });
+    mocks.onControlsChanged.mockImplementation(async (cb: (controls: unknown) => void) => {
+      mocks.controlsListener = cb;
+      return () => {
+        mocks.controlsListener = null;
+      };
+    });
+    const { unmount } = render(<OverlayApp />);
+    await waitFor(() => expect(screen.getByTestId("canvas")).toHaveAttribute("data-colorkey", "KeyQ"));
+    act(() => mocks.controlsListener?.({ ...actual.DEFAULT_CONTROLS, color: "KeyR" }));
+    expect(screen.getByTestId("canvas")).toHaveAttribute("data-colorkey", "KeyR");
+    unmount();
+    await waitFor(() => expect(mocks.controlsListener).toBeNull());
+  });
+});
+
 describe("OverlayApp", () => {
   const commands: string[] = [];
   let magnifierAccessResult: "ready" | "requested" | "restartRequired" = "ready";
@@ -148,6 +178,17 @@ describe("OverlayApp", () => {
   beforeEach(() => {
     commands.length = 0;
     mocks.loadShortcuts.mockReset().mockResolvedValue({ toggle: "Alt+Tab", board: "Shift+Alt+Tab", clear: "Control+KeyK", text: "KeyT" });
+    mocks.loadControls.mockReset().mockImplementation(async () => {
+      const actual = await vi.importActual<typeof import("../shared/settings")>("../shared/settings");
+      return actual.DEFAULT_CONTROLS;
+    });
+    mocks.controlsListener = null;
+    mocks.onControlsChanged.mockReset().mockImplementation(async (cb: (controls: unknown) => void) => {
+      mocks.controlsListener = cb;
+      return () => {
+        mocks.controlsListener = null;
+      };
+    });
     mocks.loadTool
       .mockReset()
       .mockResolvedValue({ color: "#2ED573", width: "thin", textSize: "small" });
@@ -372,6 +413,8 @@ describe("OverlayApp", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "marker-magnifier" }));
     await waitFor(() => expect(screen.getByTestId("canvas")).toHaveAttribute("data-tool", "magnifier"));
+    // 휠 리스너는 렌즈 effect가 붙인다. 느린 CI에서는 렌더 직후 아직 붙지 않았을 수 있다.
+    await waitFor(() => expect(document.body.style.cursor).toBe("none"));
     act(() => {
       fireEvent.wheel(window, { deltaY: -200 });
     });

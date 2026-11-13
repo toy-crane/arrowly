@@ -1,6 +1,7 @@
 import { CSSProperties, useEffect, useLayoutEffect, useRef } from "react";
 import { textSizePx, type TextSizeKey } from "../shared/constants";
 import { fontString, layoutText, type Point } from "../shared/drawing";
+import { type Controls, DEFAULT_CONTROLS, sizeStepOf } from "../shared/shortcuts";
 
 /** 빈 입력에서도 캐럿이 보이는 최소 폭. */
 const MIN_WIDTH_PX = 10;
@@ -17,6 +18,8 @@ type Props = {
   initialCaret: number;
   onValueChange: (value: string) => void;
   onStepSize: (delta: -1 | 1) => void;
+  /** 도구 크기 수식키를 포함한 조작 키 설정 */
+  controls?: Controls;
   onCommit: () => void;
   onCancel: () => void;
   onOutsidePointerDown: (point: Point) => void;
@@ -36,6 +39,7 @@ export function TextEditor({
   initialCaret,
   onValueChange,
   onStepSize,
+  controls = DEFAULT_CONTROLS,
   onCommit,
   onCancel,
   onOutsidePointerDown,
@@ -96,14 +100,10 @@ export function TextEditor({
       finish(onCancel);
       return;
     }
-    if (e.metaKey && !e.altKey && !e.ctrlKey && (e.code === "Equal" || e.code === "NumpadAdd")) {
+    const sizeDelta = sizeStepOf(e.nativeEvent, controls);
+    if (sizeDelta) {
       e.preventDefault();
-      onStepSize(1);
-      return;
-    }
-    if (e.metaKey && !e.altKey && !e.ctrlKey && (e.code === "Minus" || e.code === "NumpadSubtract")) {
-      e.preventDefault();
-      onStepSize(-1);
+      onStepSize(sizeDelta);
     }
   };
 

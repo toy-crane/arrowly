@@ -8,6 +8,8 @@ pub const SETTINGS_FILE: &str = "settings.json";
 pub const KEY_SHORTCUTS: &str = "shortcuts";
 pub const KEY_MARKER_HIDDEN: &str = "markerHidden";
 pub const KEY_ONBOARDING_DONE: &str = "onboardingDone";
+/// 오버레이 조작 키 객체(move·duplicate·delete·size·color). 웹뷰가 소유하고 Rust는 color만 읽는다.
+pub const KEY_CONTROLS: &str = "controls";
 // 웹뷰가 소유하는 도구 기본값이지만 settings.json 스키마 lockstep을 위해 Rust에도 선언한다.
 #[allow(dead_code)]
 pub const KEY_TEXT_SIZE: &str = "textSize";
@@ -34,7 +36,8 @@ pub fn load_shortcuts_with_migration(app: &AppHandle) -> Option<StoredShortcuts>
     let clear = field("clear");
     let stored_text = field("text");
     let stored_board = field("board");
-    let text = crate::shortcut_policy::migrated_text_shortcut(stored_text.as_deref());
+    let color = read_color_key(app);
+    let text = crate::shortcut_policy::migrated_text_shortcut(stored_text.as_deref(), &color);
     let mut changed = text != stored_text;
     if changed {
         values.insert("text".into(), serde_json::json!(text));
@@ -64,6 +67,16 @@ pub fn load_shortcuts_with_migration(app: &AppHandle) -> Option<StoredShortcuts>
         clear,
         text,
     })
+}
+
+/// 지금 설정된 빠른 색 팔레트 키. 텍스트 키가 이 키를 쓰지 못하게 할 때 읽는다.
+pub fn read_color_key(app: &AppHandle) -> String {
+    let stored = app
+        .store(SETTINGS_FILE)
+        .ok()
+        .and_then(|s| s.get(KEY_CONTROLS))
+        .and_then(|v| v.get("color").and_then(|c| c.as_str()).map(String::from));
+    crate::shortcut_policy::color_palette_key(stored.as_deref()).to_string()
 }
 
 pub fn read_marker_hidden(app: &AppHandle) -> bool {

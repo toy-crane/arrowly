@@ -1,8 +1,15 @@
 import { CSSProperties, ReactNode, useEffect, useRef, useState } from "react";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { t } from "../shared/i18n";
-import { DEFAULT_SHORTCUTS, loadShortcuts, saveOnboardingDone } from "../shared/settings";
-import { acceleratorSymbols } from "../shared/shortcuts";
+import {
+  type Controls,
+  DEFAULT_CONTROLS,
+  DEFAULT_SHORTCUTS,
+  loadControls,
+  loadShortcuts,
+  saveOnboardingDone,
+} from "../shared/settings";
+import { acceleratorSymbols, modifierSymbol } from "../shared/shortcuts";
 import { CorrectionStep, MiniCanvas, OnboardingPhase } from "./mini-canvas";
 
 const TOTAL = 3;
@@ -14,6 +21,7 @@ export function OnboardingApp() {
   const [cleared, setCleared] = useState(false);
   const [toggleAccel, setToggleAccel] = useState(DEFAULT_SHORTCUTS.toggle);
   const [clearAccel, setClearAccel] = useState(DEFAULT_SHORTCUTS.clear);
+  const [controls, setControls] = useState<Controls>(DEFAULT_CONTROLS);
   const finishingRef = useRef(false);
 
   useEffect(() => {
@@ -21,6 +29,7 @@ export function OnboardingApp() {
       setToggleAccel(shortcuts.toggle);
       setClearAccel(shortcuts.clear);
     });
+    loadControls().then(setControls);
   }, []);
 
   useEffect(() => {
@@ -64,19 +73,24 @@ export function OnboardingApp() {
             <Task
               index={1}
               state={taskState(correctionStep, "move")}
-              keys={<><Kbd>⌘</Kbd> {t("onboarding.correct.drag")}</>}
+              keys={<><Kbd>{modifierSymbol(controls.move)}</Kbd> {t("onboarding.correct.drag")}</>}
               label={t("onboarding.correct.move")}
             />
             <Task
               index={2}
               state={taskState(correctionStep, "duplicate")}
-              keys={<><Kbd>⌘</Kbd><Kbd>⌥</Kbd> {t("onboarding.correct.drag")}</>}
+              keys={
+                <>
+                  <Kbd>{modifierSymbol(controls.move)}</Kbd>
+                  <Kbd>{modifierSymbol(controls.duplicate)}</Kbd> {t("onboarding.correct.drag")}
+                </>
+              }
               label={t("onboarding.correct.duplicate")}
             />
             <Task
               index={3}
               state={taskState(correctionStep, "delete")}
-              keys={<><Kbd>⌥</Kbd> {t("onboarding.correct.click")}</>}
+              keys={<><Kbd>{modifierSymbol(controls.delete)}</Kbd> {t("onboarding.correct.click")}</>}
               label={t("onboarding.correct.delete")}
             />
             <Task
@@ -115,6 +129,7 @@ export function OnboardingApp() {
         phase={phase}
         correctionStep={correctionStep}
         clearAccel={clearAccel}
+        controls={controls}
         emptyLabel={cleared ? t("onboarding.finish.cleared") : undefined}
         onFirstStroke={() => setDrew(true)}
         onMoved={() => setCorrectionStep("duplicate")}
