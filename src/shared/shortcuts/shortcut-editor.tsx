@@ -174,6 +174,8 @@ export function ShortcutEditor() {
       if (MODIFIER_ROWS.has(id)) {
         // 수식키 행은 누른 수식키를 모으고 첫 수식키를 뗄 때 확정한다.
         if (MODIFIER_OF_KEY[e.key]) {
+          // 방금 누른 수식키는 플래그가 아직 비어 있는 환경이 있어 키 이름으로도 담는다.
+          heldRef.current.add(MODIFIER_OF_KEY[e.key]);
           for (const [flag, name] of [
             [e.metaKey, "Cmd"],
             [e.altKey, "Alt"],
