@@ -3,7 +3,7 @@
 화면을 바꾸지 않고, 보고 있는 곳에 바로 설명하는 macOS 주석 오버레이입니다.
 자유곡선·화살표·도형·텍스트로 표시하고, 잘못 놓은 마크는 즉시 옮기거나 지운 뒤 설명이 끝나면 화면을 비웁니다.
 
-[최신 버전 다운로드](https://github.com/toy-crane/arrowly/releases/latest) · macOS universal (Apple Silicon + Intel)
+[Mac App Store에서 받기](https://apps.apple.com/app/id6822570522) · $14.99 일회성 구매 · 이후 업데이트 포함 · macOS 14 이상 (Apple Silicon + Intel)
 
 ![docs.claude-hunt.com 위에서 실행한 Arrowly](docs/assets/demo.png)
 
@@ -11,11 +11,10 @@ _실제 사용 예시는 [docs.claude-hunt.com](https://docs.claude-hunt.com) �
 
 ## 설치
 
-1. [Releases](https://github.com/toy-crane/arrowly/releases/latest)에서 `Arrowly_0.3.0_universal.dmg`를 받습니다.
-2. DMG를 열고 Arrowly를 **Applications** 폴더로 옮깁니다.
-3. Arrowly를 실행하면 메뉴바에 아이콘이 나타나고 약 20초의 첫 사용 튜토리얼이 열립니다.
+1. [Mac App Store](https://apps.apple.com/app/id6822570522)에서 **Arrowly: Draw on Screen**을 구매합니다($14.99, 일회성).
+2. App Store에서 설치한 뒤 Arrowly를 실행하면 메뉴바에 아이콘이 나타나고 약 20초의 첫 사용 튜토리얼이 열립니다.
 
-v0.3.0은 Developer ID 서명과 Apple 공증을 마친 빌드라 별도의 보안 예외 없이 실행됩니다. 접근성 권한도 요구하지 않습니다.
+이후 버전은 App Store가 추가 결제 없이 업데이트합니다. 접근성 권한은 요구하지 않습니다.
 
 ## 30초 만에 시작하기
 
@@ -78,7 +77,6 @@ v0.3.0은 Developer ID 서명과 Apple 공증을 마친 빌드라 별도의 보�
 - 마크는 화면 좌표에 남으므로 아래 화면의 스크롤이나 창 이동을 따라가지 않습니다.
 - 마크 저장·불러오기, 여러 페이지, 여러 마크 동시 선택은 제공하지 않습니다.
 - 앱을 재시작하면 마크와 블랙보드 상태가 초기화됩니다.
-- 자동 업데이트가 없어 새 버전은 Releases에서 다시 받아야 합니다.
 
 버그와 제안은 [Issues](https://github.com/toy-crane/arrowly/issues)에 남겨주세요.
 
